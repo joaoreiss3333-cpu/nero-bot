@@ -42,14 +42,14 @@ async function announceAction(channel, userName, ability) {
   }
 }
 
-// Mostra o aviso da ação. Se tiver GIF, ele fica rodando pelo tempo da animação e então é apagado.
-//   block: true  -> espera o GIF acabar (e o aviso sumir) antes de retornar, para o próximo
-//                   embed só aparecer depois; false -> retorna na hora e o aviso some sozinho depois.
-// Sem GIF o aviso fica no chat como registro e não espera nada.
+// Mostra o aviso da ação: ele fica na tela pelo tempo da animação (o GIF roda, se a habilidade
+// tiver um) e então é apagado. Vale para qualquer ação, com ou sem GIF.
+//   block: true  -> espera o aviso sumir antes de retornar, para o próximo embed só aparecer depois;
+//         false -> retorna na hora e o aviso some sozinho depois.
 async function playAction(channel, userName, ability, { block = true } = {}) {
-  const { message, hasGif } = await announceAction(channel, userName, ability);
+  const { message } = await announceAction(channel, userName, ability);
   const wait = ability.gifDurationMs ?? config.ACTION_GIF_WAIT_MS;
-  if (!message || !hasGif || wait <= 0) return;
+  if (!message || wait <= 0) return;
 
   const remove = () => message.delete().catch(() => {});
   if (!block) {

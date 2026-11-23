@@ -13,7 +13,7 @@ function gridSizeFor(playerCount) {
 
 module.exports = {
   EMBED_COLOR: 0xc0392b,
-  ACTION_GIF_WAIT_MS: 10_000,     // quanto tempo o jogo espera o GIF de uma ação rodar antes de seguir (0 = não espera)
+  ACTION_GIF_WAIT_MS: 10_000,     // quanto tempo o embed de uma ação fica na tela (o GIF roda) antes de sumir e o jogo seguir (0 = desliga)
   COLUMN_LETTERS,
   gridSizeFor,
   MOVES_PER_TURN: 2,              // casas por turno (sem diagonal)
