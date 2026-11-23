@@ -16,15 +16,16 @@ const PORTRAIT_DIR = path.join(__dirname, '..', 'data', 'portraits');
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const PORTRAIT_MAX_SIDE = 768;
 const NAME_MIN = 2, NAME_MAX = 32, AGE_MIN = 1, AGE_MAX = 999;
+const STORY_MIN = 20, STORY_MAX = 1500, STORY_PREVIEW = 400;
 
-const drafts = new Map(); // userId -> { name, age, portrait: Buffer|null, useAvatar: boolean }
+const drafts = new Map(); // userId -> { name, age, portrait: Buffer|null, useAvatar: boolean, story }
 
 const portraitFile = userId => path.join(PORTRAIT_DIR, `${userId}.png`);
 const button = (action, userId, label, emoji, style = ButtonStyle.Secondary) =>
   new ButtonBuilder().setCustomId(`fc:${action}:${userId}`).setLabel(label).setEmoji(emoji).setStyle(style);
 
 // Em qual passo o rascunho está: o primeiro item que ainda falta
-const stepOf = d => (!d.name ? 'name' : !d.age ? 'age' : (!d.portrait && !d.useAvatar) ? 'look' : 'review');
+const stepOf = d => (!d.name ? 'name' : !d.age ? 'age' : (!d.portrait && !d.useAvatar) ? 'look' : !d.story ? 'story' : 'review');
 
 // Baixa a imagem do link, confere se é imagem de verdade e reduz. Retorna { png } ou { error }.
 async function fetchPortrait(url) {
@@ -53,6 +54,7 @@ const NEXT_HELP = {
     'Como ele **se parece**?',
     'Envie o **link direto de uma imagem** (png, jpg ou webp) ou use o seu avatar do Discord.',
   ],
+  story: ['Qual é a **história** dele?', `Conte a origem e o passado do personagem (de ${STORY_MIN} a ${STORY_MAX} caracteres).`],
   review: ['Tudo certo? **Confira sua ficha**', 'Se estiver bom, confirme. Para mudar algo, use os botões de editar.'],
 };
 
@@ -74,6 +76,7 @@ function view(user, d, { editing = false } = {}) {
       line(!!d.name, 'name', 'Nome', d.name),
       line(!!d.age, 'age', 'Idade', `${d.age} anos`),
       line(!!(d.portrait || d.useAvatar), 'look', 'Aparência', lookText),
+      line(!!d.story, 'story', 'História', d.story && (d.story.length > STORY_PREVIEW ? `${d.story.slice(0, STORY_PREVIEW)}…` : d.story)),
     ].join('\n')))
     .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
 
@@ -94,14 +97,19 @@ function view(user, d, { editing = false } = {}) {
       button('askLook', id, 'Enviar link da imagem', '🖼️', ButtonStyle.Primary),
       button('avatar', id, 'Usar meu avatar', '👤'),
     ],
+    story: [button('askStory', id, 'Escrever história', '📖', ButtonStyle.Primary)],
     review: [
       button('confirm', id, 'Confirmar ficha', '✅', ButtonStyle.Success),
       button('askName', id, 'Nome', '✏️'),
       button('askAge', id, 'Idade', '🎂'),
       button('askLook', id, 'Aparência', '🖼️'),
+      button('askStory', id, 'História', '📖'),
     ],
   }[step];
-  container.addActionRowComponents(new ActionRowBuilder().addComponents(...rows, button('cancel', id, 'Cancelar', '✖️')));
+  const cancel = button('cancel', id, 'Cancelar', '✖️');
+  // Máximo de 5 botões por linha: na revisão o Cancelar vai para uma segunda linha
+  if (step === 'review') container.addActionRowComponents(new ActionRowBuilder().addComponents(...rows), new ActionRowBuilder().addComponents(cancel));
+  else container.addActionRowComponents(new ActionRowBuilder().addComponents(...rows, cancel));
 
   return { components: [container], flags: MessageFlags.IsComponentsV2, files, attachments: [] };
 }
@@ -109,7 +117,7 @@ function view(user, d, { editing = false } = {}) {
 // Comando /ficha: abre o rascunho (já preenchido se o jogador tiver uma ficha)
 async function startFicha(interaction) {
   const profile = getProfile(interaction.user.id);
-  const draft = { name: profile.name ?? null, age: profile.age ?? null, portrait: null, useAvatar: false };
+  const draft = { name: profile.name ?? null, age: profile.age ?? null, portrait: null, useAvatar: false, story: profile.story ?? null };
   if (profile.name) {
     try { draft.portrait = fs.readFileSync(portraitFile(interaction.user.id)); } catch { draft.useAvatar = true; }
   }
@@ -143,6 +151,16 @@ async function handleFicha(interaction) {
       return interaction.showModal(modal('look', ownerId, 'Aparência do personagem',
         input('value', 'Link da imagem', 'https://...', TextInputStyle.Paragraph).setMaxLength(1000)));
 
+    case 'askStory':
+      return interaction.showModal(modal('story', ownerId, 'História do personagem',
+        withValue(input('value', 'História', 'Origem, família, passado...', TextInputStyle.Paragraph).setMinLength(STORY_MIN).setMaxLength(STORY_MAX), draft.story)));
+
+    case 'story': {
+      const story = interaction.fields.getTextInputValue('value').trim();
+      if (story.length < STORY_MIN) return reply(`A história precisa ter pelo menos ${STORY_MIN} caracteres.`);
+      draft.story = story;
+      return interaction.update(view(interaction.user, draft, { editing }));
+    }
     case 'name': {
       const name = interaction.fields.getTextInputValue('value').trim().replace(/\s+/g, ' ');
       if (name.length < NAME_MIN) return reply(`O nome precisa ter pelo menos ${NAME_MIN} letras.`);
@@ -182,6 +200,7 @@ async function handleFicha(interaction) {
       const profile = getProfile(ownerId);
       profile.name = draft.name;
       profile.age = draft.age;
+      profile.story = draft.story;
       if (draft.portrait) {
         fs.mkdirSync(PORTRAIT_DIR, { recursive: true });
         fs.writeFileSync(portraitFile(ownerId), draft.portrait);
