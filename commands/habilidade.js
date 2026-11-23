@@ -27,7 +27,7 @@ module.exports = {
     const choices = ids
       .map(getAbility)
       .filter(a => a && a.type !== 'reaction' && a.name.toLowerCase().includes(focused))
-      .map(a => ({ name: `${a.name} (${TYPE_LABEL[a.type]})`, value: a.id }));
+      .map(a => ({ name: `${a.name} (${TYPE_LABEL[a.type]} · ${a.energyCost} energia)`, value: a.id }));
     await interaction.respond(choices.slice(0, 25));
   },
 
@@ -43,6 +43,9 @@ module.exports = {
     const ability = getAbility(interaction.options.getString('nome'));
     const owned = ability && abilitiesOf(me, ability.type).some(a => a.id === ability.id);
     if (!owned || ability.type === 'reaction') return fail(interaction, 'Você não possui essa habilidade.');
+    if (me.energy < ability.energyCost) {
+      return fail(interaction, `Energia insuficiente: **${ability.name}** custa ${ability.energyCost} e você tem ${me.energy}.`);
+    }
 
     if (ability.type === 'attack') {
       if (battle.turn.attacked) return fail(interaction, 'Você já usou sua ação de ataque neste turno.');
@@ -53,13 +56,15 @@ module.exports = {
       // O ataque só é resolvido quando o atacante encerra o turno (aí o defensor reage)
       battle.turn.attacked = true;
       battle.turn.queuedAttack = ability;
-      await interaction.reply({ content: `✅ **${ability.name}** preparado. Ele será executado quando você encerrar o turno.`, ephemeral: true });
-      return battle.message.edit(asEdit(await panelPayload(battle, `👊 ${me.name} preparou **${ability.name}**. O golpe acontece ao fim do turno.`)));
+      me.energy -= ability.energyCost;
+      await interaction.reply({ content: `✅ **${ability.name}** preparado (-${ability.energyCost} energia). Ele será executado quando você encerrar o turno.`, ephemeral: true });
+      return battle.message.edit(asEdit(await panelPayload(battle, `👊 ${me.name} preparou **${ability.name}** (-${ability.energyCost} energia). O golpe acontece ao fim do turno.`)));
     }
 
     // bonus
     if (battle.turn.bonusUsed) return fail(interaction, 'Você já usou sua ação bônus neste turno.');
     battle.turn.bonusUsed = true;
+    me.energy -= ability.energyCost;
     const text = ability.use(battle, me);
     await interaction.reply({ content: `✅ Você usou **${ability.name}**.`, ephemeral: true });
     return battle.message.edit(asEdit(await panelPayload(battle, text)));

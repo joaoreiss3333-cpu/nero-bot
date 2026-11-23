@@ -17,10 +17,7 @@ async function passTurn(battle, text, interaction = null) {
   else await battle.message.edit(frozen);
 
   nextTurn(battle);
-  const next = {
-    content: `<@${currentPlayer(battle).id}>, é a sua vez!`,
-    ...(await panelPayload(battle, text)),
-  };
+  const next = await panelPayload(battle, text, `<@${currentPlayer(battle).id}>, é a sua vez!`);
   battle.message = interaction
     ? await interaction.followUp({ ...next, fetchReply: true })
     : await battle.message.channel.send(next);
@@ -55,7 +52,10 @@ async function endTurn(battle, me, interaction) {
   }
 
   battle.pending = { attack, attackerId: me.id, timer: null };
-  if (abilitiesOf(defender, 'reaction').length === 0) return finishAttack(battle, null, interaction);
+  // Sem nenhuma reação que o defensor consiga pagar com a energia que tem, o golpe acontece direto
+  if (!abilitiesOf(defender, 'reaction').some(a => defender.energy >= a.energyCost)) {
+    return finishAttack(battle, null, interaction);
+  }
 
   battle.pending.timer = setTimeout(() => {
     if (battle.pending) finishAttack(battle, null).catch(console.error);
@@ -84,6 +84,9 @@ async function handleButton(interaction) {
       return ephemeral(interaction, `Aguardando a reação de ${defender.name}.`);
     }
     const reaction = me.abilities.includes(arg) ? getAbility(arg) : null;
+    if (reaction && me.energy < reaction.energyCost) {
+      return ephemeral(interaction, `Energia insuficiente: **${reaction.name}** custa ${reaction.energyCost} e você tem ${me.energy}.`);
+    }
     return finishAttack(battle, reaction, interaction);
   }
 

@@ -1,4 +1,4 @@
-const { EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { currentPlayer, opponentOf, checkStep, abilitiesOf } = require('./battle');
 const { renderBattleImage } = require('./image');
 
@@ -19,18 +19,22 @@ function controlRows(battle) {
   ];
 }
 
-// Botões com as reações que o defensor possui
+// Botões com as reações que o defensor possui (desativadas se faltar energia)
 function reactionRow(battle) {
   const defender = opponentOf(battle, battle.pending.attackerId);
   const buttons = abilitiesOf(defender, 'reaction').map(a =>
     btn(`react:${a.id}`, a.kind === 'dodge' ? ButtonStyle.Primary : ButtonStyle.Success)
-      .setLabel(a.name).setEmoji(a.emoji));
+      .setLabel(`${a.name} (-${a.energyCost} energia)`)
+      .setEmoji(a.emoji)
+      .setDisabled(defender.energy < a.energyCost));
   buttons.push(btn('react:nenhuma').setLabel('Não reagir'));
   return new ActionRowBuilder().addComponents(buttons);
 }
 
-// Monta a mensagem completa do painel: texto do que aconteceu, imagem (mapa + status) e botões.
-async function panelPayload(battle, text = '') {
+// Monta a mensagem do painel: texto do que aconteceu, imagem (mapa + status) e botões.
+// A imagem vai como anexo, sem embed: o Discord a exibe bem maior assim.
+// `ping` é uma linha de menção que vai no topo (ex: avisar de quem é a vez).
+async function panelPayload(battle, text = '', ping = '') {
   const placing = battle.phase === 'placement';
   let components;
   if (battle.over) components = [];
@@ -40,15 +44,13 @@ async function panelPayload(battle, text = '') {
   else if (battle.pending) components = [reactionRow(battle)];
   else components = controlRows(battle);
 
-  const image = await renderBattleImage(battle);
-  const embed = new EmbedBuilder()
-    .setColor(0x5a3b1a)
-    .setImage('attachment://batalha.png');
-  if (text) embed.setDescription(text);
-  if (placing) embed.setFooter({ text: 'Clique em "Escolher setor" para definir onde você começa.' });
-  else if (!battle.over) embed.setFooter({ text: 'Use /habilidade para atacar ou usar uma ação bônus.' });
+  let hint = '';
+  if (placing) hint = '-# Clique em "Escolher setor" e digite onde você quer começar (ex: C3).';
+  else if (!battle.over) hint = '-# Use /habilidade para atacar ou usar uma ação bônus.';
 
-  return { embeds: [embed], components, files: [new AttachmentBuilder(image, { name: 'batalha.png' })] };
+  const content = [ping, text, hint].filter(Boolean).join('\n');
+  const image = await renderBattleImage(battle);
+  return { content, components, files: [new AttachmentBuilder(image, { name: 'batalha.png' })] };
 }
 
 // Ao editar uma mensagem existente, `attachments: []` faz a imagem nova substituir a antiga

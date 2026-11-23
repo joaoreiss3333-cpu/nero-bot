@@ -74,10 +74,11 @@ async function handleChallenge(interaction) {
       loadAvatar(ch.challenger.avatarUrl),
       loadAvatar(ch.opponent.avatarUrl),
     ]);
-    battle.message = await interaction.editReply({
-      content: `<@${ch.challenger.id}> <@${ch.opponent.id}>, desafio aceito! Escolham onde querem começar.`,
-      ...asEdit(await panelPayload(battle, 'Cada jogador escolhe o setor inicial. O combate começa quando os dois estiverem prontos.')),
-    });
+    battle.message = await interaction.editReply(asEdit(await panelPayload(
+      battle,
+      'Cada jogador escolhe o setor inicial. O combate começa quando os dois estiverem prontos.',
+      `<@${ch.challenger.id}> <@${ch.opponent.id}>, desafio aceito! Escolham onde querem começar.`,
+    )));
   }
 }
 

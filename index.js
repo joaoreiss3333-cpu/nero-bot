@@ -24,7 +24,7 @@ client.on(Events.InteractionCreate, async interaction => {
     return;
   }
   const command = interaction.isChatInputCommand() ? client.commands.get(interaction.commandName) : null;
-  const isComponent = interaction.isButton() || interaction.isStringSelectMenu();
+  const isComponent = interaction.isButton() || interaction.isModalSubmit();
   if (!command && !isComponent) return;
   try {
     if (command) await command.execute(interaction);

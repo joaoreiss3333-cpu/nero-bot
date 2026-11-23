@@ -1,18 +1,19 @@
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { COLUMNS, ROWS, MAX_HP, MAX_MANA, MAX_ENERGY, MOVES_PER_TURN } = require('./config');
-const { DIRECTIONS } = require('./grid');
+const { DIRECTIONS, formatCoord } = require('./grid');
 const { currentPlayer, checkStep } = require('./battle');
 
 // Medidas lógicas da imagem. Ela é desenhada em resolução dobrada (SCALE) para ficar nítida
-// quando o Discord a reduz. O formato é mais largo que alto para o Discord exibi-la maior.
+// quando o Discord a reduz. As casas são mais largas que altas para a imagem não ficar muito
+// comprida (o Discord reduz imagens altas).
 const SCALE = 2;
-const CELL_W = 76;
-const CELL_H = 54;
-const GUTTER = 28; // faixa com as letras/números das coordenadas
-const MAP_W = GUTTER + COLUMNS.length * CELL_W + 4;
-const MAP_H = GUTTER + ROWS * CELL_H + 4;
-const PANEL_H = 272;
-const TOTAL_H = MAP_H + PANEL_H;
+const CELL_W = 90;
+const CELL_H = 56;
+const MAP_W = COLUMNS.length * CELL_W;
+const MAP_H = ROWS * CELL_H;
+const PANEL_H = 262;
+const W = MAP_W;
+const H = MAP_H + PANEL_H;
 
 const PLAYER_COLORS = ['#3b8fe0', '#e0453b'];
 const FONT = 'Georgia, "Times New Roman", serif';
@@ -26,13 +27,14 @@ function mulberry32(seed) {
   };
 }
 
-const cellOrigin = ({ col, row }) => ({ x: GUTTER + col * CELL_W, y: GUTTER + row * CELL_H });
+const cellOrigin = ({ col, row }) => ({ x: col * CELL_W, y: row * CELL_H });
 const cellCenter = pos => {
   const o = cellOrigin(pos);
   return { x: o.x + CELL_W / 2, y: o.y + CELL_H / 2 };
 };
 
-// Terreno gerado proceduralmente (sempre igual) + grade + coordenadas. Desenhado uma vez só.
+// Terreno gerado proceduralmente (sempre igual) + grade + coordenada em cada casa.
+// Desenhado uma vez só.
 let backgroundCache = null;
 function background() {
   if (backgroundCache) return backgroundCache;
@@ -40,9 +42,6 @@ function background() {
   const ctx = canvas.getContext('2d');
   ctx.scale(SCALE, SCALE);
   const rng = mulberry32(7);
-
-  ctx.fillStyle = '#2b2118';
-  ctx.fillRect(0, 0, MAP_W, MAP_H);
 
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLUMNS.length; c++) {
@@ -53,32 +52,36 @@ function background() {
   }
   for (let i = 0; i < 2600; i++) {
     ctx.fillStyle = rng() < 0.5 ? 'rgba(15,45,12,0.28)' : 'rgba(150,200,95,0.18)';
-    ctx.fillRect(GUTTER + rng() * (MAP_W - GUTTER), GUTTER + rng() * (MAP_H - GUTTER), 2 + rng() * 4, 1 + rng() * 2);
+    ctx.fillRect(rng() * MAP_W, rng() * MAP_H, 2 + rng() * 4, 1 + rng() * 2);
   }
 
   ctx.strokeStyle = 'rgba(255,255,255,0.22)';
   ctx.lineWidth = 1;
   for (let c = 0; c <= COLUMNS.length; c++) {
-    const x = GUTTER + c * CELL_W;
-    ctx.beginPath(); ctx.moveTo(x, GUTTER); ctx.lineTo(x, GUTTER + ROWS * CELL_H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(c * CELL_W, 0); ctx.lineTo(c * CELL_W, MAP_H); ctx.stroke();
   }
   for (let r = 0; r <= ROWS; r++) {
-    const y = GUTTER + r * CELL_H;
-    ctx.beginPath(); ctx.moveTo(GUTTER, y); ctx.lineTo(GUTTER + COLUMNS.length * CELL_W, y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, r * CELL_H); ctx.lineTo(MAP_W, r * CELL_H); ctx.stroke();
   }
 
-  ctx.fillStyle = '#e8c872';
-  ctx.font = `bold 17px ${FONT}`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  COLUMNS.forEach((letter, c) => ctx.fillText(letter, GUTTER + c * CELL_W + CELL_W / 2, GUTTER / 2 + 1));
-  for (let r = 0; r < ROWS; r++) ctx.fillText(String(r + 1), GUTTER / 2, GUTTER + r * CELL_H + CELL_H / 2);
-
-  ctx.strokeStyle = '#5a3b1a';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(GUTTER, GUTTER, COLUMNS.length * CELL_W, ROWS * CELL_H);
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLUMNS.length; c++) drawCoordLabel(ctx, { col: c, row: r });
+  }
 
   return (backgroundCache = canvas);
+}
+
+// Coordenada da casa (ex: C3) no canto superior direito
+function drawCoordLabel(ctx, pos) {
+  ctx.save();
+  ctx.font = `bold 14px ${FONT}`;
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.shadowColor = 'rgba(0,0,0,0.9)';
+  ctx.shadowBlur = 3;
+  ctx.fillText(formatCoord(pos), (pos.col + 1) * CELL_W - 6, pos.row * CELL_H + 4);
+  ctx.restore();
 }
 
 async function loadAvatar(url) {
@@ -91,7 +94,7 @@ async function loadAvatar(url) {
 
 function drawToken(ctx, player, index, active) {
   const { x, y } = cellCenter(player.pos);
-  const R = 24;
+  const R = 22;
   const color = PLAYER_COLORS[index];
 
   ctx.save();
@@ -135,7 +138,8 @@ function fitText(ctx, text, maxWidth) {
   return text + '…';
 }
 
-function drawBar(ctx, x, y, w, h, value, max, light, dark) {
+// Barra com o nome do atributo à esquerda e o valor à direita
+function drawBar(ctx, x, y, w, h, label, value, max, light, dark) {
   ctx.fillStyle = '#1b1410';
   ctx.fillRect(x, y, w, h);
   const fillW = Math.max(0, Math.round((w - 4) * (value / max)));
@@ -152,16 +156,20 @@ function drawBar(ctx, x, y, w, h, value, max, light, dark) {
   ctx.fillStyle = '#fff';
   ctx.shadowColor = '#000';
   ctx.shadowBlur = 3;
-  ctx.font = `bold 18px ${FONT}`;
-  ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(`${value}/${max}`, x + w / 2, y + h / 2 + 1);
+  ctx.font = `bold 14px ${FONT}`;
+  ctx.textAlign = 'left';
+  ctx.fillText(label, x + 9, y + h / 2 + 1);
+  ctx.font = `bold 18px ${FONT}`;
+  ctx.textAlign = 'right';
+  ctx.fillText(`${value}/${max}`, x + w - 9, y + h / 2 + 1);
   ctx.restore();
 }
 
+// Painel embaixo do mapa: um jogador por coluna, e o resumo do turno na última linha
 function drawPanel(ctx, battle) {
   const top = MAP_H;
-  const W = MAP_W;
+  const placing = battle.phase === 'placement';
   const cur = battle.phase === 'combat' ? currentPlayer(battle) : null;
 
   ctx.fillStyle = '#e6cf9c';
@@ -176,87 +184,84 @@ function drawPanel(ctx, battle) {
   ctx.fillStyle = '#3b2410';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `bold 32px ${FONT}`;
-  const placing = battle.phase === 'placement';
-  ctx.fillText(placing ? 'POSICIONAMENTO' : `BATALHA EM CAMPO — RODADA ${battle.round}`, W / 2, top + 40);
+  ctx.font = `bold 28px ${FONT}`;
+  ctx.fillText(placing ? 'POSICIONAMENTO' : `RODADA ${battle.round}`, W / 2, top + 36);
 
-  const barW = 104;
-  const gap = 6;
-  const barX0 = W - 3 * barW - 2 * gap - 20;
-  const barX = [barX0, barX0 + barW + gap, barX0 + 2 * (barW + gap)];
-
-  ctx.font = `bold 14px ${FONT}`;
-  ['VIDA', 'MANA', 'ENERGIA'].forEach((label, i) => ctx.fillText(label, barX[i] + barW / 2, top + 84));
-
+  const colW = (W - 3 * 24) / 2;
   battle.players.forEach((p, i) => {
-    const barH = 34;
-    const y = top + 100 + i * 52;
-    const mid = y + barH / 2;
+    const x = 24 + i * (colW + 24);
+    const y = top + 60;
+
+    if (cur === p && !battle.over) {
+      ctx.fillStyle = 'rgba(255,216,74,0.30)'; // destaca quem está jogando
+      ctx.fillRect(x - 8, y - 6, colW + 16, 140);
+    }
 
     ctx.fillStyle = PLAYER_COLORS[i];
-    ctx.beginPath(); ctx.arc(38, mid, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 10, y + 12, 9, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
 
     ctx.fillStyle = '#3b2410';
     ctx.textAlign = 'left';
-    ctx.font = `bold 22px ${FONT}`;
-    ctx.fillText(fitText(ctx, p.name, barX[0] - 58 - 10), 58, mid);
+    ctx.textBaseline = 'middle';
+    ctx.font = `bold 23px ${FONT}`;
+    ctx.fillText(fitText(ctx, p.name, colW - 34), x + 28, y + 13);
 
-    drawBar(ctx, barX[0], y, barW, barH, p.hp, MAX_HP, '#59d24a', '#1f7a1c');
-    drawBar(ctx, barX[1], y, barW, barH, p.mana, MAX_MANA, '#4aa8f0', '#1b5aa6');
-    drawBar(ctx, barX[2], y, barW, barH, p.energy, MAX_ENERGY, '#f6b73c', '#c46a0a');
+    drawBar(ctx, x, y + 32, colW, 29, 'VIDA', p.hp, MAX_HP, '#59d24a', '#1f7a1c');
+    drawBar(ctx, x, y + 64, colW, 29, 'MANA', p.mana, MAX_MANA, '#4aa8f0', '#1b5aa6');
+    drawBar(ctx, x, y + 96, colW, 29, 'ENERGIA', p.energy, MAX_ENERGY, '#f6b73c', '#c46a0a');
   });
 
   ctx.fillStyle = '#3b2410';
   ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
   ctx.font = `bold 21px ${FONT}`;
   if (battle.over) {
-    ctx.fillText('BATALHA ENCERRADA', W / 2, top + PANEL_H - 44);
+    ctx.fillText('BATALHA ENCERRADA', W / 2, top + PANEL_H - 40);
   } else if (placing) {
     // As escolhas ficam escondidas até os dois estarem prontos
-    ctx.fillText('Cada jogador escolhe seu setor inicial', W / 2, top + PANEL_H - 56);
-    ctx.font = `16px ${FONT}`;
-    ctx.fillText(
-      fitText(ctx, battle.players.map(p => `${p.name}: ${p.pos ? 'pronto' : 'aguardando'}`).join('  •  '), W - 50),
-      W / 2, top + PANEL_H - 30,
-    );
+    ctx.fillText('Escolham o setor inicial', W / 2, top + PANEL_H - 52);
+    ctx.font = `17px ${FONT}`;
+    ctx.fillText(battle.players.map(p => `${p.name}: ${p.pos ? 'pronto' : 'aguardando'}`).join('   •   '), W / 2, top + PANEL_H - 28);
   } else {
     const t = battle.turn;
     const attack = t.queuedAttack ? `preparado (${t.queuedAttack.name})` : t.attacked ? 'usado' : 'disponível';
-    ctx.fillText(fitText(ctx, `Turno de ${cur.name}`, W - 50), W / 2, top + PANEL_H - 56);
-    ctx.font = `16px ${FONT}`;
+    ctx.fillText(fitText(ctx, `Turno de ${cur.name}`, W - 60), W / 2, top + PANEL_H - 52);
+    ctx.font = `17px ${FONT}`;
     ctx.fillText(
-      `Movimento ${t.movesLeft}/${MOVES_PER_TURN}  •  Ataque: ${attack}  •  Bônus: ${t.bonusUsed ? 'usado' : 'disponível'}`,
-      W / 2, top + PANEL_H - 30,
+      `Movimento: ${t.movesLeft}/${MOVES_PER_TURN}   •   Ataque: ${attack}   •   Bônus: ${t.bonusUsed ? 'usado' : 'disponível'}`,
+      W / 2, top + PANEL_H - 28,
     );
   }
 }
 
 // Desenha o mapa com os jogadores e, embaixo, o painel de status. Retorna um Buffer PNG.
 async function renderBattleImage(battle) {
-  const canvas = createCanvas(MAP_W * SCALE, TOTAL_H * SCALE);
+  const canvas = createCanvas(W * SCALE, H * SCALE);
   const ctx = canvas.getContext('2d');
   ctx.drawImage(background(), 0, 0); // o fundo já está em resolução dobrada
   ctx.scale(SCALE, SCALE);
 
-  if (battle.phase === 'placement') {
-    drawPanel(ctx, battle); // sem jogadores no mapa até o combate começar
-    return canvas.encode('png');
-  }
-
-  const cur = currentPlayer(battle);
-  if (!battle.over && !battle.pending) {
-    // Realça as casas para onde as setas levam
-    ctx.fillStyle = 'rgba(255,255,255,0.22)';
-    for (const dir of Object.keys(DIRECTIONS)) {
-      const step = checkStep(battle, cur, dir);
-      if (step.error) continue;
-      const o = cellOrigin(step.dest);
-      ctx.fillRect(o.x + 1, o.y + 1, CELL_W - 1, CELL_H - 1);
+  if (battle.phase === 'combat') {
+    const cur = currentPlayer(battle);
+    if (!battle.over && !battle.pending) {
+      // Realça as casas para onde as setas levam
+      ctx.fillStyle = 'rgba(255,255,255,0.22)';
+      for (const dir of Object.keys(DIRECTIONS)) {
+        const step = checkStep(battle, cur, dir);
+        if (step.error) continue;
+        const o = cellOrigin(step.dest);
+        ctx.fillRect(o.x + 1, o.y + 1, CELL_W - 1, CELL_H - 1);
+      }
     }
+    battle.players.forEach((p, i) => drawToken(ctx, p, i, !battle.over && p === cur));
+    battle.players.forEach(p => drawCoordLabel(ctx, p.pos)); // a coordenada fica por cima do token
   }
 
-  battle.players.forEach((p, i) => drawToken(ctx, p, i, !battle.over && p === cur));
+  ctx.strokeStyle = '#5a3b1a';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(0, 0, MAP_W, MAP_H);
+
   drawPanel(ctx, battle);
   return canvas.encode('png');
 }

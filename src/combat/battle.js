@@ -1,4 +1,4 @@
-const { COLUMNS, ROWS, MAX_HP, MAX_MANA, MAX_ENERGY, MOVES_PER_TURN } = require('./config');
+const { COLUMNS, ROWS, MAX_HP, MAX_MANA, MAX_ENERGY, MOVES_PER_TURN, ENERGY_REGEN_PER_TURN } = require('./config');
 const { samePos, DIRECTIONS } = require('./grid');
 const { getAbility } = require('./abilities');
 const { getKit, getSpeed } = require('./characters');
@@ -32,7 +32,6 @@ function createBattle(channelId, a, b) {
     channelId,
     players,
     phase: 'placement', // 'placement' (escolha dos setores iniciais) -> 'combat'
-    drafts: new Map(),  // userId -> setor ainda não confirmado, durante o posicionamento
     current: whoStarts(players),
     round: 1,
     turn: newTurn(),
@@ -114,6 +113,10 @@ function resolveAttack(attacker, defender, attack, reaction) {
 
   defender.hp = Math.max(0, defender.hp - damage);
   log += `\n❤️ ${defender.name} sofreu **${damage}** de dano.`;
+  if (reaction) {
+    defender.energy = Math.max(0, defender.energy - reaction.energyCost);
+    log += `\n⚡ ${defender.name} gastou ${reaction.energyCost} de energia.`;
+  }
   return { damage, log, defeated: defender.hp === 0 };
 }
 
@@ -121,6 +124,8 @@ function nextTurn(battle) {
   battle.current = 1 - battle.current;
   if (battle.current === 0) battle.round++;
   battle.turn = newTurn();
+  const p = currentPlayer(battle);
+  p.energy = Math.min(MAX_ENERGY, p.energy + ENERGY_REGEN_PER_TURN);
 }
 
 module.exports = {
