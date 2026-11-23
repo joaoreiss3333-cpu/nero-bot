@@ -3,17 +3,15 @@ const { COLUMNS, ROWS, MAX_HP, MAX_MANA, MAX_ENERGY, MOVES_PER_TURN } = require(
 const { DIRECTIONS, formatCoord } = require('./grid');
 const { currentPlayer, checkStep } = require('./battle');
 
-// Medidas lógicas da imagem. Ela é desenhada em resolução dobrada (SCALE) para ficar nítida
-// quando o Discord a reduz. As casas são mais largas que altas para a imagem não ficar muito
-// comprida (o Discord reduz imagens altas).
+// Medidas lógicas das imagens. São desenhadas em resolução dobrada (SCALE) para ficar nítidas
+// quando o Discord as reduz. O mapa e o painel são duas imagens separadas, largas e baixas:
+// o Discord reduz imagens altas, então assim cada uma é exibida na largura toda do embed.
 const SCALE = 2;
 const CELL_W = 90;
 const CELL_H = 56;
 const MAP_W = COLUMNS.length * CELL_W;
 const MAP_H = ROWS * CELL_H;
-const PANEL_H = 262;
 const W = MAP_W;
-const H = MAP_H + PANEL_H;
 
 const PLAYER_COLORS = ['#3b8fe0', '#e0453b'];
 const FONT = 'Georgia, "Times New Roman", serif';
@@ -138,8 +136,8 @@ function fitText(ctx, text, maxWidth) {
   return text + '…';
 }
 
-// Barra com o nome do atributo à esquerda e o valor à direita
-function drawBar(ctx, x, y, w, h, label, value, max, light, dark) {
+// Barra com o valor centralizado (o nome do atributo fica no cabeçalho da coluna)
+function drawBar(ctx, x, y, w, h, value, max, light, dark) {
   ctx.fillStyle = '#1b1410';
   ctx.fillRect(x, y, w, h);
   const fillW = Math.max(0, Math.round((w - 4) * (value / max)));
@@ -157,87 +155,104 @@ function drawBar(ctx, x, y, w, h, label, value, max, light, dark) {
   ctx.shadowColor = '#000';
   ctx.shadowBlur = 3;
   ctx.textBaseline = 'middle';
-  ctx.font = `bold 14px ${FONT}`;
-  ctx.textAlign = 'left';
-  ctx.fillText(label, x + 9, y + h / 2 + 1);
-  ctx.font = `bold 18px ${FONT}`;
-  ctx.textAlign = 'right';
-  ctx.fillText(`${value}/${max}`, x + w - 9, y + h / 2 + 1);
+  ctx.textAlign = 'center';
+  ctx.font = `bold 19px ${FONT}`;
+  ctx.fillText(`${value}/${max}`, x + w / 2, y + h / 2 + 1);
   ctx.restore();
 }
 
-// Painel embaixo do mapa: um jogador por coluna, e o resumo do turno na última linha
+// Altura do painel: cabeçalho + uma linha por jogador (um embaixo do outro) + resumo do turno
+const ROW_H = 52;
+const panelHeight = battle => 118 + battle.players.length * ROW_H + (battle.phase === 'placement' ? 70 : 48);
+
+// Painel de status: tabela com um jogador por linha e, no fim, o resumo do turno
 function drawPanel(ctx, battle) {
-  const top = MAP_H;
+  const top = 0;
+  const panelH = panelHeight(battle);
   const placing = battle.phase === 'placement';
   const cur = battle.phase === 'combat' ? currentPlayer(battle) : null;
 
   ctx.fillStyle = '#e6cf9c';
-  ctx.fillRect(0, top, W, PANEL_H);
+  ctx.fillRect(0, top, W, panelH);
   ctx.strokeStyle = '#5a3b1a';
   ctx.lineWidth = 6;
-  ctx.strokeRect(3, top + 3, W - 6, PANEL_H - 6);
+  ctx.strokeRect(3, top + 3, W - 6, panelH - 6);
   ctx.strokeStyle = '#b8893a';
   ctx.lineWidth = 2;
-  ctx.strokeRect(11, top + 11, W - 22, PANEL_H - 22);
+  ctx.strokeRect(11, top + 11, W - 22, panelH - 22);
 
-  ctx.fillStyle = '#3b2410';
+  // Faixa de título
+  ctx.fillStyle = '#2b1a0c';
+  ctx.fillRect(24, top + 24, W - 48, 48);
+  ctx.strokeStyle = '#b8893a';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(24, top + 24, W - 48, 48);
+  ctx.fillStyle = '#f6b73c';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `bold 28px ${FONT}`;
-  ctx.fillText(placing ? 'POSICIONAMENTO' : `RODADA ${battle.round}`, W / 2, top + 36);
+  ctx.font = `bold 29px ${FONT}`;
+  ctx.fillText(placing ? 'POSICIONAMENTO' : battle.over ? 'BATALHA ENCERRADA' : 'BATALHA EM CAMPO', W / 2, top + 49);
 
-  const colW = (W - 3 * 24) / 2;
+  // Colunas: o nome do atributo aparece uma vez só, em cima das barras
+  const barW = 132;
+  const gap = 10;
+  const barX0 = W - 26 - 3 * barW - 2 * gap;
+  const barX = [barX0, barX0 + barW + gap, barX0 + 2 * (barW + gap)];
+  ctx.fillStyle = '#3b2410';
+  ctx.font = `bold 16px ${FONT}`;
+  ['VIDA', 'MANA', 'ENERGIA'].forEach((label, i) => ctx.fillText(label, barX[i] + barW / 2, top + 96));
+
   battle.players.forEach((p, i) => {
-    const x = 24 + i * (colW + 24);
-    const y = top + 60;
+    const rowTop = top + 112 + i * ROW_H;
+    const mid = rowTop + ROW_H / 2;
 
     if (cur === p && !battle.over) {
-      ctx.fillStyle = 'rgba(255,216,74,0.30)'; // destaca quem está jogando
-      ctx.fillRect(x - 8, y - 6, colW + 16, 140);
+      ctx.fillStyle = 'rgba(255,216,74,0.32)'; // destaca quem está jogando
+      ctx.fillRect(18, rowTop + 1, W - 36, ROW_H - 2);
     }
 
     ctx.fillStyle = PLAYER_COLORS[i];
-    ctx.beginPath(); ctx.arc(x + 10, y + 12, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(40, mid, 10, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
 
     ctx.fillStyle = '#3b2410';
     ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.font = `bold 23px ${FONT}`;
-    ctx.fillText(fitText(ctx, p.name, colW - 34), x + 28, y + 13);
+    ctx.font = `bold 24px ${FONT}`;
+    ctx.fillText(fitText(ctx, p.name, barX0 - 62 - 12), 62, mid + 1);
 
-    drawBar(ctx, x, y + 32, colW, 29, 'VIDA', p.hp, MAX_HP, '#59d24a', '#1f7a1c');
-    drawBar(ctx, x, y + 64, colW, 29, 'MANA', p.mana, MAX_MANA, '#4aa8f0', '#1b5aa6');
-    drawBar(ctx, x, y + 96, colW, 29, 'ENERGIA', p.energy, MAX_ENERGY, '#f6b73c', '#c46a0a');
+    drawBar(ctx, barX[0], mid - 17, barW, 34, p.hp, MAX_HP, '#59d24a', '#1f7a1c');
+    drawBar(ctx, barX[1], mid - 17, barW, 34, p.mana, MAX_MANA, '#4aa8f0', '#1b5aa6');
+    drawBar(ctx, barX[2], mid - 17, barW, 34, p.energy, MAX_ENERGY, '#f6b73c', '#c46a0a');
   });
 
+  const footY = top + 112 + battle.players.length * ROW_H + 18;
   ctx.fillStyle = '#3b2410';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `bold 21px ${FONT}`;
-  if (battle.over) {
-    ctx.fillText('BATALHA ENCERRADA', W / 2, top + PANEL_H - 40);
-  } else if (placing) {
+  if (battle.over) return;
+  if (placing) {
     // As escolhas ficam escondidas até os dois estarem prontos
-    ctx.fillText('Escolham o setor inicial', W / 2, top + PANEL_H - 52);
+    ctx.font = `bold 21px ${FONT}`;
+    ctx.fillText('Escolham o setor inicial', W / 2, footY + 4);
     ctx.font = `17px ${FONT}`;
-    ctx.fillText(battle.players.map(p => `${p.name}: ${p.pos ? 'pronto' : 'aguardando'}`).join('   •   '), W / 2, top + PANEL_H - 28);
+    ctx.fillText(
+      fitText(ctx, battle.players.map(p => `${p.name}: ${p.pos ? 'pronto' : 'aguardando'}`).join('   •   '), W - 60),
+      W / 2, footY + 32,
+    );
   } else {
     const t = battle.turn;
     const attack = t.queuedAttack ? `preparado (${t.queuedAttack.name})` : t.attacked ? 'usado' : 'disponível';
-    ctx.fillText(fitText(ctx, `Turno de ${cur.name}`, W - 60), W / 2, top + PANEL_H - 52);
-    ctx.font = `17px ${FONT}`;
+    ctx.font = `18px ${FONT}`;
     ctx.fillText(
       `Movimento: ${t.movesLeft}/${MOVES_PER_TURN}   •   Ataque: ${attack}   •   Bônus: ${t.bonusUsed ? 'usado' : 'disponível'}`,
-      W / 2, top + PANEL_H - 28,
+      W / 2, footY + 8,
     );
   }
 }
 
-// Desenha o mapa com os jogadores e, embaixo, o painel de status. Retorna um Buffer PNG.
-async function renderBattleImage(battle) {
-  const canvas = createCanvas(W * SCALE, H * SCALE);
+// Imagem 1: o mapa com os jogadores. Retorna um Buffer PNG.
+async function renderMapImage(battle) {
+  const canvas = createCanvas(W * SCALE, MAP_H * SCALE);
   const ctx = canvas.getContext('2d');
   ctx.drawImage(background(), 0, 0); // o fundo já está em resolução dobrada
   ctx.scale(SCALE, SCALE);
@@ -261,9 +276,16 @@ async function renderBattleImage(battle) {
   ctx.strokeStyle = '#5a3b1a';
   ctx.lineWidth = 4;
   ctx.strokeRect(0, 0, MAP_W, MAP_H);
+  return canvas.encode('png');
+}
 
+// Imagem 2: o painel de status. Retorna um Buffer PNG.
+async function renderPanelImage(battle) {
+  const canvas = createCanvas(W * SCALE, panelHeight(battle) * SCALE);
+  const ctx = canvas.getContext('2d');
+  ctx.scale(SCALE, SCALE);
   drawPanel(ctx, battle);
   return canvas.encode('png');
 }
 
-module.exports = { renderBattleImage, loadAvatar };
+module.exports = { renderMapImage, renderPanelImage, loadAvatar };

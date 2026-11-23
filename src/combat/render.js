@@ -1,6 +1,8 @@
-const { AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { currentPlayer, opponentOf, checkStep, abilitiesOf } = require('./battle');
-const { renderBattleImage } = require('./image');
+const { renderMapImage, renderPanelImage } = require('./image');
+
+const EMBED_COLOR = 0xc0392b;
 
 const btn = (id, style = ButtonStyle.Secondary) => new ButtonBuilder().setCustomId(id).setStyle(style);
 const spacer = id => btn(id).setLabel('·').setDisabled(true);
@@ -31,9 +33,8 @@ function reactionRow(battle) {
   return new ActionRowBuilder().addComponents(buttons);
 }
 
-// Monta a mensagem do painel: texto do que aconteceu, imagem (mapa + status) e botões.
-// A imagem vai como anexo, sem embed: o Discord a exibe bem maior assim.
-// `ping` é uma linha de menção que vai no topo (ex: avisar de quem é a vez).
+// Monta a mensagem do painel: o que aconteceu, as imagens (mapa e status) e os botões.
+// `ping` é a menção que vai fora do embed (para notificar de verdade).
 async function panelPayload(battle, text = '', ping = '') {
   const placing = battle.phase === 'placement';
   let components;
@@ -44,13 +45,26 @@ async function panelPayload(battle, text = '', ping = '') {
   else if (battle.pending) components = [reactionRow(battle)];
   else components = controlRows(battle);
 
-  let hint = '';
-  if (placing) hint = '-# Clique em "Escolher setor" e digite onde você quer começar (ex: C3).';
-  else if (!battle.over) hint = '-# Use /habilidade para atacar ou usar uma ação bônus.';
+  // Dois embeds empilhados: o de cima com o texto e o mapa, o de baixo com o painel de status
+  let title;
+  if (battle.over) title = 'Batalha encerrada';
+  else if (placing) title = 'Posicionamento';
+  else title = `Turno de ${currentPlayer(battle).name}`;
 
-  const content = [ping, text, hint].filter(Boolean).join('\n');
-  const image = await renderBattleImage(battle);
-  return { content, components, files: [new AttachmentBuilder(image, { name: 'batalha.png' })] };
+  const mapEmbed = new EmbedBuilder().setColor(EMBED_COLOR).setTitle(title).setImage('attachment://mapa.png');
+  if (text) mapEmbed.setDescription(text);
+
+  const panelEmbed = new EmbedBuilder().setColor(EMBED_COLOR).setImage('attachment://painel.png');
+  if (placing) panelEmbed.setFooter({ text: 'Clique em "Escolher setor" e digite onde você quer começar (ex: C3).' });
+  else if (!battle.over) panelEmbed.setFooter({ text: 'Use /habilidade para atacar ou usar uma ação bônus.' });
+
+  const [mapPng, panelPng] = await Promise.all([renderMapImage(battle), renderPanelImage(battle)]);
+  return {
+    content: ping,
+    embeds: [mapEmbed, panelEmbed],
+    components,
+    files: [new AttachmentBuilder(mapPng, { name: 'mapa.png' }), new AttachmentBuilder(panelPng, { name: 'painel.png' })],
+  };
 }
 
 // Ao editar uma mensagem existente, `attachments: []` faz a imagem nova substituir a antiga
