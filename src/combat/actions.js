@@ -16,8 +16,9 @@ function gifFor(ability) {
   return fs.existsSync(file) ? { file, name: path.basename(file) } : null;
 }
 
-// Posta o embed da ação ("X utilizou um Soco") com o GIF. Retorna true se havia GIF.
-// Uma falha aqui (ex: sem permissão para enviar arquivos) nunca deve travar a luta.
+// Posta o embed da ação ("X utilizou um Soco") com o GIF.
+// Retorna { message, hasGif }. Uma falha ao enviar (ex: sem permissão para anexar arquivos)
+// nunca deve travar a luta: nesse caso message fica indefinida.
 async function announceAction(channel, userName, ability) {
   const embed = new EmbedBuilder()
     .setColor(config.EMBED_COLOR)
@@ -33,20 +34,30 @@ async function announceAction(channel, userName, ability) {
   }
 
   try {
-    await channel.send({ embeds: [embed], files });
+    const message = await channel.send({ embeds: [embed], files });
+    return { message, hasGif: !!gif };
   } catch (err) {
     console.error('Não foi possível enviar o aviso da ação:', err.message);
-    return false;
+    return { message: undefined, hasGif: false };
   }
-  return !!gif;
 }
 
-// Mostra o aviso da ação e espera o GIF rodar, para o resultado só aparecer depois da animação.
-// Habilidades sem GIF não esperam nada.
-async function playAction(channel, userName, ability) {
-  const hasGif = await announceAction(channel, userName, ability);
+// Mostra o aviso da ação. Se tiver GIF, ele fica rodando pelo tempo da animação e então é apagado.
+//   block: true  -> espera o GIF acabar (e o aviso sumir) antes de retornar, para o próximo
+//                   embed só aparecer depois; false -> retorna na hora e o aviso some sozinho depois.
+// Sem GIF o aviso fica no chat como registro e não espera nada.
+async function playAction(channel, userName, ability, { block = true } = {}) {
+  const { message, hasGif } = await announceAction(channel, userName, ability);
   const wait = ability.gifDurationMs ?? config.ACTION_GIF_WAIT_MS;
-  if (hasGif && wait > 0) await sleep(wait);
+  if (!message || !hasGif || wait <= 0) return;
+
+  const remove = () => message.delete().catch(() => {});
+  if (!block) {
+    setTimeout(remove, wait);
+    return;
+  }
+  await sleep(wait);
+  await remove();
 }
 
 module.exports = { announceAction, playAction, gifFor };
