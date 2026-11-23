@@ -1,6 +1,6 @@
-// Tamanho do mapa conforme o número de jogadores: 2 jogadores = 12 colunas e cada jogador a mais
+// Tamanho do mapa conforme o número de jogadores: 2 jogadores = 10 colunas e cada jogador a mais
 // acrescenta 2 colunas, até o limite MAX_GRID (as colunas usam letras: máximo 26).
-const BASE_GRID = 12;
+const BASE_GRID = 10;
 const GRID_GROWTH_PER_EXTRA_PLAYER = 2;
 const MAX_GRID = 20;
 const COLUMN_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
