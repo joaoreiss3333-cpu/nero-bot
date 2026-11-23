@@ -1,6 +1,6 @@
 const {
   getBattle, endBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf,
-  movePlayer, resolveAttack, nextTurn,
+  movePlayer, startActions, resolveAttack, nextTurn,
 } = require('./battle');
 const { panelPayload, asEdit } = require('./render');
 const { playAction } = require('./actions');
@@ -114,7 +114,15 @@ async function handleButton(interaction) {
   if (kind === 'mv') {
     const result = movePlayer(battle, me, arg);
     if (result.error) return ephemeral(interaction, result.error);
-    return interaction.update(asEdit(await panelPayload(battle, `🏃 ${me.name} foi para **${formatCoord(me.pos)}**.`)));
+    const unlocked = battle.turn.phase === 'action' ? ' Movimento esgotado: ações liberadas.' : '';
+    return interaction.update(asEdit(await panelPayload(battle, `🏃 ${me.name} foi para **${formatCoord(me.pos)}**.${unlocked}`)));
+  }
+
+  // Termina a movimentação (mesmo sem ter se movido) e libera o ataque e a ação bônus
+  if (kind === 'act') {
+    if (battle.turn.phase !== 'move') return ephemeral(interaction, 'As ações já estão liberadas.');
+    startActions(battle);
+    return interaction.update(asEdit(await panelPayload(battle, `⚔️ ${me.name} terminou a movimentação. Ações liberadas: use \`/habilidade\`.`)));
   }
 
   if (kind === 'end') return endTurn(battle, me, interaction);

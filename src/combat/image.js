@@ -252,11 +252,14 @@ function drawPanel(ctx, battle) {
       W / 2, footY + 32,
     );
   } else {
+    // Primeiro a fase de movimento; depois as ações (ataque e bônus)
     const t = battle.turn;
     const attack = t.queuedAttack ? `preparado (${t.queuedAttack.name})` : t.attacked ? 'usado' : 'disponível';
     ctx.font = `18px ${FONT}`;
     ctx.fillText(
-      `Movimento: ${t.movesLeft}/${MOVES_PER_TURN}   •   Ataque: ${attack}   •   Bônus: ${t.bonusUsed ? 'usado' : 'disponível'}`,
+      t.phase === 'move'
+        ? `Fase de movimento   •   Casas restantes: ${t.movesLeft}/${MOVES_PER_TURN}`
+        : `Fase de ações   •   Ataque: ${attack}   •   Bônus: ${t.bonusUsed ? 'usado' : 'disponível'}`,
       W / 2, footY + 8,
     );
   }

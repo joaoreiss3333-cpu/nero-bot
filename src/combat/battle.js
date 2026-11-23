@@ -5,8 +5,12 @@ const { getKit, getSpeed } = require('./characters');
 
 const battles = new Map(); // channelId -> batalha
 
+// Todo turno começa pela movimentação (phase 'move') e depois passa para as ações (phase 'action'),
+// quando ataque e ação bônus ficam liberados e o movimento fecha.
 // queuedAttack: ataque preparado, resolvido só quando o atacante encerra o turno
-const newTurn = () => ({ movesLeft: MOVES_PER_TURN, attacked: false, bonusUsed: false, queuedAttack: null });
+const newTurn = () => ({
+  phase: 'move', movesLeft: MOVES_PER_TURN, attacked: false, bonusUsed: false, queuedAttack: null,
+});
 const rand = ([min, max]) => min + Math.floor(Math.random() * (max - min + 1));
 
 const newPlayer = user => ({
@@ -80,6 +84,7 @@ const allPlaced = battle => battle.players.every(p => p.pos);
 function checkStep(battle, player, dir) {
   const { dc, dr } = DIRECTIONS[dir];
   const dest = { col: player.pos.col + dc, row: player.pos.row + dr };
+  if (battle.turn.phase !== 'move') return { error: 'A fase de movimento já acabou neste turno.' };
   if (battle.turn.movesLeft < 1) return { error: 'Você não tem mais movimento neste turno.' };
   if (dest.col < 0 || dest.col >= battle.cols || dest.row < 0 || dest.row >= battle.rows) {
     return { error: 'Você não pode sair do mapa.' };
@@ -93,7 +98,13 @@ function movePlayer(battle, player, dir) {
   if (step.error) return step;
   battle.turn.movesLeft -= 1;
   player.pos = step.dest;
+  if (battle.turn.movesLeft < 1) battle.turn.phase = 'action'; // gastou todo o movimento: libera as ações
   return step;
+}
+
+// Encerra a fase de movimento (mesmo sem ter se movido) e libera ataque e ação bônus
+function startActions(battle) {
+  battle.turn.phase = 'action';
 }
 
 // Resolve um ataque. reaction: habilidade de reação usada pelo defensor, ou null.
@@ -135,5 +146,5 @@ function nextTurn(battle) {
 
 module.exports = {
   createBattle, getBattle, endBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf,
-  placePlayer, allPlaced, checkStep, movePlayer, resolveAttack, nextTurn,
+  placePlayer, allPlaced, checkStep, movePlayer, startActions, resolveAttack, nextTurn,
 };

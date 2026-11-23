@@ -6,13 +6,18 @@ const { EMBED_COLOR } = require('./config');
 const btn = (id, style = ButtonStyle.Secondary) => new ButtonBuilder().setCustomId(id).setStyle(style);
 const spacer = id => btn(id).setLabel('·').setDisabled(true);
 
-// Setas de movimento e encerrar turno
+// Setas de movimento, "Ir para as ações" e encerrar turno. As setas só funcionam na fase de
+// movimento; depois que as ações são liberadas elas ficam desativadas.
 function controlRows(battle) {
   const cur = currentPlayer(battle);
   const arrow = (dir, emoji) => btn(`mv:${dir}`).setEmoji(emoji).setDisabled(!!checkStep(battle, cur, dir).error);
+  const moving = battle.turn.phase === 'move';
 
   return [
-    new ActionRowBuilder().addComponents(spacer('sp1'), arrow('up', '⬆️'), spacer('sp2')),
+    new ActionRowBuilder().addComponents(
+      spacer('sp1'), arrow('up', '⬆️'), spacer('sp2'),
+      moving ? btn('act', ButtonStyle.Success).setLabel('Ir para as ações').setEmoji('⚔️') : spacer('sp3'),
+    ),
     new ActionRowBuilder().addComponents(
       arrow('left', '⬅️'), arrow('down', '⬇️'), arrow('right', '➡️'),
       btn('end', ButtonStyle.Primary).setLabel('Encerrar turno').setEmoji('⏭️'),
@@ -54,7 +59,14 @@ async function panelPayload(battle, text = '') {
 
   const panelEmbed = new EmbedBuilder().setColor(EMBED_COLOR).setImage('attachment://painel.png');
   if (placing) panelEmbed.setFooter({ text: 'Clique em "Escolher setor" e digite onde você quer começar (ex: C3).' });
-  else if (!battle.over) panelEmbed.setFooter({ text: 'Use /habilidade para atacar ou usar uma ação bônus.' });
+  else if (battle.pending) panelEmbed.setFooter({ text: 'Escolha como reagir ao ataque.' });
+  else if (!battle.over) {
+    panelEmbed.setFooter({
+      text: battle.turn.phase === 'move'
+        ? 'Movimente-se com as setas e clique em "Ir para as ações" para atacar ou usar uma ação bônus.'
+        : 'Use /habilidade para atacar ou usar uma ação bônus.',
+    });
+  }
 
   const [mapPng, panelPng] = await Promise.all([renderMapImage(battle), renderPanelImage(battle)]);
   return {

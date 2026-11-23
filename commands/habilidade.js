@@ -40,6 +40,9 @@ module.exports = {
     if (battle.phase !== 'combat') return fail(interaction, 'A batalha ainda não começou. Escolha seu setor inicial no painel.');
     if (currentPlayer(battle).id !== me.id) return fail(interaction, 'Não é o seu turno.');
     if (battle.pending) return fail(interaction, 'Aguarde a reação do oponente.');
+    if (battle.turn.phase !== 'action') {
+      return fail(interaction, 'Primeiro faça sua movimentação: use as setas e depois clique em **Ir para as ações**.');
+    }
 
     const ability = getAbility(interaction.options.getString('nome'));
     const owned = ability && abilitiesOf(me, ability.type).some(a => a.id === ability.id);
