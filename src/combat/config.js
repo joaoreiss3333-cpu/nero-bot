@@ -1,14 +1,18 @@
-// Tamanho do mapa conforme o número de jogadores: 2 jogadores = 8x8 e cada jogador a mais
-// acrescenta 2 colunas e 2 linhas, até o limite MAX_GRID (as colunas usam letras: máximo 26).
+// Tamanho do mapa conforme o número de jogadores: 2 jogadores = 8 colunas e cada jogador a mais
+// acrescenta 2 colunas, até o limite MAX_GRID (as colunas usam letras: máximo 26).
 const BASE_GRID = 8;
 const GRID_GROWTH_PER_EXTRA_PLAYER = 2;
 const MAX_GRID = 20;
 const COLUMN_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
+// As casas são quadradas e a imagem do mapa é larga (altura ~62% da largura): o número de linhas
+// acompanha o de colunas nessa proporção, para o mapa manter sempre o mesmo tamanho na tela.
+const MAP_HEIGHT_RATIO = 0.62;
+
 function gridSizeFor(playerCount) {
   const extra = Math.max(0, playerCount - 2);
   const size = Math.min(MAX_GRID, BASE_GRID + extra * GRID_GROWTH_PER_EXTRA_PLAYER);
-  return { cols: size, rows: size };
+  return { cols: size, rows: Math.round(size * MAP_HEIGHT_RATIO) };
 }
 
 module.exports = {
