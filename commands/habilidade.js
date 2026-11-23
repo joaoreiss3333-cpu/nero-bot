@@ -36,6 +36,7 @@ module.exports = {
     if (!battle) return fail(interaction, 'Não há batalha neste canal. Use `/batalha iniciar`.');
     const me = findPlayer(battle, interaction.user.id);
     if (!me) return fail(interaction, 'Você não está nessa batalha.');
+    if (battle.phase !== 'combat') return fail(interaction, 'A batalha ainda não começou. Escolha seu setor inicial no painel.');
     if (currentPlayer(battle).id !== me.id) return fail(interaction, 'Não é o seu turno.');
     if (battle.pending) return fail(interaction, 'Aguarde a reação do oponente.');
 

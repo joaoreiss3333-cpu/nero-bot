@@ -73,6 +73,7 @@ async function handleButton(interaction) {
   }
   const me = findPlayer(battle, interaction.user.id);
   if (!me) return ephemeral(interaction, 'Você não está nessa batalha.');
+  if (battle.phase !== 'combat') return ephemeral(interaction, 'A batalha ainda não começou.');
 
   const [kind, arg] = interaction.customId.split(':');
 
@@ -99,3 +100,4 @@ async function handleButton(interaction) {
 }
 
 module.exports = { handleButton };
+

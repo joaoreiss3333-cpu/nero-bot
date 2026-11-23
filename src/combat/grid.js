@@ -1,4 +1,14 @@
-const { COLUMNS } = require('./config');
+const { COLUMNS, ROWS } = require('./config');
+
+// "C3" -> { col: 2, row: 2 }; retorna null se for inválido ou estiver fora do mapa
+function parseCoord(text) {
+  const m = /^([A-Za-z])(\d{1,2})$/.exec(String(text).trim());
+  if (!m) return null;
+  const col = COLUMNS.indexOf(m[1].toUpperCase());
+  const row = Number(m[2]) - 1;
+  if (col < 0 || row < 0 || row >= ROWS) return null;
+  return { col, row };
+}
 
 const formatCoord = ({ col, row }) => `${COLUMNS[col]}${row + 1}`;
 
@@ -14,4 +24,4 @@ const DIRECTIONS = {
   right: { dc: 1, dr: 0 },
 };
 
-module.exports = { formatCoord, distance, samePos, DIRECTIONS };
+module.exports = { parseCoord, formatCoord, distance, samePos, DIRECTIONS };

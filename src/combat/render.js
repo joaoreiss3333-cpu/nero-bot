@@ -31,8 +31,12 @@ function reactionRow(battle) {
 
 // Monta a mensagem completa do painel: texto do que aconteceu, imagem (mapa + status) e botões.
 async function panelPayload(battle, text = '') {
+  const placing = battle.phase === 'placement';
   let components;
   if (battle.over) components = [];
+  else if (placing) components = [new ActionRowBuilder().addComponents(
+    btn('pl:open', ButtonStyle.Primary).setLabel('Escolher setor').setEmoji('📍'),
+  )];
   else if (battle.pending) components = [reactionRow(battle)];
   else components = controlRows(battle);
 
@@ -41,7 +45,8 @@ async function panelPayload(battle, text = '') {
     .setColor(0x5a3b1a)
     .setImage('attachment://batalha.png');
   if (text) embed.setDescription(text);
-  if (!battle.over) embed.setFooter({ text: 'Use /habilidade para atacar ou usar uma ação bônus.' });
+  if (placing) embed.setFooter({ text: 'Clique em "Escolher setor" para definir onde você começa.' });
+  else if (!battle.over) embed.setFooter({ text: 'Use /habilidade para atacar ou usar uma ação bônus.' });
 
   return { embeds: [embed], components, files: [new AttachmentBuilder(image, { name: 'batalha.png' })] };
 }

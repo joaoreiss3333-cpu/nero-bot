@@ -2,7 +2,7 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
-const { handleButton } = require('./src/combat/panel');
+const { handleComponent } = require('./src/combat/components');
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 client.commands = new Collection();
@@ -24,10 +24,11 @@ client.on(Events.InteractionCreate, async interaction => {
     return;
   }
   const command = interaction.isChatInputCommand() ? client.commands.get(interaction.commandName) : null;
-  if (!command && !interaction.isButton()) return;
+  const isComponent = interaction.isButton() || interaction.isStringSelectMenu();
+  if (!command && !isComponent) return;
   try {
     if (command) await command.execute(interaction);
-    else await handleButton(interaction);
+    else await handleComponent(interaction);
   } catch (err) {
     console.error(err);
     const msg = { content: 'Ocorreu um erro ao executar o comando.', ephemeral: true };

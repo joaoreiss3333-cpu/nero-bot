@@ -1,7 +1,8 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { createBattle, getBattle, endBattle, currentPlayer } = require('../src/combat/battle');
-const { panelPayload } = require('../src/combat/render');
-const { loadAvatar } = require('../src/combat/image');
+const { getBattle, endBattle } = require('../src/combat/battle');
+const { getChallenge, startChallenge, cancelChallenge } = require('../src/combat/challenge');
+
+const fail = (interaction, content) => interaction.reply({ content, ephemeral: true });
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -9,46 +10,42 @@ module.exports = {
     .setDescription('Sistema de combate')
     .addSubcommand(s => s
       .setName('iniciar')
-      .setDescription('Inicia uma batalha contra outro jogador')
+      .setDescription('Desafia outro jogador para uma batalha')
       .addUserOption(o => o.setName('oponente').setDescription('Quem você quer enfrentar').setRequired(true)))
-    .addSubcommand(s => s.setName('encerrar').setDescription('Encerra a batalha deste canal')),
+    .addSubcommand(s => s.setName('encerrar').setDescription('Encerra a batalha (ou o desafio) deste canal')),
 
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();
     const battle = getBattle(interaction.channelId);
+    const challenge = getChallenge(interaction.channelId);
 
     if (sub === 'iniciar') {
       const opponent = interaction.options.getUser('oponente');
-      if (battle) return interaction.reply({ content: 'Já existe uma batalha neste canal.', ephemeral: true });
-      if (opponent.bot) return interaction.reply({ content: 'Você não pode lutar contra um bot.', ephemeral: true });
-      if (opponent.id === interaction.user.id) return interaction.reply({ content: 'Você não pode lutar contra si mesmo.', ephemeral: true });
+      if (battle || challenge) return fail(interaction, 'Já existe uma batalha ou um desafio pendente neste canal.');
+      if (opponent.bot) return fail(interaction, 'Você não pode lutar contra um bot.');
+      if (opponent.id === interaction.user.id) return fail(interaction, 'Você não pode lutar contra si mesmo.');
 
-      const nameOf = u => interaction.guild?.members.cache.get(u.id)?.displayName ?? u.displayName ?? u.username;
-      await interaction.deferReply(); // baixar avatares e desenhar a imagem pode passar de 3s
-      const b = createBattle(
-        interaction.channelId,
-        { id: interaction.user.id, name: nameOf(interaction.user) },
-        { id: opponent.id, name: nameOf(opponent) },
-      );
-      const avatarUrl = u => u.displayAvatarURL({ extension: 'png', size: 128 });
-      [b.players[0].avatar, b.players[1].avatar] = await Promise.all([
-        loadAvatar(avatarUrl(interaction.user)),
-        loadAvatar(avatarUrl(opponent)),
-      ]);
-      b.message = await interaction.editReply({
-        content: `<@${currentPlayer(b).id}> começa! (sorteio de iniciativa)`,
-        ...(await panelPayload(b, 'A batalha começou!')),
+      const describe = u => ({
+        id: u.id,
+        name: interaction.guild?.members.cache.get(u.id)?.displayName ?? u.displayName ?? u.username,
+        avatarUrl: u.displayAvatarURL({ extension: 'png', size: 128 }),
       });
-      return;
+      return startChallenge(interaction, describe(interaction.user), describe(opponent));
     }
 
     // encerrar
-    if (!battle) return interaction.reply({ content: 'Não há batalha neste canal.', ephemeral: true });
-    if (!battle.players.some(p => p.id === interaction.user.id)) {
-      return interaction.reply({ content: 'Só os participantes podem encerrar a batalha.', ephemeral: true });
+    if (battle) {
+      if (!battle.players.some(p => p.id === interaction.user.id)) return fail(interaction, 'Só os participantes podem encerrar a batalha.');
+      endBattle(battle);
+      await battle.message?.edit({ components: [] }).catch(() => {});
+      return interaction.reply('🏳️ A batalha foi encerrada.');
     }
-    endBattle(battle);
-    await battle.message?.edit({ components: [] }).catch(() => {});
-    return interaction.reply('🏳️ A batalha foi encerrada.');
+    if (challenge) {
+      const { challenger, opponent } = challenge;
+      if (![challenger.id, opponent.id].includes(interaction.user.id)) return fail(interaction, 'Só quem está no desafio pode cancelá-lo.');
+      await cancelChallenge(interaction.channelId, '🏳️ O desafio foi cancelado.');
+      return interaction.reply({ content: 'Desafio cancelado.', ephemeral: true });
+    }
+    return fail(interaction, 'Não há batalha nem desafio neste canal.');
   },
 };

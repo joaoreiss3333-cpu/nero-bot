@@ -1,7 +1,7 @@
 const { COLUMNS, ROWS, MAX_HP, MAX_MANA, MAX_ENERGY, MOVES_PER_TURN } = require('./config');
 const { samePos, DIRECTIONS } = require('./grid');
 const { getAbility } = require('./abilities');
-const { getKit } = require('./characters');
+const { getKit, getSpeed } = require('./characters');
 
 const battles = new Map(); // channelId -> batalha
 
@@ -9,24 +9,31 @@ const battles = new Map(); // channelId -> batalha
 const newTurn = () => ({ movesLeft: MOVES_PER_TURN, attacked: false, bonusUsed: false, queuedAttack: null });
 const rand = ([min, max]) => min + Math.floor(Math.random() * (max - min + 1));
 
-const newPlayer = (user, pos) => ({
+const newPlayer = user => ({
   id: user.id,
   name: user.name,
   hp: MAX_HP,
   mana: MAX_MANA,
   energy: MAX_ENERGY,
-  pos,
+  pos: null, // definida na fase de posicionamento
   abilities: getKit(user.id),
+  speed: getSpeed(user.id),
 });
 
+// Maior velocidade começa; se empatar, sorteia
+function whoStarts([a, b]) {
+  if (a.speed !== b.speed) return a.speed > b.speed ? 0 : 1;
+  return Math.random() < 0.5 ? 0 : 1;
+}
+
 function createBattle(channelId, a, b) {
+  const players = [newPlayer(a), newPlayer(b)];
   const battle = {
     channelId,
-    players: [
-      newPlayer(a, { col: 1, row: 1 }),
-      newPlayer(b, { col: COLUMNS.length - 2, row: ROWS - 2 }),
-    ],
-    current: Math.random() < 0.5 ? 0 : 1,
+    players,
+    phase: 'placement', // 'placement' (escolha dos setores iniciais) -> 'combat'
+    drafts: new Map(),  // userId -> setor ainda não confirmado, durante o posicionamento
+    current: whoStarts(players),
     round: 1,
     turn: newTurn(),
     message: null, // mensagem do painel atual
@@ -53,6 +60,17 @@ const findPlayer = (b, id) => b.players.find(p => p.id === id);
 // Habilidades do jogador de um tipo ('attack' | 'bonus' | 'reaction')
 const abilitiesOf = (player, type) =>
   player.abilities.map(getAbility).filter(a => a && a.type === type);
+
+// Escolhe o setor inicial. Pode ser trocado até o oponente também escolher.
+function placePlayer(battle, player, pos) {
+  if (battle.players.some(p => p !== player && p.pos && samePos(p.pos, pos))) {
+    return { error: 'Esse setor não está disponível. Escolha outro.' };
+  }
+  player.pos = pos;
+  return { pos };
+}
+
+const allPlaced = battle => battle.players.every(p => p.pos);
 
 // Retorna { dest } se o passo for válido, ou { error }
 function checkStep(battle, player, dir) {
@@ -107,5 +125,5 @@ function nextTurn(battle) {
 
 module.exports = {
   createBattle, getBattle, endBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf,
-  checkStep, movePlayer, resolveAttack, nextTurn,
+  placePlayer, allPlaced, checkStep, movePlayer, resolveAttack, nextTurn,
 };
