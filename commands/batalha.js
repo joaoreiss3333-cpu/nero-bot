@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { createBattle, getBattle, endBattle, currentPlayer } = require('../src/combat/battle');
 const { panelPayload } = require('../src/combat/render');
+const { loadAvatar } = require('../src/combat/image');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -23,15 +24,20 @@ module.exports = {
       if (opponent.id === interaction.user.id) return interaction.reply({ content: 'Você não pode lutar contra si mesmo.', ephemeral: true });
 
       const nameOf = u => interaction.guild?.members.cache.get(u.id)?.displayName ?? u.displayName ?? u.username;
+      await interaction.deferReply(); // baixar avatares e desenhar a imagem pode passar de 3s
       const b = createBattle(
         interaction.channelId,
         { id: interaction.user.id, name: nameOf(interaction.user) },
         { id: opponent.id, name: nameOf(opponent) },
       );
-      b.message = await interaction.reply({
+      const avatarUrl = u => u.displayAvatarURL({ extension: 'png', size: 128 });
+      [b.players[0].avatar, b.players[1].avatar] = await Promise.all([
+        loadAvatar(avatarUrl(interaction.user)),
+        loadAvatar(avatarUrl(opponent)),
+      ]);
+      b.message = await interaction.editReply({
         content: `<@${currentPlayer(b).id}> começa! (sorteio de iniciativa)`,
-        ...panelPayload(b, 'A batalha começou!'),
-        fetchReply: true,
+        ...(await panelPayload(b, 'A batalha começou!')),
       });
       return;
     }

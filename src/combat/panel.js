@@ -2,7 +2,7 @@ const {
   getBattle, endBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf,
   movePlayer, resolveAttack, nextTurn,
 } = require('./battle');
-const { panelPayload } = require('./render');
+const { panelPayload, asEdit } = require('./render');
 const { formatCoord, distance } = require('./grid');
 const { getAbility } = require('./abilities');
 const { ACTION_TIMEOUT_MS } = require('./config');
@@ -12,14 +12,14 @@ const ephemeral = (interaction, content) => interaction.reply({ content, ephemer
 // Congela o painel atual (sem botões) e abre o painel do próximo jogador.
 // `interaction` é o clique que originou isso; sem ele (tempo esgotado) usa o canal.
 async function passTurn(battle, text, interaction = null) {
-  const frozen = { embeds: panelPayload(battle, text).embeds, components: [] };
+  const frozen = asEdit({ ...(await panelPayload(battle, text)), components: [] });
   if (interaction) await interaction.update(frozen);
   else await battle.message.edit(frozen);
 
   nextTurn(battle);
   const next = {
     content: `<@${currentPlayer(battle).id}>, é a sua vez!`,
-    ...panelPayload(battle, text),
+    ...(await panelPayload(battle, text)),
   };
   battle.message = interaction
     ? await interaction.followUp({ ...next, fetchReply: true })
@@ -38,7 +38,7 @@ async function finishAttack(battle, reaction, interaction = null) {
 
   if (result.defeated) {
     endBattle(battle);
-    const payload = panelPayload(battle, `${result.log}\n\n🏆 **${attacker.name} venceu a batalha!**`);
+    const payload = asEdit(await panelPayload(battle, `${result.log}\n\n🏆 **${attacker.name} venceu a batalha!**`));
     return interaction ? interaction.update(payload) : battle.message.edit(payload);
   }
   return passTurn(battle, `⏭️ ${attacker.name} encerrou o turno.\n${result.log}`, interaction);
@@ -60,10 +60,10 @@ async function endTurn(battle, me, interaction) {
   battle.pending.timer = setTimeout(() => {
     if (battle.pending) finishAttack(battle, null).catch(console.error);
   }, ACTION_TIMEOUT_MS);
-  return interaction.update(panelPayload(
+  return interaction.update(asEdit(await panelPayload(
     battle,
     `👊 ${me.name} encerrou o turno e atacou com **${attack.name}**! ${defender.name}, escolha sua reação (${ACTION_TIMEOUT_MS / 1000}s).`,
-  ));
+  )));
 }
 
 async function handleButton(interaction) {
@@ -92,7 +92,7 @@ async function handleButton(interaction) {
   if (kind === 'mv') {
     const result = movePlayer(battle, me, arg);
     if (result.error) return ephemeral(interaction, result.error);
-    return interaction.update(panelPayload(battle, `🏃 ${me.name} foi para **${formatCoord(me.pos)}**.`));
+    return interaction.update(asEdit(await panelPayload(battle, `🏃 ${me.name} foi para **${formatCoord(me.pos)}**.`)));
   }
 
   if (kind === 'end') return endTurn(battle, me, interaction);

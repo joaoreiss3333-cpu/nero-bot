@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { getBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf } = require('../src/combat/battle');
-const { panelPayload } = require('../src/combat/render');
+const { panelPayload, asEdit } = require('../src/combat/render');
 const { getAbility, TYPE_LABEL } = require('../src/combat/abilities');
 const { getKit } = require('../src/combat/characters');
 const { distance } = require('../src/combat/grid');
@@ -53,7 +53,7 @@ module.exports = {
       battle.turn.attacked = true;
       battle.turn.queuedAttack = ability;
       await interaction.reply({ content: `✅ **${ability.name}** preparado. Ele será executado quando você encerrar o turno.`, ephemeral: true });
-      return battle.message.edit(panelPayload(battle, `👊 ${me.name} preparou **${ability.name}**. O golpe acontece ao fim do turno.`));
+      return battle.message.edit(asEdit(await panelPayload(battle, `👊 ${me.name} preparou **${ability.name}**. O golpe acontece ao fim do turno.`)));
     }
 
     // bonus
@@ -61,6 +61,6 @@ module.exports = {
     battle.turn.bonusUsed = true;
     const text = ability.use(battle, me);
     await interaction.reply({ content: `✅ Você usou **${ability.name}**.`, ephemeral: true });
-    return battle.message.edit(panelPayload(battle, text));
+    return battle.message.edit(asEdit(await panelPayload(battle, text)));
   },
 };

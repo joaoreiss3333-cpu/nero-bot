@@ -31,9 +31,17 @@ client.on(Events.InteractionCreate, async interaction => {
   } catch (err) {
     console.error(err);
     const msg = { content: 'Ocorreu um erro ao executar o comando.', ephemeral: true };
-    if (interaction.replied || interaction.deferred) await interaction.followUp(msg);
-    else await interaction.reply(msg);
+    try {
+      if (interaction.replied || interaction.deferred) await interaction.followUp(msg);
+      else await interaction.reply(msg);
+    } catch (replyErr) {
+      console.error('Não foi possível avisar o usuário do erro:', replyErr.message);
+    }
   }
 });
+
+// Um erro isolado não deve derrubar o bot
+client.on(Events.Error, err => console.error('Erro do client:', err));
+process.on('unhandledRejection', err => console.error('Promise rejeitada:', err));
 
 client.login(process.env.DISCORD_TOKEN);

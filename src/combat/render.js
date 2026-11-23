@@ -1,60 +1,6 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { COLUMNS, ROWS, MAX_HP, MAX_MANA, MAX_ENERGY, MOVES_PER_TURN } = require('./config');
-const { formatCoord } = require('./grid');
+const { EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { currentPlayer, opponentOf, checkStep, abilitiesOf } = require('./battle');
-
-function renderMap(battle) {
-  const cell = (c, r) => {
-    const i = battle.players.findIndex(p => p.pos.col === c && p.pos.row === r);
-    return i >= 0 ? ` ${i + 1} ` : ' . ';
-  };
-  const header = '   ' + COLUMNS.map(c => ` ${c} `).join('');
-  const lines = [];
-  for (let r = 0; r < ROWS; r++) {
-    lines.push(`${String(r + 1).padStart(2)} ` + COLUMNS.map((_, c) => cell(c, r)).join(''));
-  }
-  return '```\n' + [header, ...lines].join('\n') + '\n```';
-}
-
-const bar = (value, max) => {
-  const filled = Math.round((value / max) * 10);
-  return '█'.repeat(filled) + '░'.repeat(10 - filled);
-};
-
-// Painel: mapa em cima, informações da luta embaixo.
-function battleEmbed(battle, text = '') {
-  const cur = currentPlayer(battle);
-  const t = battle.turn;
-
-  const embed = new EmbedBuilder()
-    .setColor(0xc0392b)
-    .setTitle(`⚔️ Batalha — Rodada ${battle.round}`)
-    .setDescription(renderMap(battle));
-
-  battle.players.forEach((p, i) => {
-    embed.addFields({
-      name: `${i + 1}. ${p.name}${!battle.over && p === cur ? ' ▶' : ''} — ${formatCoord(p.pos)}`,
-      value:
-        `❤️ \`${bar(p.hp, MAX_HP)}\` ${p.hp}/${MAX_HP}\n` +
-        `🔷 \`${bar(p.mana, MAX_MANA)}\` ${p.mana}/${MAX_MANA}\n` +
-        `⚡ \`${bar(p.energy, MAX_ENERGY)}\` ${p.energy}/${MAX_ENERGY}`,
-      inline: true,
-    });
-  });
-
-  if (!battle.over) {
-    embed.addFields({
-      name: `Turno de ${cur.name}`,
-      value:
-        `🏃 Movimento: ${t.movesLeft}/${MOVES_PER_TURN} · ` +
-        `👊 Ataque: ${t.queuedAttack ? `preparado (${t.queuedAttack.name})` : t.attacked ? 'usado' : 'disponível'} · ` +
-        `✨ Bônus: ${t.bonusUsed ? 'usado' : 'disponível'}\n` +
-        'Use `/habilidade` para atacar ou usar uma ação bônus.',
-    });
-  }
-  if (text) embed.addFields({ name: 'Último evento', value: text });
-  return embed;
-}
+const { renderBattleImage } = require('./image');
 
 const btn = (id, style = ButtonStyle.Secondary) => new ButtonBuilder().setCustomId(id).setStyle(style);
 const spacer = id => btn(id).setLabel('·').setDisabled(true);
@@ -83,13 +29,24 @@ function reactionRow(battle) {
   return new ActionRowBuilder().addComponents(buttons);
 }
 
-// Monta o conteúdo completo do painel conforme o estado da batalha
-function panelPayload(battle, text = '') {
+// Monta a mensagem completa do painel: texto do que aconteceu, imagem (mapa + status) e botões.
+async function panelPayload(battle, text = '') {
   let components;
   if (battle.over) components = [];
   else if (battle.pending) components = [reactionRow(battle)];
   else components = controlRows(battle);
-  return { embeds: [battleEmbed(battle, text)], components };
+
+  const image = await renderBattleImage(battle);
+  const embed = new EmbedBuilder()
+    .setColor(0x5a3b1a)
+    .setImage('attachment://batalha.png');
+  if (text) embed.setDescription(text);
+  if (!battle.over) embed.setFooter({ text: 'Use /habilidade para atacar ou usar uma ação bônus.' });
+
+  return { embeds: [embed], components, files: [new AttachmentBuilder(image, { name: 'batalha.png' })] };
 }
 
-module.exports = { panelPayload };
+// Ao editar uma mensagem existente, `attachments: []` faz a imagem nova substituir a antiga
+const asEdit = payload => ({ ...payload, attachments: [] });
+
+module.exports = { panelPayload, asEdit };
