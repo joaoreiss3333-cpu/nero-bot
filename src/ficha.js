@@ -117,6 +117,8 @@ async function startFicha(interaction) {
   return interaction.reply(view(interaction.user, draft, { editing: !!profile.name }));
 }
 
+// `value` só é aplicado se existir: valor vazio quebra o formulário quando há tamanho mínimo
+const withValue = (input, value) => (value ? input.setValue(value) : input);
 const input = (id, label, placeholder, style = TextInputStyle.Short) =>
   new TextInputBuilder().setCustomId(id).setLabel(label).setPlaceholder(placeholder).setStyle(style).setRequired(true);
 const modal = (action, userId, title, textInput) =>
@@ -133,10 +135,10 @@ async function handleFicha(interaction) {
   switch (action) {
     case 'askName':
       return interaction.showModal(modal('name', ownerId, 'Nome do personagem',
-        input('value', 'Nome', 'Ex: Asta').setMinLength(NAME_MIN).setMaxLength(NAME_MAX).setValue(draft.name ?? '')));
+        withValue(input('value', 'Nome', 'Ex: Asta').setMinLength(NAME_MIN).setMaxLength(NAME_MAX), draft.name)));
     case 'askAge':
       return interaction.showModal(modal('age', ownerId, 'Idade do personagem',
-        input('value', 'Idade (só o número)', 'Ex: 17').setMinLength(1).setMaxLength(3).setValue(draft.age ? String(draft.age) : '')));
+        withValue(input('value', 'Idade (só o número)', 'Ex: 17').setMinLength(1).setMaxLength(3), draft.age && String(draft.age))));
     case 'askLook':
       return interaction.showModal(modal('look', ownerId, 'Aparência do personagem',
         input('value', 'Link da imagem', 'https://...', TextInputStyle.Paragraph).setMaxLength(1000)));
