@@ -9,7 +9,7 @@ const { currentPlayer, checkStep } = require('./battle');
 const SCALE = 568 / 720; // as imagens saem com ~568 px de largura: o Discord as exibe nesse tamanho exato
 const px = v => Math.round(v * SCALE); // tamanho lógico -> pixels da imagem
 const W = 720; // largura lógica fixa: com mais jogadores o mapa ganha mais casas, e elas ficam menores
-const CELL_ASPECT = 56 / 90; // altura / largura de cada casa
+const CELL_ASPECT = 1; // altura / largura de cada casa (1 = casas quadradas)
 
 const PLAYER_COLORS = ['#3b8fe0', '#e0453b', '#3fb950', '#e3b341', '#a371f7', '#f778ba', '#39c5cf', '#ff9248'];
 const FONT = 'Georgia, "Times New Roman", serif';
@@ -111,7 +111,7 @@ async function loadAvatar(url) {
 
 function drawToken(ctx, L, player, index, active) {
   const { x, y } = cellCenter(L, player.pos);
-  const R = Math.min(22, L.cellH * 0.39, L.cellW * 0.39); // o token encolhe junto com a casa
+  const R = Math.min(L.cellH, L.cellW) * 0.43; // o token ocupa quase a casa toda e encolhe junto com ela
   const color = PLAYER_COLORS[index % PLAYER_COLORS.length];
 
   ctx.save();
@@ -125,7 +125,7 @@ function drawToken(ctx, L, player, index, active) {
     ctx.shadowBlur = 12;
     ctx.strokeStyle = '#ffd84a';
     ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(x, y, R + 5, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, R + 3, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   }
 
@@ -145,7 +145,7 @@ function drawToken(ctx, L, player, index, active) {
   ctx.restore();
 
   ctx.strokeStyle = color;
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 3;
   ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.stroke();
 }
 
