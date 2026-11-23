@@ -12,7 +12,7 @@ const ephemeral = (interaction, content) => interaction.reply({ content, ephemer
 
 // Congela o painel atual (sem botões) e abre o painel do próximo jogador.
 async function passTurn(battle, text) {
-  await battle.message.edit(asEdit({ ...(await panelPayload(battle, text)), components: [] }));
+  await battle.message.edit(asEdit(await panelPayload(battle, text, { frozen: true })));
   nextTurn(battle);
   battle.message = await battle.message.channel.send(await panelPayload(battle, text));
 }
@@ -48,17 +48,16 @@ async function endTurn(battle, me, interaction) {
   const defender = opponentOf(battle, me.id);
 
   if (!attack || distance(me.pos, defender.pos) > attack.range) {
-    await interaction.update({ components: [] }); // tira os botões na hora (evita cliques duplos)
+    await interaction.deferUpdate();
     const miss = attack ? ` O ataque **${attack.name}** não alcançou o alvo.` : '';
     return passTurn(battle, `⏭️ ${me.name} encerrou o turno.${miss}`);
   }
 
   // Tira os botões do painel do atacante e trava as ações enquanto o golpe é mostrado
   battle.pending = { attack, attackerId: me.id, timer: null, animating: true };
-  await interaction.update(asEdit({
-    ...(await panelPayload(battle, `⏭️ ${me.name} encerrou o turno e atacou com **${attack.name}**!`)),
-    components: [],
-  }));
+  await interaction.update(asEdit(
+    await panelPayload(battle, `⏭️ ${me.name} encerrou o turno e atacou com **${attack.name}**!`, { frozen: true }),
+  ));
   await playAction(battle.message.channel, me.name, attack);
 
   // A vez passa para o defensor: o painel dele nasce já com a pergunta da reação
@@ -104,7 +103,7 @@ async function handleButton(interaction) {
     if (reaction && me.energy < reaction.energyCost) {
       return ephemeral(interaction, `Energia insuficiente: **${reaction.name}** custa ${reaction.energyCost} e você tem ${me.energy}.`);
     }
-    await interaction.update({ components: [] }); // tira os botões na hora (evita cliques duplos)
+    await interaction.deferUpdate(); // finishAttack já trava (animating) contra cliques duplos
     return finishAttack(battle, reaction);
   }
 
@@ -125,7 +124,11 @@ async function handleButton(interaction) {
     return interaction.update(asEdit(await panelPayload(battle, `⚔️ ${me.name} terminou a movimentação. Ações liberadas: use \`/habilidade\`.`)));
   }
 
-  if (kind === 'end') return endTurn(battle, me, interaction);
+  if (kind === 'end') {
+    if (battle.ending) return interaction.deferUpdate(); // clique duplo
+    battle.ending = true;
+    try { return await endTurn(battle, me, interaction); } finally { battle.ending = false; }
+  }
 }
 
 module.exports = { handleButton };

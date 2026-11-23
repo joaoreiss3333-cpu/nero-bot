@@ -1,4 +1,7 @@
-const { EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const {
+  AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags,
+  ContainerBuilder, TextDisplayBuilder, MediaGalleryBuilder, MediaGalleryItemBuilder, SeparatorBuilder,
+} = require('discord.js');
 const { currentPlayer, opponentOf, checkStep, abilitiesOf } = require('./battle');
 const { renderMapImage, renderPanelImage } = require('./image');
 const { EMBED_COLOR } = require('./config');
@@ -37,47 +40,56 @@ function reactionRow(battle) {
   return new ActionRowBuilder().addComponents(buttons);
 }
 
-// Monta a mensagem do painel: o que aconteceu, as imagens (mapa e status) e os botões.
-async function panelPayload(battle, text = '') {
+// Monta a mensagem do painel num container (Components V2): texto, as imagens (mapa e status, que
+// ocupam a largura toda) e os botões, tudo dentro do mesmo bloco. Com `frozen` os botões não aparecem.
+// Obs: mensagens V2 não aceitam `content` nem embeds, e não dá para mandar `components: []` (ficaria vazia).
+async function panelPayload(battle, text = '', { frozen = false } = {}) {
   const placing = battle.phase === 'placement';
-  let components;
-  if (battle.over) components = [];
-  else if (placing) components = [new ActionRowBuilder().addComponents(
+  let rows;
+  if (battle.over || frozen) rows = [];
+  else if (placing) rows = [new ActionRowBuilder().addComponents(
     btn('pl:open', ButtonStyle.Primary).setLabel('Escolher setor').setEmoji('📍'),
   )];
-  else if (battle.pending) components = [reactionRow(battle)];
-  else components = controlRows(battle);
+  else if (battle.pending) rows = [reactionRow(battle)];
+  else rows = controlRows(battle);
 
-  // Dois embeds empilhados: o de cima com o texto e o mapa, o de baixo com o painel de status
   let title;
   if (battle.over) title = 'Batalha encerrada';
   else if (placing) title = 'Posicionamento';
   else title = `Turno de ${currentPlayer(battle).name}`;
 
-  const mapEmbed = new EmbedBuilder().setColor(EMBED_COLOR).setTitle(title).setImage('attachment://mapa.png');
-  if (text) mapEmbed.setDescription(text);
-
-  const panelEmbed = new EmbedBuilder().setColor(EMBED_COLOR).setImage('attachment://painel.png');
-  if (placing) panelEmbed.setFooter({ text: 'Clique em "Escolher setor" e digite onde você quer começar (ex: C3).' });
-  else if (battle.pending) panelEmbed.setFooter({ text: 'Escolha como reagir ao ataque.' });
+  let footer = '';
+  if (placing) footer = 'Clique em "Escolher setor" e digite onde você quer começar (ex: C3).';
+  else if (battle.pending) footer = 'Escolha como reagir ao ataque.';
   else if (!battle.over) {
-    panelEmbed.setFooter({
-      text: battle.turn.phase === 'move'
-        ? 'Movimente-se com as setas e clique em "Ir para as ações" para atacar ou usar uma ação bônus.'
-        : 'Use /habilidade para atacar ou usar uma ação bônus.',
-    });
+    footer = battle.turn.phase === 'move'
+      ? 'Movimente-se com as setas e clique em "Ir para as ações" para atacar ou usar uma ação bônus.'
+      : 'Use /habilidade para atacar ou usar uma ação bônus.';
+  }
+
+  const container = new ContainerBuilder()
+    .setAccentColor(EMBED_COLOR)
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(text ? `## ${title}\n${text}` : `## ${title}`))
+    .addMediaGalleryComponents(
+      new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL('attachment://mapa.png')),
+      new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL('attachment://painel.png')),
+    );
+  if (footer) container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# ${footer}`));
+  if (rows.length) {
+    container.addSeparatorComponents(new SeparatorBuilder());
+    container.addActionRowComponents(...rows);
   }
 
   const [mapPng, panelPng] = await Promise.all([renderMapImage(battle), renderPanelImage(battle)]);
   return {
-    embeds: [mapEmbed, panelEmbed],
-    components,
+    components: [container],
+    flags: MessageFlags.IsComponentsV2,
     files: [new AttachmentBuilder(mapPng, { name: 'mapa.png' }), new AttachmentBuilder(panelPng, { name: 'painel.png' })],
   };
 }
 
-// Ao editar uma mensagem existente, `attachments: []` faz as imagens novas substituírem as antigas
-// e `content: ''` limpa qualquer texto que a mensagem tinha (ex: o convite do desafio)
-const asEdit = payload => ({ ...payload, content: '', attachments: [] });
+// Ao editar uma mensagem existente, `attachments: []` faz as imagens novas substituírem as antigas;
+// `content` e `embeds` vazios limpam o que a mensagem tinha antes (ex: o convite do desafio)
+const asEdit = payload => ({ ...payload, content: '', embeds: [], attachments: [] });
 
 module.exports = { panelPayload, asEdit };

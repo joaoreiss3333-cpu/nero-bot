@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { getBattle, endBattle } = require('../src/combat/battle');
 const { getChallenge, startChallenge, cancelChallenge } = require('../src/combat/challenge');
+const { panelPayload, asEdit } = require('../src/combat/render');
 
 const fail = (interaction, content) => interaction.reply({ content, ephemeral: true });
 
@@ -37,7 +38,7 @@ module.exports = {
     if (battle) {
       if (!battle.players.some(p => p.id === interaction.user.id)) return fail(interaction, 'Só os participantes podem encerrar a batalha.');
       endBattle(battle);
-      await battle.message?.edit({ components: [] }).catch(() => {});
+      await battle.message?.edit(asEdit(await panelPayload(battle, '🏳️ A batalha foi encerrada.', { frozen: true }))).catch(() => {});
       return interaction.reply('🏳️ A batalha foi encerrada.');
     }
     if (challenge) {

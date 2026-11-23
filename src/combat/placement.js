@@ -8,10 +8,7 @@ const ephemeral = (interaction, content) => interaction.reply({ content, ephemer
 // Todos escolheram: revela as posições e começa o combate
 async function startCombat(battle) {
   battle.phase = 'combat';
-  await battle.message.edit(asEdit({
-    ...(await panelPayload(battle, 'Posições definidas!')),
-    components: [],
-  }));
+  await battle.message.edit(asEdit(await panelPayload(battle, 'Posições definidas!', { frozen: true })));
   battle.message = await battle.message.channel.send(await panelPayload(battle, 'A batalha começou!'));
 }
 

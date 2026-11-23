@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const {
+  AttachmentBuilder, MessageFlags, ContainerBuilder, TextDisplayBuilder, MediaGalleryBuilder, MediaGalleryItemBuilder,
+} = require('discord.js');
 const config = require('./config');
 
 const GIF_DIR = path.join(__dirname, '..', '..', 'assets', 'gifs');
@@ -16,25 +18,29 @@ function gifFor(ability) {
   return fs.existsSync(file) ? { file, name: path.basename(file) } : null;
 }
 
-// Posta o embed da ação ("X utilizou um Soco") com o GIF.
+// Posta o container da ação ("X utilizou um Soco") com o GIF.
 // Retorna { message, hasGif }. Uma falha ao enviar (ex: sem permissão para anexar arquivos)
 // nunca deve travar a luta: nesse caso message fica indefinida.
 async function announceAction(channel, userName, ability) {
-  const embed = new EmbedBuilder()
-    .setColor(config.EMBED_COLOR)
-    .setTitle(`${userName} utilizou ${ability.actionText ?? ability.name}`);
+  const container = new ContainerBuilder()
+    .setAccentColor(config.EMBED_COLOR)
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${userName} utilizou ${ability.actionText ?? ability.name}`));
 
   const gif = gifFor(ability);
   const files = [];
+  let gifUrl;
   if (gif?.url) {
-    embed.setImage(gif.url);
+    gifUrl = gif.url;
   } else if (gif?.file) {
     files.push(new AttachmentBuilder(gif.file, { name: gif.name }));
-    embed.setImage(`attachment://${gif.name}`);
+    gifUrl = `attachment://${gif.name}`;
+  }
+  if (gifUrl) {
+    container.addMediaGalleryComponents(new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL(gifUrl)));
   }
 
   try {
-    const message = await channel.send({ embeds: [embed], files });
+    const message = await channel.send({ components: [container], flags: MessageFlags.IsComponentsV2, files });
     return { message, hasGif: !!gif };
   } catch (err) {
     console.error('Não foi possível enviar o aviso da ação:', err.message);
