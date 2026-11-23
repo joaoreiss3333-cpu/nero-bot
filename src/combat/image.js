@@ -96,7 +96,14 @@ function drawCoordLabel(ctx, L, pos) {
 
 async function loadAvatar(url) {
   try {
-    return await loadImage(url);
+    const img = await loadImage(url);
+    // Retratos da ficha costumam ser retangulares: recorta um quadrado a partir do topo (onde fica o rosto)
+    // para o token redondo não esticar a imagem
+    if (img.width === img.height) return img;
+    const side = Math.min(img.width, img.height);
+    const canvas = createCanvas(side, side);
+    canvas.getContext('2d').drawImage(img, (img.width - side) / 2, 0, side, side, 0, 0, side, side);
+    return canvas;
   } catch {
     return null; // sem avatar: o token usa a inicial do nome
   }

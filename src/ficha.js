@@ -196,6 +196,8 @@ async function handleFicha(interaction) {
 
     case 'confirm': {
       if (stepOf(draft) !== 'review') return reply('Ainda faltam informações na ficha.');
+      // Segurança: duas criações abertas ao mesmo tempo não podem sobrescrever uma ficha já pronta
+      if (getProfile(ownerId).name) { drafts.delete(ownerId); return reply('Você já criou a sua ficha e ela não pode ser refeita.'); }
       await interaction.deferUpdate(); // desenhar o perfil pode passar de 3s
       const profile = getProfile(ownerId);
       profile.name = draft.name;

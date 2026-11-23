@@ -1,4 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
+const { getProfile } = require('../src/combat/profiles');
 const { getBattle, endBattle } = require('../src/combat/battle');
 const { getChallenge, startChallenge, cancelChallenge } = require('../src/combat/challenge');
 const { panelPayload, asEdit } = require('../src/combat/render');
@@ -26,11 +27,15 @@ module.exports = {
       if (opponent.bot) return fail(interaction, 'Você não pode lutar contra um bot.');
       if (opponent.id === interaction.user.id) return fail(interaction, 'Você não pode lutar contra si mesmo.');
 
-      const describe = u => ({
-        id: u.id,
-        name: interaction.guild?.members.cache.get(u.id)?.displayName ?? u.displayName ?? u.username,
-        avatarUrl: u.displayAvatarURL({ extension: 'png', size: 128 }),
-      });
+      // Nome e aparência vêm da ficha; sem ficha, usa o apelido e o avatar do Discord
+      const describe = u => {
+        const profile = getProfile(u.id);
+        return {
+          id: u.id,
+          name: profile.name ?? interaction.guild?.members.cache.get(u.id)?.displayName ?? u.displayName ?? u.username,
+          avatarUrl: profile.portraitUrl ?? u.displayAvatarURL({ extension: 'png', size: 128 }), // portraitUrl é o caminho do arquivo salvo
+        };
+      };
       return startChallenge(interaction, describe(interaction.user), describe(opponent));
     }
 
