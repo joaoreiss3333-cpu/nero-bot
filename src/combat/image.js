@@ -1,5 +1,5 @@
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
-const { COLUMNS, ROWS, MAX_HP, MAX_MANA, MAX_ENERGY, MOVES_PER_TURN } = require('./config');
+const { MAX_HP, MAX_MANA, MAX_ENERGY, MOVES_PER_TURN } = require('./config');
 const { DIRECTIONS, formatCoord } = require('./grid');
 const { currentPlayer, checkStep } = require('./battle');
 
@@ -8,13 +8,10 @@ const { currentPlayer, checkStep } = require('./battle');
 // o Discord mostra imagens desse tamanho sem redimensionar.
 const SCALE = 568 / 720; // as imagens saem com ~568 px de largura: o Discord as exibe nesse tamanho exato
 const px = v => Math.round(v * SCALE); // tamanho lógico -> pixels da imagem
-const CELL_W = 90;
-const CELL_H = 56;
-const MAP_W = COLUMNS.length * CELL_W;
-const MAP_H = ROWS * CELL_H;
-const W = MAP_W;
+const W = 720; // largura lógica fixa: com mais jogadores o mapa ganha mais casas, e elas ficam menores
+const CELL_ASPECT = 56 / 90; // altura / largura de cada casa
 
-const PLAYER_COLORS = ['#3b8fe0', '#e0453b'];
+const PLAYER_COLORS = ['#3b8fe0', '#e0453b', '#3fb950', '#e3b341', '#a371f7', '#f778ba', '#39c5cf', '#ff9248'];
 const FONT = 'Georgia, "Times New Roman", serif';
 
 function mulberry32(seed) {
@@ -26,62 +23,74 @@ function mulberry32(seed) {
   };
 }
 
-const cellOrigin = ({ col, row }) => ({ x: col * CELL_W, y: row * CELL_H });
-const cellCenter = pos => {
-  const o = cellOrigin(pos);
-  return { x: o.x + CELL_W / 2, y: o.y + CELL_H / 2 };
+// Geometria do mapa de uma batalha: o número de casas vem da batalha, a largura da imagem é fixa
+function layoutOf(battle) {
+  const { cols, rows } = battle;
+  const cellW = W / cols;
+  const cellH = cellW * CELL_ASPECT;
+  return { cols, rows, cellW, cellH, mapW: W, mapH: rows * cellH };
+}
+
+const cellOrigin = (L, { col, row }) => ({ x: col * L.cellW, y: row * L.cellH });
+const cellCenter = (L, pos) => {
+  const o = cellOrigin(L, pos);
+  return { x: o.x + L.cellW / 2, y: o.y + L.cellH / 2 };
 };
 
 // Terreno gerado proceduralmente (sempre igual) + grade, com ou sem a coordenada em cada casa.
-// Cada versão é desenhada uma vez só.
-const backgroundCache = {};
-function background(withLabels) {
-  if (backgroundCache[withLabels]) return backgroundCache[withLabels];
-  const canvas = createCanvas(px(MAP_W), px(MAP_H));
+// Cada combinação de tamanho/coordenadas é desenhada uma vez só.
+const backgroundCache = new Map();
+function background(L, withLabels) {
+  const key = `${L.cols}x${L.rows}:${withLabels}`;
+  if (backgroundCache.has(key)) return backgroundCache.get(key);
+
+  const canvas = createCanvas(px(L.mapW), px(L.mapH));
   const ctx = canvas.getContext('2d');
   ctx.scale(SCALE, SCALE);
   const rng = mulberry32(7);
 
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLUMNS.length; c++) {
-      const o = cellOrigin({ col: c, row: r });
+  for (let r = 0; r < L.rows; r++) {
+    for (let c = 0; c < L.cols; c++) {
+      const o = cellOrigin(L, { col: c, row: r });
       ctx.fillStyle = `hsl(${92 + rng() * 22}, ${34 + rng() * 12}%, ${26 + rng() * 9}%)`;
-      ctx.fillRect(o.x, o.y, CELL_W, CELL_H);
+      ctx.fillRect(o.x, o.y, L.cellW + 1, L.cellH + 1);
     }
   }
   for (let i = 0; i < 2600; i++) {
     ctx.fillStyle = rng() < 0.5 ? 'rgba(15,45,12,0.28)' : 'rgba(150,200,95,0.18)';
-    ctx.fillRect(rng() * MAP_W, rng() * MAP_H, 2 + rng() * 4, 1 + rng() * 2);
+    ctx.fillRect(rng() * L.mapW, rng() * L.mapH, 2 + rng() * 4, 1 + rng() * 2);
   }
 
   ctx.strokeStyle = 'rgba(255,255,255,0.22)';
   ctx.lineWidth = 1;
-  for (let c = 0; c <= COLUMNS.length; c++) {
-    ctx.beginPath(); ctx.moveTo(c * CELL_W, 0); ctx.lineTo(c * CELL_W, MAP_H); ctx.stroke();
+  for (let c = 0; c <= L.cols; c++) {
+    ctx.beginPath(); ctx.moveTo(c * L.cellW, 0); ctx.lineTo(c * L.cellW, L.mapH); ctx.stroke();
   }
-  for (let r = 0; r <= ROWS; r++) {
-    ctx.beginPath(); ctx.moveTo(0, r * CELL_H); ctx.lineTo(MAP_W, r * CELL_H); ctx.stroke();
+  for (let r = 0; r <= L.rows; r++) {
+    ctx.beginPath(); ctx.moveTo(0, r * L.cellH); ctx.lineTo(L.mapW, r * L.cellH); ctx.stroke();
   }
 
   if (withLabels) {
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLUMNS.length; c++) drawCoordLabel(ctx, { col: c, row: r });
+    for (let r = 0; r < L.rows; r++) {
+      for (let c = 0; c < L.cols; c++) drawCoordLabel(ctx, L, { col: c, row: r });
     }
   }
 
-  return (backgroundCache[withLabels] = canvas);
+  backgroundCache.set(key, canvas);
+  return canvas;
 }
 
-// Coordenada da casa (ex: C3) no canto superior direito
-function drawCoordLabel(ctx, pos) {
+// Coordenada da casa (ex: C3) no canto superior direito; a letra encolhe junto com a casa
+function drawCoordLabel(ctx, L, pos) {
+  const size = Math.max(9, Math.round(L.cellH * 0.29));
   ctx.save();
-  ctx.font = `bold 16px ${FONT}`;
+  ctx.font = `bold ${size}px ${FONT}`;
   ctx.textAlign = 'right';
   ctx.textBaseline = 'top';
   ctx.fillStyle = 'rgba(255,255,255,0.9)';
   ctx.shadowColor = 'rgba(0,0,0,0.9)';
   ctx.shadowBlur = 3;
-  ctx.fillText(formatCoord(pos), (pos.col + 1) * CELL_W - 6, pos.row * CELL_H + 4);
+  ctx.fillText(formatCoord(pos), (pos.col + 1) * L.cellW - 4, pos.row * L.cellH + 3);
   ctx.restore();
 }
 
@@ -93,10 +102,10 @@ async function loadAvatar(url) {
   }
 }
 
-function drawToken(ctx, player, index, active) {
-  const { x, y } = cellCenter(player.pos);
-  const R = 22;
-  const color = PLAYER_COLORS[index];
+function drawToken(ctx, L, player, index, active) {
+  const { x, y } = cellCenter(L, player.pos);
+  const R = Math.min(22, L.cellH * 0.39, L.cellW * 0.39); // o token encolhe junto com a casa
+  const color = PLAYER_COLORS[index % PLAYER_COLORS.length];
 
   ctx.save();
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
@@ -121,7 +130,7 @@ function drawToken(ctx, player, index, active) {
     ctx.fillStyle = '#3a3a44';
     ctx.fillRect(x - R, y - R, R * 2, R * 2);
     ctx.fillStyle = '#fff';
-    ctx.font = `bold 26px ${FONT}`;
+    ctx.font = `bold ${Math.round(R * 1.2)}px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(player.name.charAt(0).toUpperCase(), x, y + 1);
@@ -255,10 +264,11 @@ function drawPanel(ctx, battle) {
 
 // Imagem 1: o mapa com os jogadores. Retorna um Buffer PNG.
 async function renderMapImage(battle) {
-  const canvas = createCanvas(px(W), px(MAP_H));
+  const L = layoutOf(battle);
+  const canvas = createCanvas(px(L.mapW), px(L.mapH));
   const ctx = canvas.getContext('2d');
   // As coordenadas só aparecem na hora de escolher o setor inicial; depois somem
-  ctx.drawImage(background(battle.phase === 'placement'), 0, 0);
+  ctx.drawImage(background(L, battle.phase === 'placement'), 0, 0);
   ctx.scale(SCALE, SCALE);
 
   if (battle.phase === 'combat') {
@@ -269,16 +279,16 @@ async function renderMapImage(battle) {
       for (const dir of Object.keys(DIRECTIONS)) {
         const step = checkStep(battle, cur, dir);
         if (step.error) continue;
-        const o = cellOrigin(step.dest);
-        ctx.fillRect(o.x + 1, o.y + 1, CELL_W - 1, CELL_H - 1);
+        const o = cellOrigin(L, step.dest);
+        ctx.fillRect(o.x + 1, o.y + 1, L.cellW - 1, L.cellH - 1);
       }
     }
-    battle.players.forEach((p, i) => drawToken(ctx, p, i, !battle.over && p === cur));
+    battle.players.forEach((p, i) => drawToken(ctx, L, p, i, !battle.over && p === cur));
   }
 
   ctx.strokeStyle = '#5a3b1a';
   ctx.lineWidth = 4;
-  ctx.strokeRect(0, 0, MAP_W, MAP_H);
+  ctx.strokeRect(0, 0, L.mapW, L.mapH);
   return canvas.encode('png');
 }
 

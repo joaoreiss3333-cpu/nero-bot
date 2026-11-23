@@ -1,8 +1,7 @@
 const { EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { currentPlayer, opponentOf, checkStep, abilitiesOf } = require('./battle');
 const { renderMapImage, renderPanelImage } = require('./image');
-
-const EMBED_COLOR = 0xc0392b;
+const { EMBED_COLOR } = require('./config');
 
 const btn = (id, style = ButtonStyle.Secondary) => new ButtonBuilder().setCustomId(id).setStyle(style);
 const spacer = id => btn(id).setLabel('·').setDisabled(true);

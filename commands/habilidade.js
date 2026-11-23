@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { getBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf } = require('../src/combat/battle');
 const { panelPayload, asEdit } = require('../src/combat/render');
+const { announceAction } = require('../src/combat/actions');
 const { getAbility, TYPE_LABEL } = require('../src/combat/abilities');
 const { getKit } = require('../src/combat/characters');
 const { distance } = require('../src/combat/grid');
@@ -67,6 +68,7 @@ module.exports = {
     me.energy -= ability.energyCost;
     const text = ability.use(battle, me);
     await interaction.reply({ content: `✅ Você usou **${ability.name}**.`, ephemeral: true });
+    await announceAction(battle.message.channel, me.name, ability); // a ação bônus acontece na hora
     return battle.message.edit(asEdit(await panelPayload(battle, text)));
   },
 };

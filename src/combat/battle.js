@@ -1,4 +1,4 @@
-const { COLUMNS, ROWS, MAX_HP, MAX_MANA, MAX_ENERGY, MOVES_PER_TURN, ENERGY_REGEN_PER_TURN } = require('./config');
+const { gridSizeFor, MAX_HP, MAX_MANA, MAX_ENERGY, MOVES_PER_TURN, ENERGY_REGEN_PER_TURN } = require('./config');
 const { samePos, DIRECTIONS } = require('./grid');
 const { getAbility } = require('./abilities');
 const { getKit, getSpeed } = require('./characters');
@@ -20,17 +20,22 @@ const newPlayer = user => ({
   speed: getSpeed(user.id),
 });
 
-// Maior velocidade começa; se empatar, sorteia
-function whoStarts([a, b]) {
-  if (a.speed !== b.speed) return a.speed > b.speed ? 0 : 1;
-  return Math.random() < 0.5 ? 0 : 1;
+// Maior velocidade começa; se empatar, sorteia entre os mais rápidos
+function whoStarts(players) {
+  const top = Math.max(...players.map(p => p.speed));
+  const fastest = players.flatMap((p, i) => (p.speed === top ? [i] : []));
+  return fastest[Math.floor(Math.random() * fastest.length)];
 }
 
-function createBattle(channelId, a, b) {
-  const players = [newPlayer(a), newPlayer(b)];
+// users: { id, name } de cada participante. O tamanho do mapa cresce com o número de jogadores.
+function createBattle(channelId, ...users) {
+  const players = users.map(newPlayer);
+  const { cols, rows } = gridSizeFor(players.length);
   const battle = {
     channelId,
     players,
+    cols,
+    rows,
     phase: 'placement', // 'placement' (escolha dos setores iniciais) -> 'combat'
     current: whoStarts(players),
     round: 1,
@@ -76,7 +81,7 @@ function checkStep(battle, player, dir) {
   const { dc, dr } = DIRECTIONS[dir];
   const dest = { col: player.pos.col + dc, row: player.pos.row + dr };
   if (battle.turn.movesLeft < 1) return { error: 'Você não tem mais movimento neste turno.' };
-  if (dest.col < 0 || dest.col >= COLUMNS.length || dest.row < 0 || dest.row >= ROWS) {
+  if (dest.col < 0 || dest.col >= battle.cols || dest.row < 0 || dest.row >= battle.rows) {
     return { error: 'Você não pode sair do mapa.' };
   }
   if (battle.players.some(p => p !== player && samePos(p.pos, dest))) return { error: 'Essa casa está ocupada.' };
@@ -121,7 +126,7 @@ function resolveAttack(attacker, defender, attack, reaction) {
 }
 
 function nextTurn(battle) {
-  battle.current = 1 - battle.current;
+  battle.current = (battle.current + 1) % battle.players.length;
   if (battle.current === 0) battle.round++;
   battle.turn = newTurn();
   const p = currentPlayer(battle);

@@ -4,8 +4,14 @@
 //   reaction -> usada pelo defensor quando é atacado (aparece como botão)
 // Reações têm um `kind` ('dodge' ou 'block') que define como são resolvidas.
 // `energyCost` é a energia gasta ao usar a habilidade.
+//
+// Campos opcionais para o aviso da ação (o embed "X utilizou ..." com o GIF):
+//   actionText -> como a ação aparece no título, ex: "um Soco" (padrão: o nome)
+//   gif        -> URL do GIF, ou nome de um arquivo da pasta assets/gifs (ex: 'soco.gif').
+//                 Sem GIF, o aviso aparece só com o título.
+//   gifDurationMs -> quanto o jogo espera esse GIF rodar (padrão: ACTION_GIF_WAIT_MS)
 const abilities = {
-  soco: { id: 'soco', name: 'Soco', type: 'attack', range: 1, damage: [4, 8], energyCost: 10 },
+  soco: { id: 'soco', name: 'Soco', actionText: 'um Soco', gif: 'https://media1.tenor.com/m/8NyLrXRnN5EAAAAd/asta-black-clover.gif', type: 'attack', range: 1, damage: [4, 8], energyCost: 10 },
 
   esquiva: { id: 'esquiva', name: 'Esquiva', type: 'reaction', kind: 'dodge', chance: 0.5, energyCost: 15, emoji: '💨' }, // 50% de evitar todo o dano
   bloqueio: { id: 'bloqueio', name: 'Bloqueio', type: 'reaction', kind: 'block', absorb: 6, energyCost: 10, emoji: '🛡️' }, // absorve até 6 de dano

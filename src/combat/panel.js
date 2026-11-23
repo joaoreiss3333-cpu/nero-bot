@@ -3,6 +3,7 @@ const {
   movePlayer, resolveAttack, nextTurn,
 } = require('./battle');
 const { panelPayload, asEdit } = require('./render');
+const { playAction } = require('./actions');
 const { formatCoord, distance } = require('./grid');
 const { getAbility } = require('./abilities');
 const { ACTION_TIMEOUT_MS } = require('./config');
@@ -10,57 +11,61 @@ const { ACTION_TIMEOUT_MS } = require('./config');
 const ephemeral = (interaction, content) => interaction.reply({ content, ephemeral: true });
 
 // Congela o painel atual (sem botões) e abre o painel do próximo jogador.
-// `interaction` é o clique que originou isso; sem ele (tempo esgotado) usa o canal.
-async function passTurn(battle, text, interaction = null) {
-  const frozen = asEdit({ ...(await panelPayload(battle, text)), components: [] });
-  if (interaction) await interaction.update(frozen);
-  else await battle.message.edit(frozen);
-
+async function passTurn(battle, text) {
+  await battle.message.edit(asEdit({ ...(await panelPayload(battle, text)), components: [] }));
   nextTurn(battle);
-  const next = await panelPayload(battle, text);
-  battle.message = interaction
-    ? await interaction.followUp({ ...next, fetchReply: true })
-    : await battle.message.channel.send(next);
+  battle.message = await battle.message.channel.send(await panelPayload(battle, text));
 }
 
 // Aplica a reação escolhida (ou nenhuma) ao ataque pendente e passa o turno.
-async function finishAttack(battle, reaction, interaction = null) {
+// Enquanto isso o ataque continua "pendente" (marcado como animando), para ninguém agir no meio.
+async function finishAttack(battle, reaction) {
   const { attack, attackerId } = battle.pending;
   clearTimeout(battle.pending.timer);
-  battle.pending = null;
+  battle.pending.animating = true;
 
   const attacker = findPlayer(battle, attackerId);
   const defender = opponentOf(battle, attackerId);
+
+  // A reação também é uma ação: aparece o aviso (com GIF, se tiver) antes do resultado
+  if (reaction) await playAction(battle.message.channel, defender.name, reaction);
+
+  battle.pending = null;
   const result = resolveAttack(attacker, defender, attack, reaction);
 
   if (result.defeated) {
     endBattle(battle);
-    const payload = asEdit(await panelPayload(battle, `${result.log}\n\n🏆 **${attacker.name} venceu a batalha!**`));
-    return interaction ? interaction.update(payload) : battle.message.edit(payload);
+    return battle.message.edit(asEdit(await panelPayload(battle, `${result.log}\n\n🏆 **${attacker.name} venceu a batalha!**`)));
   }
-  return passTurn(battle, `⏭️ ${attacker.name} encerrou o turno.\n${result.log}`, interaction);
+  return passTurn(battle, `⏭️ ${attacker.name} encerrou o turno.\n${result.log}`);
 }
 
-// Encerra o turno de `me`. Se houver ataque preparado, o defensor reage antes do dano.
+// Encerra o turno de `me`. Se houver ataque preparado, ele acontece agora: aparece o aviso do
+// golpe (com GIF) e só depois o defensor reage antes do dano.
 async function endTurn(battle, me, interaction) {
+  await interaction.update({ components: [] }); // tira os botões na hora (evita cliques duplos)
+
   const attack = battle.turn.queuedAttack;
   const defender = opponentOf(battle, me.id);
 
-  if (!attack) return passTurn(battle, `⏭️ ${me.name} encerrou o turno.`, interaction);
+  if (!attack) return passTurn(battle, `⏭️ ${me.name} encerrou o turno.`);
   if (distance(me.pos, defender.pos) > attack.range) {
-    return passTurn(battle, `⏭️ ${me.name} encerrou o turno. O ataque **${attack.name}** não alcançou o alvo.`, interaction);
+    return passTurn(battle, `⏭️ ${me.name} encerrou o turno. O ataque **${attack.name}** não alcançou o alvo.`);
   }
 
-  battle.pending = { attack, attackerId: me.id, timer: null };
+  battle.pending = { attack, attackerId: me.id, timer: null, animating: true };
+  await playAction(battle.message.channel, me.name, attack);
+
   // Sem nenhuma reação que o defensor consiga pagar com a energia que tem, o golpe acontece direto
   if (!abilitiesOf(defender, 'reaction').some(a => defender.energy >= a.energyCost)) {
-    return finishAttack(battle, null, interaction);
+    return finishAttack(battle, null);
   }
 
+  battle.pending.animating = false;
   battle.pending.timer = setTimeout(() => {
-    if (battle.pending) finishAttack(battle, null).catch(console.error);
+    if (battle.pending && !battle.pending.animating) finishAttack(battle, null).catch(console.error);
   }, ACTION_TIMEOUT_MS);
-  return interaction.update(asEdit(await panelPayload(
+  return battle.message.edit(asEdit(await panelPayload(
     battle,
     `👊 ${me.name} encerrou o turno e atacou com **${attack.name}**! ${defender.name}, escolha sua reação (${ACTION_TIMEOUT_MS / 1000}s).`,
   )));
@@ -79,6 +84,7 @@ async function handleButton(interaction) {
 
   // Reação do defensor
   if (battle.pending) {
+    if (battle.pending.animating) return ephemeral(interaction, 'A ação está acontecendo, aguarde um instante.');
     const defender = opponentOf(battle, battle.pending.attackerId);
     if (kind !== 'react' || me.id !== defender.id) {
       return ephemeral(interaction, `Aguardando a reação de ${defender.name}.`);
@@ -87,7 +93,8 @@ async function handleButton(interaction) {
     if (reaction && me.energy < reaction.energyCost) {
       return ephemeral(interaction, `Energia insuficiente: **${reaction.name}** custa ${reaction.energyCost} e você tem ${me.energy}.`);
     }
-    return finishAttack(battle, reaction, interaction);
+    await interaction.update({ components: [] }); // tira os botões na hora (evita cliques duplos)
+    return finishAttack(battle, reaction);
   }
 
   if (kind === 'react') return ephemeral(interaction, 'Não há ataque para reagir agora.');
@@ -103,4 +110,3 @@ async function handleButton(interaction) {
 }
 
 module.exports = { handleButton };
-

@@ -1,14 +1,11 @@
 const { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const { getBattle, findPlayer, placePlayer, allPlaced } = require('./battle');
 const { panelPayload, asEdit } = require('./render');
-const { parseCoord, formatCoord } = require('./grid');
-const { COLUMNS, ROWS } = require('./config');
+const { parseCoord, formatCoord, boundsHint } = require('./grid');
 
 const ephemeral = (interaction, content) => interaction.reply({ content, ephemeral: true });
 
-const formatHint = `colunas ${COLUMNS[0]}-${COLUMNS.at(-1)}, linhas 1-${ROWS}`;
-
-// Os dois escolheram: revela as posições e começa o combate
+// Todos escolheram: revela as posições e começa o combate
 async function startCombat(battle) {
   battle.phase = 'combat';
   await battle.message.edit(asEdit({
@@ -47,8 +44,8 @@ async function handlePlacement(interaction) {
   }
 
   if (kind === 'modal') {
-    const pos = parseCoord(interaction.fields.getTextInputValue('setor'));
-    if (!pos) return ephemeral(interaction, `Setor inválido. Use algo como \`C3\` (${formatHint}). Clique em "Escolher setor" para tentar de novo.`);
+    const pos = parseCoord(interaction.fields.getTextInputValue('setor'), battle);
+    if (!pos) return ephemeral(interaction, `Setor inválido. Use algo como \`C3\` (${boundsHint(battle)}). Clique em "Escolher setor" para tentar de novo.`);
 
     const result = placePlayer(battle, me, pos);
     if (result.error) return ephemeral(interaction, `${result.error} Clique em "Escolher setor" para tentar de novo.`);
