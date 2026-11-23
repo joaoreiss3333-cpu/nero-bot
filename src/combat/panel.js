@@ -41,8 +41,8 @@ async function finishAttack(battle, reaction) {
   return battle.message.edit(asEdit(await panelPayload(battle, result.log)));
 }
 
-// Encerra o turno de `me`. Se houver ataque preparado, ele acontece agora: o embed do golpe (com GIF)
-// roda e some, e só depois aparece o embed do turno do adversário com as opções de reação.
+// Encerra o turno de `me`. Se houver ataque preparado, ele é resolvido agora (o GIF do golpe já
+// apareceu quando a habilidade foi usada): aparece o painel do adversário com as opções de reação.
 async function endTurn(battle, me, interaction) {
   const attack = battle.turn.queuedAttack;
   const defender = opponentOf(battle, me.id);
@@ -58,8 +58,6 @@ async function endTurn(battle, me, interaction) {
   await interaction.update(asEdit(
     await panelPayload(battle, `⏭️ ${me.name} encerrou o turno e atacou com **${attack.name}**!`, { frozen: true }),
   ));
-  await playAction(battle.message.channel, me.name, attack);
-
   // A vez passa para o defensor: o painel dele nasce já com a pergunta da reação
   nextTurn(battle);
 

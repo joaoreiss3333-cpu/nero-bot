@@ -61,7 +61,9 @@ module.exports = {
       battle.turn.attacked = true;
       battle.turn.queuedAttack = ability;
       me.energy -= ability.energyCost;
-      await interaction.reply({ content: `✅ **${ability.name}** preparado (-${ability.energyCost} energia). Ele será executado quando você encerrar o turno.`, ephemeral: true });
+      await interaction.reply({ content: `✅ **${ability.name}** preparado (-${ability.energyCost} energia). O dano e a reação do oponente acontecem quando você encerrar o turno.`, ephemeral: true });
+      // O GIF do golpe aparece na hora (como na ação bônus); o dano e a reação ficam para o fim do turno
+      await playAction(battle.message.channel, me.name, ability, { block: false });
       return battle.message.edit(asEdit(await panelPayload(battle, `👊 ${me.name} preparou **${ability.name}** (-${ability.energyCost} energia). O golpe acontece ao fim do turno.`)));
     }
 
