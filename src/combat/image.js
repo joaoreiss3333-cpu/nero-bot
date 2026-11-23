@@ -1,5 +1,5 @@
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
-const { MAX_HP, MAX_MANA, MAX_ENERGY, MOVES_PER_TURN } = require('./config');
+const { MOVES_PER_TURN } = require('./config');
 const { DIRECTIONS, formatCoord } = require('./grid');
 const { currentPlayer, checkStep } = require('./battle');
 
@@ -232,9 +232,9 @@ function drawPanel(ctx, battle) {
     ctx.font = `bold 24px ${FONT}`;
     ctx.fillText(fitText(ctx, p.name, barX0 - 62 - 12), 62, mid + 1);
 
-    drawBar(ctx, barX[0], mid - 17, barW, 34, p.hp, MAX_HP, '#59d24a', '#1f7a1c');
-    drawBar(ctx, barX[1], mid - 17, barW, 34, p.mana, MAX_MANA, '#4aa8f0', '#1b5aa6');
-    drawBar(ctx, barX[2], mid - 17, barW, 34, p.energy, MAX_ENERGY, '#f6b73c', '#c46a0a');
+    drawBar(ctx, barX[0], mid - 17, barW, 34, p.hp, p.maxHp, '#59d24a', '#1f7a1c');
+    drawBar(ctx, barX[1], mid - 17, barW, 34, p.mana, p.maxMana, '#4aa8f0', '#1b5aa6');
+    drawBar(ctx, barX[2], mid - 17, barW, 34, p.energy, p.maxEnergy, '#f6b73c', '#c46a0a');
   });
 
   const footY = top + 112 + battle.players.length * ROW_H + 18;

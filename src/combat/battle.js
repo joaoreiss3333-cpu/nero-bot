@@ -1,7 +1,8 @@
-const { gridSizeFor, MAX_HP, MAX_MANA, MAX_ENERGY, MOVES_PER_TURN, ENERGY_REGEN_PER_TURN } = require('./config');
+const C = require('./config');
+const { gridSizeFor, MOVES_PER_TURN, ENERGY_REGEN_PER_TURN } = C;
 const { samePos, DIRECTIONS } = require('./grid');
 const { getAbility } = require('./abilities');
-const { getKit, getSpeed } = require('./characters');
+const { getKit, getCombatStats } = require('./characters');
 
 const battles = new Map(); // channelId -> batalha
 
@@ -11,18 +12,32 @@ const battles = new Map(); // channelId -> batalha
 const newTurn = () => ({
   phase: 'move', movesLeft: MOVES_PER_TURN, attacked: false, bonusUsed: false, queuedAttack: null,
 });
+
+// Os números do personagem (vida, mana, energia, atributos) vêm da ficha no momento em que a batalha começa
+function newPlayer(user) {
+  const stats = getCombatStats(user.id);
+  return {
+    id: user.id,
+    name: user.name,
+    level: stats.level,
+    attrs: stats.attrs,
+    maxHp: stats.maxHp,
+    maxMana: stats.maxMana,
+    maxEnergy: stats.maxEnergy,
+    hp: stats.maxHp,
+    mana: stats.maxMana,
+    energy: stats.maxEnergy,
+    pos: null, // definida na fase de posicionamento
+    abilities: getKit(user.id),
+    speed: stats.speed,
+  };
+}
+
 const rand = ([min, max]) => min + Math.floor(Math.random() * (max - min + 1));
 
-const newPlayer = user => ({
-  id: user.id,
-  name: user.name,
-  hp: MAX_HP,
-  mana: MAX_MANA,
-  energy: MAX_ENERGY,
-  pos: null, // definida na fase de posicionamento
-  abilities: getKit(user.id),
-  speed: getSpeed(user.id),
-});
+// Dano de um ataque: valor sorteado no intervalo da habilidade + atributo × multiplicador do atributo
+const attackDamage = (attacker, attack) =>
+  rand(attack.damage) + Math.round((attacker.attrs[attack.attribute] ?? 0) * (C.DAMAGE_PER_POINT[attack.attribute] ?? 0));
 
 // Maior velocidade começa; se empatar, sorteia entre os mais rápidos
 function whoStarts(players) {
@@ -109,19 +124,23 @@ function startActions(battle) {
 
 // Resolve um ataque. reaction: habilidade de reação usada pelo defensor, ou null.
 function resolveAttack(attacker, defender, attack, reaction) {
-  let damage = rand(attack.damage);
+  // A Resistência do defensor corta uma porcentagem do golpe (sempre sobra pelo menos 1 de dano)
+  const cut = Math.min(C.RESISTANCE_REDUCTION_CAP, defender.attrs.resistencia * C.RESISTANCE_REDUCTION_PER_POINT);
+  let damage = Math.max(1, Math.round(attackDamage(attacker, attack) * (1 - cut)));
   let log = `${attacker.name} usou **${attack.name}** em ${defender.name} (${damage} de dano).`;
 
   if (reaction) {
     if (reaction.kind === 'dodge') {
-      if (Math.random() < reaction.chance) {
+      const chance = Math.min(C.DODGE_CHANCE_CAP, reaction.chance + defender.attrs.destreza * C.DODGE_CHANCE_PER_DEXTERITY);
+      if (Math.random() < chance) {
         damage = 0;
         log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}** e desviou! Nenhum dano.`;
       } else {
         log += `\n${reaction.emoji} ${defender.name} tentou **${reaction.name}**, mas falhou.`;
       }
     } else if (reaction.kind === 'block') {
-      const absorbed = Math.min(reaction.absorb, damage);
+      const share = Math.min(C.BLOCK_ABSORB_CAP, reaction.absorb + defender.attrs.resistencia * C.RESISTANCE_BLOCK_BONUS);
+      const absorbed = Math.round(damage * share);
       damage -= absorbed;
       log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}** e absorveu ${absorbed} de dano.`;
     }
@@ -141,7 +160,7 @@ function nextTurn(battle) {
   if (battle.current === 0) battle.round++;
   battle.turn = newTurn();
   const p = currentPlayer(battle);
-  p.energy = Math.min(MAX_ENERGY, p.energy + ENERGY_REGEN_PER_TURN);
+  p.energy = Math.min(p.maxEnergy, p.energy + ENERGY_REGEN_PER_TURN);
 }
 
 module.exports = {

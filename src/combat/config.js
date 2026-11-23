@@ -17,11 +17,29 @@ module.exports = {
   COLUMN_LETTERS,
   gridSizeFor,
   MOVES_PER_TURN: 2,              // casas por turno (sem diagonal)
-  MAX_HP: 100,
-  MAX_MANA: 50,
-  MAX_ENERGY: 100,
+  // ---- Progressão (todos os números de balanceamento ficam aqui) ----
+  MAX_LEVEL: 50,
+  ATTRIBUTE_CAP: 100,             // teto de cada atributo
+  STARTING_POINTS: 3,             // pontos para distribuir no nível 1
+  POINTS_PER_LEVEL: 2,            // pontos ganhos a cada nível (com 50 níveis dá ~100 pontos no total: dá para maximizar ~1 atributo)
+  XP_BASE: 100,                   // XP para sair do nível n = XP_BASE * n^XP_EXPONENT (arredondado para 10)
+  XP_EXPONENT: 1.5,
+  HP_BASE: 20,                    // vida no nível 1 (começa baixa de propósito)
+  HP_PER_LEVEL: 15,               // vida sobe sozinha a cada nível (nível 50 = 755)
+  // Mana e energia sobem em degraus: [nível a partir do qual vale, valor]
+  MANA_STEPS: [[1, 100], [10, 120], [20, 150], [35, 200]],
+  ENERGY_STEPS: [[1, 100], [10, 120], [20, 150], [35, 200]],
+  // Dano = valor sorteado no intervalo da habilidade + atributo * multiplicador (um multiplicador por atributo)
+  DAMAGE_PER_POINT: { forca: 1, armasBrancas: 1, magiaOfensiva: 1.25 }, // 1 ponto de Força = +1 de dano
+  // Resistência reduz o dano recebido em porcentagem (percentual escala sozinho com o dano; valor fixo travaria a luta)
+  RESISTANCE_REDUCTION_PER_POINT: 0.005, // -0,5% de dano por ponto
+  RESISTANCE_REDUCTION_CAP: 0.5,         // no máximo -50%
+  RESISTANCE_BLOCK_BONUS: 0.005,         // o Bloqueio absorve +0,5% do dano por ponto de Resistência
+  BLOCK_ABSORB_CAP: 0.8,                 // o Bloqueio absorve no máximo 80%
+  DODGE_CHANCE_PER_DEXTERITY: 0.004, // chance extra de esquiva por ponto de Destreza (+0,4%)
+  DODGE_CHANCE_CAP: 0.8,
+  BASE_SPEED: 10,                 // velocidade = BASE_SPEED + Destreza
   ENERGY_REGEN_PER_TURN: 0,       // energia recuperada no início de cada turno (0 = não recupera)
-  DEFAULT_SPEED: 10,              // velocidade usada enquanto não há atributos por personagem
   ACTION_TIMEOUT_MS: 60_000,      // tempo para o defensor escolher a reação
   CHALLENGE_TIMEOUT_MS: 120_000,  // tempo para o oponente aceitar o desafio
 };
