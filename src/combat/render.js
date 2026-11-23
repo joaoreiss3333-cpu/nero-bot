@@ -34,8 +34,7 @@ function reactionRow(battle) {
 }
 
 // Monta a mensagem do painel: o que aconteceu, as imagens (mapa e status) e os botões.
-// `ping` é a menção que vai fora do embed (para notificar de verdade).
-async function panelPayload(battle, text = '', ping = '') {
+async function panelPayload(battle, text = '') {
   const placing = battle.phase === 'placement';
   let components;
   if (battle.over) components = [];
@@ -60,14 +59,14 @@ async function panelPayload(battle, text = '', ping = '') {
 
   const [mapPng, panelPng] = await Promise.all([renderMapImage(battle), renderPanelImage(battle)]);
   return {
-    content: ping,
     embeds: [mapEmbed, panelEmbed],
     components,
     files: [new AttachmentBuilder(mapPng, { name: 'mapa.png' }), new AttachmentBuilder(panelPng, { name: 'painel.png' })],
   };
 }
 
-// Ao editar uma mensagem existente, `attachments: []` faz a imagem nova substituir a antiga
-const asEdit = payload => ({ ...payload, attachments: [] });
+// Ao editar uma mensagem existente, `attachments: []` faz as imagens novas substituírem as antigas
+// e `content: ''` limpa qualquer texto que a mensagem tinha (ex: o convite do desafio)
+const asEdit = payload => ({ ...payload, content: '', attachments: [] });
 
 module.exports = { panelPayload, asEdit };

@@ -3,10 +3,11 @@ const { COLUMNS, ROWS, MAX_HP, MAX_MANA, MAX_ENERGY, MOVES_PER_TURN } = require(
 const { DIRECTIONS, formatCoord } = require('./grid');
 const { currentPlayer, checkStep } = require('./battle');
 
-// Medidas lógicas das imagens. São desenhadas em resolução dobrada (SCALE) para ficar nítidas
-// quando o Discord as reduz. O mapa e o painel são duas imagens separadas, largas e baixas:
-// o Discord reduz imagens altas, então assim cada uma é exibida na largura toda do embed.
-const SCALE = 2;
+// Medidas lógicas das imagens, convertidas para pixels reais por SCALE. O mapa e o painel são
+// duas imagens separadas, largas e baixas, com o tamanho da referência (~568 px de largura):
+// o Discord mostra imagens desse tamanho sem redimensionar.
+const SCALE = 568 / 720; // as imagens saem com ~568 px de largura: o Discord as exibe nesse tamanho exato
+const px = v => Math.round(v * SCALE); // tamanho lógico -> pixels da imagem
 const CELL_W = 90;
 const CELL_H = 56;
 const MAP_W = COLUMNS.length * CELL_W;
@@ -31,12 +32,12 @@ const cellCenter = pos => {
   return { x: o.x + CELL_W / 2, y: o.y + CELL_H / 2 };
 };
 
-// Terreno gerado proceduralmente (sempre igual) + grade + coordenada em cada casa.
-// Desenhado uma vez só.
-let backgroundCache = null;
-function background() {
-  if (backgroundCache) return backgroundCache;
-  const canvas = createCanvas(MAP_W * SCALE, MAP_H * SCALE);
+// Terreno gerado proceduralmente (sempre igual) + grade, com ou sem a coordenada em cada casa.
+// Cada versão é desenhada uma vez só.
+const backgroundCache = {};
+function background(withLabels) {
+  if (backgroundCache[withLabels]) return backgroundCache[withLabels];
+  const canvas = createCanvas(px(MAP_W), px(MAP_H));
   const ctx = canvas.getContext('2d');
   ctx.scale(SCALE, SCALE);
   const rng = mulberry32(7);
@@ -62,17 +63,19 @@ function background() {
     ctx.beginPath(); ctx.moveTo(0, r * CELL_H); ctx.lineTo(MAP_W, r * CELL_H); ctx.stroke();
   }
 
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLUMNS.length; c++) drawCoordLabel(ctx, { col: c, row: r });
+  if (withLabels) {
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLUMNS.length; c++) drawCoordLabel(ctx, { col: c, row: r });
+    }
   }
 
-  return (backgroundCache = canvas);
+  return (backgroundCache[withLabels] = canvas);
 }
 
 // Coordenada da casa (ex: C3) no canto superior direito
 function drawCoordLabel(ctx, pos) {
   ctx.save();
-  ctx.font = `bold 14px ${FONT}`;
+  ctx.font = `bold 16px ${FONT}`;
   ctx.textAlign = 'right';
   ctx.textBaseline = 'top';
   ctx.fillStyle = 'rgba(255,255,255,0.9)';
@@ -252,9 +255,10 @@ function drawPanel(ctx, battle) {
 
 // Imagem 1: o mapa com os jogadores. Retorna um Buffer PNG.
 async function renderMapImage(battle) {
-  const canvas = createCanvas(W * SCALE, MAP_H * SCALE);
+  const canvas = createCanvas(px(W), px(MAP_H));
   const ctx = canvas.getContext('2d');
-  ctx.drawImage(background(), 0, 0); // o fundo já está em resolução dobrada
+  // As coordenadas só aparecem na hora de escolher o setor inicial; depois somem
+  ctx.drawImage(background(battle.phase === 'placement'), 0, 0);
   ctx.scale(SCALE, SCALE);
 
   if (battle.phase === 'combat') {
@@ -270,7 +274,6 @@ async function renderMapImage(battle) {
       }
     }
     battle.players.forEach((p, i) => drawToken(ctx, p, i, !battle.over && p === cur));
-    battle.players.forEach(p => drawCoordLabel(ctx, p.pos)); // a coordenada fica por cima do token
   }
 
   ctx.strokeStyle = '#5a3b1a';
@@ -281,7 +284,7 @@ async function renderMapImage(battle) {
 
 // Imagem 2: o painel de status. Retorna um Buffer PNG.
 async function renderPanelImage(battle) {
-  const canvas = createCanvas(W * SCALE, panelHeight(battle) * SCALE);
+  const canvas = createCanvas(px(W), px(panelHeight(battle)));
   const ctx = canvas.getContext('2d');
   ctx.scale(SCALE, SCALE);
   drawPanel(ctx, battle);

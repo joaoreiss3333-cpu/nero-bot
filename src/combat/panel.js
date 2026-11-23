@@ -17,7 +17,7 @@ async function passTurn(battle, text, interaction = null) {
   else await battle.message.edit(frozen);
 
   nextTurn(battle);
-  const next = await panelPayload(battle, text, `<@${currentPlayer(battle).id}>, é a sua vez!`);
+  const next = await panelPayload(battle, text);
   battle.message = interaction
     ? await interaction.followUp({ ...next, fetchReply: true })
     : await battle.message.channel.send(next);

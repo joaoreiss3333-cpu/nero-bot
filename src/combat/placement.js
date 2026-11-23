@@ -1,5 +1,5 @@
 const { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
-const { getBattle, findPlayer, currentPlayer, placePlayer, allPlaced } = require('./battle');
+const { getBattle, findPlayer, placePlayer, allPlaced } = require('./battle');
 const { panelPayload, asEdit } = require('./render');
 const { parseCoord, formatCoord } = require('./grid');
 const { COLUMNS, ROWS } = require('./config');
@@ -15,9 +15,7 @@ async function startCombat(battle) {
     ...(await panelPayload(battle, 'Posições definidas!')),
     components: [],
   }));
-  battle.message = await battle.message.channel.send(
-    await panelPayload(battle, 'A batalha começou!', `<@${currentPlayer(battle).id}>, é a sua vez!`),
-  );
+  battle.message = await battle.message.channel.send(await panelPayload(battle, 'A batalha começou!'));
 }
 
 async function handlePlacement(interaction) {

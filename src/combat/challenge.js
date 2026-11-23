@@ -76,8 +76,7 @@ async function handleChallenge(interaction) {
     ]);
     battle.message = await interaction.editReply(asEdit(await panelPayload(
       battle,
-      'Cada jogador escolhe o setor inicial. O combate começa quando os dois estiverem prontos.',
-      `<@${ch.challenger.id}> <@${ch.opponent.id}>, desafio aceito! Escolham onde querem começar.`,
+      'Desafio aceito! Cada jogador escolhe o setor inicial. O combate começa quando os dois estiverem prontos.',
     )));
   }
 }
