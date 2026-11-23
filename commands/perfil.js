@@ -2,9 +2,10 @@ const {
   SlashCommandBuilder, MessageFlags, AttachmentBuilder, ContainerBuilder, MediaGalleryBuilder, MediaGalleryItemBuilder,
 } = require('discord.js');
 const { loadImage } = require('@napi-rs/canvas');
-const { EMBED_COLOR } = require('../src/combat/config');
+const { EMBED_COLOR, MAX_LEVEL } = require('../src/combat/config');
 const { getProfile } = require('../src/combat/profiles');
 const { renderProfileImage } = require('../src/combat/profileImage');
+const { xpToNext } = require('../src/combat/progression');
 
 // Imagem opcional: se a URL falhar, o perfil sai com o espaço padrão em vez de dar erro
 const tryLoad = async url => {
@@ -31,6 +32,9 @@ module.exports = {
       name: profile.name ?? member?.displayName ?? user.displayName ?? user.username,
       age: profile.age ?? null,
       level: profile.level,
+      xp: profile.xp,
+      xpNext: profile.level >= MAX_LEVEL ? null : xpToNext(profile.level),
+      points: profile.points,
       attrs: profile.attrs,
       portrait: await tryLoad(profile.portraitUrl ?? user.displayAvatarURL({ extension: 'png', size: 512 })),
       grimoire: await tryLoad(profile.grimoireUrl),

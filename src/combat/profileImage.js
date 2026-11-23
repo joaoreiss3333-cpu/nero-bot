@@ -271,7 +271,48 @@ function drawLevelBadge(ctx, cx, cy, level) {
   ctx.fillText(String(level), cx, cy + 8);
 }
 
-// data: { name, age, level, attrs, portrait, grimoire }  (portrait/grimoire: imagens já carregadas, ou null)
+// Barra de XP do nível atual; sem `xpNext` (nível máximo) ela aparece cheia
+function drawXpBar(ctx, x, y, w, xp, xpNext) {
+  const h = 12;
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  ctx.font = `bold 16px ${FONT}`; ctx.letterSpacing = '2px';
+  ctx.fillStyle = GOLD;
+  ctx.fillText('XP', x, y);
+  ctx.letterSpacing = '0px';
+  const bx = x + 36;
+  const bw = w - 36 - 130;
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.beginPath(); ctx.roundRect(bx, y - h / 2, bw, h, 6); ctx.fill();
+  const frac = xpNext ? Math.max(0, Math.min(1, xp / xpNext)) : 1;
+  if (frac > 0) {
+    ctx.fillStyle = goldGradient(ctx, bx, 0, bx + bw, 0);
+    ctx.beginPath(); ctx.roundRect(bx, y - h / 2, Math.max(h, bw * frac), h, 6); ctx.fill();
+  }
+  ctx.strokeStyle = 'rgba(217,180,90,0.5)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(bx, y - h / 2, bw, h, 6); ctx.stroke();
+  ctx.font = `16px ${FONT}`; ctx.fillStyle = MUTED;
+  ctx.fillText(xpNext ? `${xp} / ${xpNext}` : 'MÁXIMO', bx + bw + 12, y + 1);
+}
+
+// Selo com os pontos de atributo que ainda dá para gastar (destacado quando há pontos)
+function drawPointsTag(ctx, cx, y, points) {
+  const w = 156;
+  const h = 30;
+  const x = cx - w / 2;
+  const has = points > 0;
+  ctx.beginPath(); ctx.roundRect(x, y - h / 2, w, h, 15);
+  ctx.fillStyle = has ? 'rgba(217,180,90,0.22)' : 'rgba(0,0,0,0.35)';
+  ctx.fill();
+  ctx.strokeStyle = has ? GOLD : 'rgba(217,180,90,0.35)'; ctx.lineWidth = has ? 2 : 1.5;
+  ctx.stroke();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `bold 17px ${FONT}`; ctx.letterSpacing = '1px';
+  ctx.fillStyle = has ? GOLD_LIGHT : MUTED;
+  ctx.fillText(`${points} ${points === 1 ? 'PONTO' : 'PONTOS'}`, cx, y + 1);
+  ctx.letterSpacing = '0px';
+}
+
+// data: { name, age, level, xp, xpNext, points, attrs, portrait, grimoire }  (portrait/grimoire: imagens já carregadas, ou null)
 async function renderProfileImage(data) {
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
@@ -309,6 +350,8 @@ async function renderProfileImage(data) {
   ctx.fillText(age, 394, 150);
 
   drawLevelBadge(ctx, 880, 100, data.level);
+  drawPointsTag(ctx, 880, 178, data.points ?? 0);
+  drawXpBar(ctx, 392, 180, 400, data.xp ?? 0, data.xpNext ?? null);
 
   // Atributos
   let y = 205;
