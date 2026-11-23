@@ -2,6 +2,7 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
+const { handleButton } = require('./src/combat/panel');
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 client.commands = new Collection();
@@ -14,11 +15,19 @@ for (const file of fs.readdirSync(path.join(__dirname, 'commands')).filter(f => 
 client.once(Events.ClientReady, c => console.log(`Online como ${c.user.tag}`));
 
 client.on(Events.InteractionCreate, async interaction => {
-  if (!interaction.isChatInputCommand()) return;
-  const command = client.commands.get(interaction.commandName);
-  if (!command) return;
+  if (interaction.isAutocomplete()) {
+    try {
+      await client.commands.get(interaction.commandName)?.autocomplete?.(interaction);
+    } catch (err) {
+      console.error(err);
+    }
+    return;
+  }
+  const command = interaction.isChatInputCommand() ? client.commands.get(interaction.commandName) : null;
+  if (!command && !interaction.isButton()) return;
   try {
-    await command.execute(interaction);
+    if (command) await command.execute(interaction);
+    else await handleButton(interaction);
   } catch (err) {
     console.error(err);
     const msg = { content: 'Ocorreu um erro ao executar o comando.', ephemeral: true };

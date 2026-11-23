@@ -1,0 +1,9 @@
+module.exports = {
+  COLUMNS: 'ABCDEFGH'.split(''), // colunas A-H
+  ROWS: 8,                        // linhas 1-8
+  MOVES_PER_TURN: 2,              // casas por turno (sem diagonal)
+  MAX_HP: 100,
+  MAX_MANA: 50,
+  MAX_ENERGY: 100,
+  ACTION_TIMEOUT_MS: 60_000,      // tempo para o defensor escolher a reação
+};
