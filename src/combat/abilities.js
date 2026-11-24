@@ -94,6 +94,79 @@ const abilities = {
       return text;
     },
   },
+
+  // ---- Grimório do Espaço (LENDÁRIO) ----
+  // Mais fraco que o Tempo (mítico), mas com muito controle de posição. Escala de atributo da raridade (1,7x).
+  // Árvore: Shootdown -> { Myriad Black -> Flapping -> Destruction } e { Gate -> Reflexo -> Mana Domination } e
+  // { Gate -> Esfera -> Red Room -> Crevice Men } e { Gate -> Blackout }. Sem `ranks`: são muitas magias para comprar.
+  // Esferas que apagam o que tocam: ignoram o Bloqueio. Só a mana domina uma magia espacial (Grigora, Mana Domination, Reflexo).
+  archangel_shootdown: {
+    id: 'archangel_shootdown', name: 'Archangel Shootdown', gif: 'espaco_archangel_shootdown.gif', grimoire: 'espaco', magic: true, element: 'espaco',
+    type: 'attack', range: 3, damage: [10, 15], attribute: 'magiaOfensiva', manaCost: 30, ignoreBlock: true,
+    requires: { magiaOfensiva: 5 }, minLevel: 8, // raiz da árvore do Espaço
+  },
+  // Balas mágicas por portais ao redor do alvo: alcance maior e mais difícil de esquivar, dano um pouco menor
+  myriad_black: {
+    id: 'myriad_black', name: 'Myriad Black', gif: 'espaco_myriad_black.gif', grimoire: 'espaco', magic: true, element: 'espaco',
+    type: 'attack', range: 4, damage: [9, 14], attribute: 'magiaOfensiva', manaCost: 34, dodgePenalty: 0.25,
+    requires: { magiaOfensiva: 8 }, minLevel: 12, after: 'archangel_shootdown',
+  },
+  // Massa de magia espacial que persegue o alvo; ao acertar, o teletransporta para longe (3+ casas de quem atacou)
+  fallen_angel_flapping: {
+    id: 'fallen_angel_flapping', name: 'Fallen Angel Flapping', gif: 'espaco_fallen_angel_flapping.gif', grimoire: 'espaco', magic: true, element: 'espaco',
+    type: 'attack', range: 4, damage: [8, 12], attribute: 'magiaOfensiva', manaCost: 38, cooldown: 3, dodgePenalty: 0.15, displace: 3,
+    requires: { magiaOfensiva: 12 }, minLevel: 18, after: 'myriad_black',
+  },
+  // A grande massa: o golpe mais forte do Espaço, ignora Bloqueio, mas cara e com recarga
+  archangel_destruction: {
+    id: 'archangel_destruction', name: 'Archangel Destruction', gif: 'espaco_archangel_destruction.gif', grimoire: 'espaco', magic: true, element: 'espaco',
+    type: 'attack', range: 4, damage: [18, 26], attribute: 'magiaOfensiva', manaCost: 55, cooldown: 3, ignoreBlock: true,
+    requires: { magiaOfensiva: 18 }, minLevel: 28, after: 'fallen_angel_flapping',
+  },
+  // Portal: leva você N casas numa direção (use `direcao` e `casas` no /habilidade). Não funciona imobilizado.
+  fallen_angel_gate: {
+    id: 'fallen_angel_gate', name: 'Fallen Angel Gate', gif: 'espaco_fallen_angel_gate.gif', grimoire: 'espaco', magic: true,
+    type: 'bonus', manaCost: 30, cooldown: 2, teleport: 'self', destRange: 5,
+    requires: { magiaSuplementar: 5 }, minLevel: 10, after: 'archangel_shootdown',
+  },
+  // O portal também devolve a magia inimiga ao lançador (metade do dano; nunca mata)
+  fallen_angel_gate_reflexo: {
+    id: 'fallen_angel_gate_reflexo', name: 'Fallen Angel Gate: Reflexo', actionText: 'Fallen Angel Gate: Reflexo', gif: 'espaco_fallen_angel_gate.gif', grimoire: 'espaco',
+    type: 'reaction', kind: 'reflect', reflect: 0.5, onlyVsMagic: true, manaCost: 45, emoji: '🌀',
+    requires: { magiaDefensiva: 6 }, minLevel: 14, after: 'fallen_angel_gate',
+  },
+  // Barreira esférica ao redor do alvo: ele não consegue se mover por 2 turnos (ainda reage e ataca)
+  different_dimension_sphere: {
+    id: 'different_dimension_sphere', name: 'Different Dimension Sphere', gif: 'espaco_different_dimension_sphere.gif', grimoire: 'espaco', magic: true,
+    type: 'bonus', manaCost: 36, cooldown: 4, targetRange: 4, applies: [{ effect: 'esfera_dimensional', turns: 2, to: 'enemy' }],
+    requires: { magiaSuplementar: 8 }, minLevel: 18, after: 'fallen_angel_gate',
+  },
+  // Leva o ALVO N casas numa direção (use `direcao` e `casas`): tira o inimigo do alcance ou o joga para longe de você
+  blackout: {
+    id: 'blackout', name: 'Blackout', gif: 'espaco_blackout.gif', grimoire: 'espaco', magic: true,
+    type: 'bonus', manaCost: 40, cooldown: 4, targetRange: 5, teleport: 'enemy', destRange: 5,
+    requires: { magiaSuplementar: 11 }, minLevel: 22, after: 'different_dimension_sphere',
+  },
+  // Domina a mana do lançador: anula a magia e ainda drena a mana dele (a defesa mais forte do Espaço, mas só contra magia)
+  spatial_mana_domination: {
+    id: 'spatial_mana_domination', name: 'Spatial Mana Domination', actionText: 'Spatial Mana Domination', gif: 'espaco_spatial_mana_domination.gif', grimoire: 'espaco',
+    type: 'reaction', kind: 'capture', onlyVsMagic: true, drainMana: 25, manaCost: 40, emoji: '⬛',
+    requires: { magiaDefensiva: 12 }, minLevel: 30, after: 'fallen_angel_gate_reflexo',
+  },
+  // Leva o alvo para um cubo vermelho: 4 turnos sem se mover e mais difícil de esquivar
+  unopening_red_room: {
+    id: 'unopening_red_room', name: 'Unopening Red Room', gif: 'espaco_unopening_red_room.gif', grimoire: 'espaco', magic: true, element: 'espaco',
+    type: 'attack', range: 4, damage: [8, 12], attribute: 'magiaOfensiva', manaCost: 48, cooldown: 5,
+    applies: [{ effect: 'sala_vermelha', turns: 4 }],
+    requires: { magiaOfensiva: 14 }, minLevel: 32, after: 'different_dimension_sphere',
+  },
+  // Figuras com armas brotam do chão: 3 clones aparecem no mapa e atacam sozinhos no fim do seu turno (andam 2 casas e batem
+  // se ficarem coladas no inimigo, sem reação possível). Dano baixo cada um: o dano base mais uma fração (22%) do bônus do atributo.
+  crevice_men: {
+    id: 'crevice_men', name: 'Crevice Men', gif: 'espaco_crevice_men.gif', grimoire: 'espaco', magic: true,
+    type: 'bonus', manaCost: 60, cooldown: 5, attribute: 'magiaOfensiva', summon: { count: 3, duration: 3, damage: [2, 4], share: 0.22 },
+    requires: { magiaOfensiva: 17 }, minLevel: 38, after: 'unopening_red_room',
+  },
 };
 
 const TYPE_LABEL = { attack: 'Ataque', bonus: 'Ação bônus', reaction: 'Reação' };

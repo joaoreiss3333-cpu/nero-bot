@@ -1,6 +1,6 @@
 const C = require('./config');
 const { gridSizeFor, MOVES_PER_TURN, ENERGY_REGEN_PER_TURN } = C;
-const { samePos, DIRECTIONS } = require('./grid');
+const { samePos, distance, DIRECTIONS } = require('./grid');
 const { getAbility, resolveAbility } = require('./abilities');
 const { getKit, getRanks, getCombatStats } = require('./characters');
 const fx = require('./effects');
@@ -74,6 +74,7 @@ function createBattle(channelId, ...users) {
     round: 1,
     turn: null, // criado logo abaixo, depois de saber quem começa
     message: null, // mensagem do painel atual
+    summons: [], // clones invocados (ver summonClones): ocupam casas no mapa e atacam sozinhos no fim do turno do dono
     pending: null, // ataque aguardando a reação do defensor
     over: false,
   };
@@ -153,8 +154,106 @@ function checkStep(battle, player, dir) {
   if (dest.col < 0 || dest.col >= battle.cols || dest.row < 0 || dest.row >= battle.rows) {
     return { error: 'Você não pode sair do mapa.' };
   }
-  if (battle.players.some(p => p !== player && samePos(p.pos, dest))) return { error: 'Essa casa está ocupada.' };
+  if (isOccupied(battle, dest, player)) return { error: 'Essa casa está ocupada.' };
   return { dest };
+}
+
+// A casa tem um jogador ou um clone? `except` é quem está perguntando (não conta contra si mesmo)
+const isOccupied = (battle, pos, except) =>
+  battle.players.some(p => p !== except && p.pos && samePos(p.pos, pos))
+  || (battle.summons ?? []).some(s => s !== except && samePos(s.pos, pos));
+
+const inBounds = (battle, { col, row }) => col >= 0 && col < battle.cols && row >= 0 && row < battle.rows;
+
+// Planeja o teleporte de uma ação bônus (`teleport: 'self' | 'enemy'`): o destino é N casas numa direção (o mapa não mostra
+// coordenadas no combate). Retorna { dest } (ou {} se a habilidade não teleporta) ou { error }.
+function planBonus(battle, me, ability, dir, steps) {
+  const foe = opponentOf(battle, me.id);
+  if (ability.targetRange !== undefined && distance(me.pos, foe.pos) > ability.targetRange) {
+    return { error: `Alvo fora de alcance: **${ability.name}** alcança ${ability.targetRange} casas (sem diagonal).` };
+  }
+  if (!ability.teleport) return {};
+  const who = ability.teleport === 'self' ? me : foe;
+  if (ability.teleport === 'self' && fx.getMods(me).noMove) return { error: 'Você está imobilizado: nem um portal tira você daqui.' };
+  if (!dir || !steps) return { error: `**${ability.name}** precisa de \`direcao\` e \`casas\` (até ${ability.destRange}) para saber para onde levar ${ability.teleport === 'self' ? 'você' : 'o alvo'}.` };
+  if (steps > ability.destRange) return { error: `**${ability.name}** leva no máximo ${ability.destRange} casas.` };
+  const { dc, dr } = DIRECTIONS[dir];
+  const dest = { col: who.pos.col + dc * steps, row: who.pos.row + dr * steps };
+  if (!inBounds(battle, dest)) return { error: 'Esse destino fica fora do mapa.' };
+  if (isOccupied(battle, dest, who)) return { error: 'Essa casa está ocupada.' };
+  return { dest };
+}
+
+// Casas livres do mapa, da mais próxima de `from` para a mais distante
+function freeCellsNear(battle, from, except) {
+  const cells = [];
+  for (let col = 0; col < battle.cols; col++) {
+    for (let row = 0; row < battle.rows; row++) {
+      const pos = { col, row };
+      if (!isOccupied(battle, pos, except)) cells.push(pos);
+    }
+  }
+  return cells.sort((a, b) => distance(a, from) - distance(b, from));
+}
+
+// Invoca clones de `owner` nas casas livres mais próximas. Invocar de novo troca os clones antigos pelos novos.
+function summonClones(battle, owner, ability) {
+  const { count, duration, damage, share } = ability.summon;
+  battle.summons = battle.summons.filter(s => s.ownerId !== owner.id);
+  const cells = freeCellsNear(battle, owner.pos, null).filter(c => !samePos(c, owner.pos)).slice(0, count);
+  for (const pos of cells) {
+    battle.summons.push({
+      ownerId: owner.id, name: `Clone de ${owner.name}`, pos, damage, turns: duration,
+      bonus: Math.round((owner.attrs[ability.attribute] ?? 0) * (C.DAMAGE_PER_POINT[ability.attribute] ?? 0) * abilityScale(ability) * share),
+    });
+  }
+  return [`👥 ${owner.name} fez ${cells.length} figura(s) brotarem do chão. Elas atacam sozinhas por ${duration} turno(s) seus.`];
+}
+
+// Efeitos de posição e invocação de uma ação bônus (o teleporte já foi planejado por planBonus)
+function applyBonus(battle, me, ability, dest) {
+  const foe = opponentOf(battle, me.id);
+  const lines = [];
+  if (ability.teleport === 'self') { me.pos = dest; lines.push(`🌀 ${me.name} atravessou um portal e reapareceu em outro ponto do mapa.`); }
+  if (ability.teleport === 'enemy') { foe.pos = dest; lines.push(`⬛ ${foe.name} foi engolido pela escuridão e levado para outro ponto do mapa.`); }
+  if (ability.summon) lines.push(...summonClones(battle, me, ability));
+  return lines;
+}
+
+// No fim do turno do dono, cada clone anda até 2 casas rumo ao inimigo e, se ficar colado nele, ataca (sem reação).
+// Retorna { lines, defeated, loser }.
+function runSummons(battle, owner) {
+  const foe = opponentOf(battle, owner.id);
+  const lines = [];
+  for (const s of battle.summons.filter(x => x.ownerId === owner.id)) {
+    for (let i = 0; i < C.MOVES_PER_TURN && distance(s.pos, foe.pos) > 1; i++) {
+      const steps = Object.values(DIRECTIONS)
+        .map(({ dc, dr }) => ({ col: s.pos.col + dc, row: s.pos.row + dr }))
+        .filter(p => inBounds(battle, p) && !isOccupied(battle, p, s))
+        .sort((a, b) => distance(a, foe.pos) - distance(b, foe.pos));
+      if (!steps.length || distance(steps[0], foe.pos) >= distance(s.pos, foe.pos)) break;
+      s.pos = steps[0];
+    }
+    if (distance(s.pos, foe.pos) <= 1) {
+      const dmg = Math.max(1, rand(s.damage) + s.bonus);
+      foe.hp = Math.max(0, foe.hp - dmg);
+      lines.push(`🗡️ ${s.name} atacou ${foe.name} (**${dmg}** de dano).`, ...fx.onHit(foe));
+      if (foe.hp === 0) return { lines, defeated: true, loser: foe };
+    }
+    s.turns -= 1;
+  }
+  const expired = battle.summons.filter(s => s.ownerId === owner.id && s.turns <= 0);
+  if (expired.length) lines.push(`👥 ${expired.length} clone(s) de ${owner.name} se desfizeram.`);
+  battle.summons = battle.summons.filter(s => !(s.ownerId === owner.id && s.turns <= 0));
+  return { lines, defeated: false, loser: null };
+}
+
+// Teletransporta `target` para uma casa livre aleatória a pelo menos `minDist` casas de `from`. Retorna true se moveu.
+function displaceFar(battle, target, from, minDist) {
+  const options = freeCellsNear(battle, from, target).filter(c => distance(c, from) >= minDist);
+  if (!options.length) return false;
+  target.pos = options[Math.floor(Math.random() * options.length)];
+  return true;
 }
 
 function movePlayer(battle, player, dir) {
@@ -172,7 +271,8 @@ function startActions(battle) {
 }
 
 // Resolve um ataque. reaction: habilidade de reação usada pelo defensor, ou null.
-function resolveAttack(attacker, defender, attack, reaction) {
+// `battle` é opcional: só é preciso para golpes que mexem no mapa (displace)
+function resolveAttack(attacker, defender, attack, reaction, battle) {
   // Dano bruto: golpe + bônus de efeitos do atacante, com chance de crítico e vulnerabilidade do alvo ao elemento
   let raw = attackDamage(attacker, attack) + fx.getMods(attacker).damageBonus;
   const crit = Math.random() < C.CRIT_CHANCE_BASE + fx.getMods(attacker).critChance;
@@ -187,7 +287,7 @@ function resolveAttack(attacker, defender, attack, reaction) {
     if (reaction.kind === 'dodge') {
       const chance = Math.max(0, Math.min(
         C.DODGE_CHANCE_CAP,
-        reaction.chance + defender.attrs.destreza * C.DODGE_CHANCE_PER_DEXTERITY + fx.getMods(defender).dodgeDelta,
+        reaction.chance + defender.attrs.destreza * C.DODGE_CHANCE_PER_DEXTERITY + fx.getMods(defender).dodgeDelta - (attack.dodgePenalty ?? 0), // golpes que cercam ou perseguem o alvo (dodgePenalty) são mais difíceis de esquivar
       ));
       if (Math.random() < chance) {
         damage = 0;
@@ -201,6 +301,19 @@ function resolveAttack(attacker, defender, attack, reaction) {
       log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}** e capturou a magia!`;
       const lines = fx.applyAbilityEffects(reaction, defender, attacker);
       if (lines.length) log += `\n${lines.join('\n')}`;
+      if (reaction.drainMana) { // domina a mana do atacante junto com a magia
+        const lost = Math.min(attacker.mana, reaction.drainMana);
+        attacker.mana -= lost;
+        log += `\n🔷 ${attacker.name} perdeu ${lost} de mana.`;
+      }
+    } else if (reaction.kind === 'reflect') {
+      // Devolve parte da magia ao lançador (nunca o mata: sobra pelo menos 1 de vida)
+      const back = Math.round(damage * reaction.reflect);
+      damage = 0;
+      attacker.hp = Math.max(1, attacker.hp - back);
+      log += `\n${reaction.emoji} ${defender.name} abriu um portal e devolveu a magia: ${attacker.name} sofreu **${back}** de dano!`;
+    } else if (reaction.kind === 'block' && attack.ignoreBlock) {
+      log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}**, mas **${attack.name}** apaga tudo que toca: nada foi absorvido.`;
     } else if (reaction.kind === 'block') {
       // Defesa escala como um ataque: valor sorteado + atributo × multiplicador (Bloqueio usa Resistência; defesas mágicas, Magia Defensiva)
       const absorbed = Math.min(damage, rand(reaction.absorb) + Math.round((defender.attrs[reaction.attribute] ?? 0) * (C.DEFENSE_PER_POINT[reaction.attribute] ?? 0) * abilityScale(reaction)));
@@ -219,6 +332,9 @@ function resolveAttack(attacker, defender, attack, reaction) {
   // Efeitos: só se o golpe causou dano e o alvo continua de pé (o golpe também pode acordar/descongelar o alvo)
   if (damage > 0 && defender.hp > 0) {
     const lines = [...fx.onHit(defender, attack.element), ...fx.applyAbilityEffects(attack, attacker, defender)];
+    if (battle && attack.displace && displaceFar(battle, defender, attacker.pos, attack.displace)) {
+      lines.push(`🌀 ${defender.name} foi atingido e teletransportado para outro ponto do mapa!`);
+    }
     if (lines.length) log += `\n${lines.join('\n')}`;
   }
   return { damage, log, defeated: defender.hp === 0 };
@@ -229,6 +345,13 @@ function resolveAttack(attacker, defender, attack, reaction) {
 function nextTurn(battle) {
   const leaving = currentPlayer(battle);
   const end = fx.endOfTurn(leaving);
+  let loser = end.defeated ? leaving : null;
+  if (!end.defeated) {
+    // Os clones de quem terminou o turno agem agora; se derrubarem o inimigo, a batalha acaba
+    const summons = runSummons(battle, leaving);
+    end.lines.push(...summons.lines);
+    if (summons.defeated) { end.defeated = true; loser = summons.loser; }
+  }
   for (const id of Object.keys(leaving.cooldowns)) {
     leaving.cooldowns[id] -= 1;
     if (leaving.cooldowns[id] <= 0) delete leaving.cooldowns[id];
@@ -240,10 +363,10 @@ function nextTurn(battle) {
   p.hpHistory = [...p.hpHistory, p.hp].slice(-2);
   battle.turn = newTurn(p);
   p.energy = Math.min(p.maxEnergy, p.energy + ENERGY_REGEN_PER_TURN);
-  return { log: end.lines.join('\n'), defeated: end.defeated, loser: end.defeated ? leaving : null };
+  return { log: end.lines.join('\n'), defeated: end.defeated, loser };
 }
 
 module.exports = {
   createBattle, getBattle, endBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf, abilityOf, abilityCost, resourceOf, resourceLabel, canAfford, spend, reactionBlock, clampMoves,
-  placePlayer, allPlaced, checkStep, movePlayer, startActions, resolveAttack, nextTurn,
+  planBonus, applyBonus, isOccupied, placePlayer, allPlaced, checkStep, movePlayer, startActions, resolveAttack, nextTurn,
 };

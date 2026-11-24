@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { getBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf, abilityOf, abilityCost, resourceLabel, resourceOf, canAfford, spend } = require('../src/combat/battle');
+const { getBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf, abilityOf, planBonus, applyBonus, abilityCost, resourceLabel, resourceOf, canAfford, spend } = require('../src/combat/battle');
 const { getMods, applyAbilityEffects } = require('../src/combat/effects');
 const { panelPayload, asEdit } = require('../src/combat/render');
 const { playAction } = require('../src/combat/actions');
@@ -17,7 +17,21 @@ module.exports = {
       .setName('nome')
       .setDescription('Qual habilidade usar')
       .setRequired(true)
-      .setAutocomplete(true)),
+      .setAutocomplete(true))
+    .addStringOption(o => o
+      .setName('direcao')
+      .setDescription('Só para habilidades de teleporte (portais): para onde levar')
+      .addChoices(
+        { name: 'Cima', value: 'up' },
+        { name: 'Baixo', value: 'down' },
+        { name: 'Esquerda', value: 'left' },
+        { name: 'Direita', value: 'right' },
+      ))
+    .addIntegerOption(o => o
+      .setName('casas')
+      .setDescription('Só para habilidades de teleporte: quantas casas')
+      .setMinValue(1)
+      .setMaxValue(10)),
 
   // Lista as habilidades de ataque/bônus do personagem do jogador
   async autocomplete(interaction) {
@@ -82,12 +96,16 @@ module.exports = {
 
     // bonus
     if (battle.turn.bonusUsed) return fail(interaction, 'Você já usou sua ação bônus neste turno.');
+    // Alcance e teleporte são conferidos antes de gastar mana ou a ação
+    const plan = planBonus(battle, me, ability, interaction.options.getString('direcao'), interaction.options.getInteger('casas'));
+    if (plan.error) return fail(interaction, plan.error);
     battle.turn.bonusUsed = true;
     if (ability.cooldown) me.cooldowns[ability.id] = ability.cooldown;
     spend(me, ability);
     // Ação bônus: usa a função própria da habilidade (use) e/ou aplica os efeitos dela (applies) em quem usou
     const lines = [];
     if (ability.use) lines.push(ability.use(battle, me));
+    lines.push(...applyBonus(battle, me, ability, plan.dest));
     lines.push(...applyAbilityEffects(ability, me, opponentOf(battle, me.id), { defaultTo: 'self' }));
     const text = lines.join('\n') || `${me.name} usou **${ability.name}**.`;
     await interaction.reply({ content: `✅ Você usou **${ability.name}**.`, ephemeral: true });

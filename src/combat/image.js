@@ -152,6 +152,37 @@ function drawToken(ctx, L, player, index, active) {
   ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.stroke();
 }
 
+// Clone invocado: o mesmo rosto do dono, escurecido e com anel tracejado na cor dele, para parecer outra figura no mapa
+function drawSummon(ctx, L, summon, owner, index) {
+  const { x, y } = cellCenter(L, summon.pos);
+  const R = Math.min(L.cellH, L.cellW) * 0.38;
+  const color = PLAYER_COLORS[index % PLAYER_COLORS.length];
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(x + 2, y + R - 2, R * 0.9, R * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.clip();
+  if (owner?.avatar) {
+    ctx.drawImage(owner.avatar, x - R, y - R, R * 2, R * 2);
+  } else {
+    ctx.fillStyle = '#3a3a44';
+    ctx.fillRect(x - R, y - R, R * 2, R * 2);
+  }
+  ctx.fillStyle = 'rgba(20,0,0,0.55)'; // escurece: é uma sombra, não a pessoa
+  ctx.fillRect(x - R, y - R, R * 2, R * 2);
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.setLineDash([5, 4]);
+  ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+
 function fitText(ctx, text, maxWidth) {
   if (ctx.measureText(text).width <= maxWidth) return text;
   while (text.length > 1 && ctx.measureText(text + '…').width > maxWidth) text = text.slice(0, -1);
@@ -295,6 +326,10 @@ async function renderMapImage(battle) {
         const o = cellOrigin(L, step.dest);
         ctx.fillRect(o.x + 1, o.y + 1, L.cellW - 1, L.cellH - 1);
       }
+    }
+    for (const s of battle.summons ?? []) {
+      const i = battle.players.findIndex(p => p.id === s.ownerId);
+      drawSummon(ctx, L, s, battle.players[i], i);
     }
     battle.players.forEach((p, i) => drawToken(ctx, L, p, i, !battle.over && p === cur));
   }

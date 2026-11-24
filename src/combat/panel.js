@@ -54,7 +54,7 @@ async function finishAttack(battle, reaction) {
   if (reaction) await playAction(battle.message.channel, defender.name, reaction);
 
   battle.pending = null;
-  const result = resolveAttack(attacker, defender, attack, reaction);
+  const result = resolveAttack(attacker, defender, attack, reaction, battle);
   clampMoves(battle, defender); // um efeito novo (ex: Lentidão) vale já no resto deste turno
 
   if (result.defeated) {

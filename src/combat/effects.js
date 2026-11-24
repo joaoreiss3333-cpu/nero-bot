@@ -23,6 +23,8 @@ const EFFECTS = {
   atordoado: { name: 'Atordoado', emoji: '💫', kind: 'debuff', mods: { noAct: true, noMove: true, noReact: true, skipTurn: true } }, // perde o turno inteiro (passa sozinho)
   congelado: { name: 'Congelado', emoji: '🧊', kind: 'debuff', mods: { noMove: true, noDodge: true }, endsOnElement: 'fogo' },
   estase: { name: 'Estase Temporal', emoji: '🕰️', kind: 'debuff', mods: { noMove: true, noReact: true } }, // preso num loop do tempo: imóvel e sem reação, mas ainda pode atacar
+  esfera_dimensional: { name: 'Esfera Dimensional', emoji: '🔮', kind: 'debuff', mods: { noMove: true } }, // barreira esférica ao redor do alvo: impede a fuga
+  sala_vermelha: { name: 'Sala Vermelha', emoji: '🟥', kind: 'debuff', mods: { noMove: true, dodgeDelta: -0.2 } }, // preso num cubo vermelho: sem fuga e com pouco espaço para esquivar
   lentidao: { name: 'Lentidão', emoji: '🐌', kind: 'debuff', mods: { moveDelta: -1, dodgeDelta: -0.15 } },
   cegueira: { name: 'Cegueira', emoji: '🙈', kind: 'debuff', mods: { missChance: 0.4 } },
   escuridao: { name: 'Escuridão', emoji: '🌑', kind: 'debuff', mods: { visionCap: 2 } },
