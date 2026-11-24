@@ -2,7 +2,7 @@ const {
   AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags,
   ContainerBuilder, TextDisplayBuilder, MediaGalleryBuilder, MediaGalleryItemBuilder, SeparatorBuilder,
 } = require('discord.js');
-const { currentPlayer, opponentOf, checkStep, abilitiesOf, energyCost, reactionBlock } = require('./battle');
+const { currentPlayer, opponentOf, checkStep, abilitiesOf, abilityCost, resourceLabel, reactionBlock } = require('./battle');
 const { describeEffects } = require('./effects');
 const { renderMapImage, renderPanelImage } = require('./image');
 const { EMBED_COLOR } = require('./config');
@@ -34,7 +34,7 @@ function reactionRow(battle) {
   const defender = opponentOf(battle, battle.pending.attackerId);
   const buttons = abilitiesOf(defender, 'reaction').map(a =>
     btn(`react:${a.id}`, a.kind === 'dodge' ? ButtonStyle.Primary : ButtonStyle.Success)
-      .setLabel(`${a.name} (-${energyCost(defender, a)} energia)`)
+      .setLabel(`${a.name} (-${abilityCost(defender, a)} ${resourceLabel(a)})`)
       .setEmoji(a.emoji)
       .setDisabled(!!reactionBlock(defender, a, battle.pending.attack)));
   buttons.push(btn('react:nenhuma').setLabel('Não reagir'));

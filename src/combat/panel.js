@@ -1,6 +1,6 @@
 const {
   getBattle, endBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf,
-  movePlayer, startActions, resolveAttack, nextTurn, reactionBlock, energyCost, clampMoves,
+  movePlayer, startActions, resolveAttack, nextTurn, reactionBlock, abilityCost, resourceLabel, resourceOf, clampMoves,
 } = require('./battle');
 const { getMods } = require('./effects');
 const { panelPayload, asEdit } = require('./render');
@@ -130,8 +130,8 @@ async function handleButton(interaction) {
     }
     const reaction = me.abilities.includes(arg) ? getAbility(arg) : null;
     const why = reaction && reactionBlock(me, reaction, battle.pending.attack);
-    if (why === 'sem energia') {
-      return ephemeral(interaction, `Energia insuficiente: **${reaction.name}** custa ${energyCost(me, reaction)} e você tem ${me.energy}.`);
+    if (why === 'sem recurso') {
+      return ephemeral(interaction, `Sem ${resourceLabel(reaction)} suficiente: **${reaction.name}** custa ${abilityCost(me, reaction)} e você tem ${me[resourceOf(reaction)]}.`);
     }
     if (why) return ephemeral(interaction, `Você ${why} agora.`);
     await interaction.deferUpdate(); // finishAttack já trava (animating) contra cliques duplos

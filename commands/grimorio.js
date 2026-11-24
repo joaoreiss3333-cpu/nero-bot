@@ -13,9 +13,14 @@ module.exports = {
 
   async autocomplete(interaction) {
     const focused = interaction.options.getFocused().toLowerCase();
-    const choices = [{ name: 'Nenhum (remover)', value: 'nenhum' }, ...Object.values(grimoires).map(g => ({
-      name: `${g.name} (${RARITIES[g.rarity].name})`, value: g.id,
-    }))].filter(c => c.name.toLowerCase().includes(focused));
+    // O Discord mostra no máximo 25 opções: os grimórios que já têm magias vêm primeiro, depois do mais raro ao mais comum
+    const rarityOrder = Object.keys(RARITIES).reverse();
+    const hasSpells = g => Object.values(abilities).some(a => a.grimoire === g.id);
+    const sorted = Object.values(grimoires).sort((a, b) =>
+      (hasSpells(b) - hasSpells(a)) || (rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity)));
+    const choices = [...sorted.map(g => ({
+      name: `${g.name} (${RARITIES[g.rarity].name})${hasSpells(g) ? ' ✨' : ''}`, value: g.id,
+    })), { name: 'Nenhum (remover)', value: 'nenhum' }].filter(c => c.name.toLowerCase().includes(focused));
     await interaction.respond(choices.slice(0, 25));
   },
 

@@ -94,8 +94,20 @@ const findPlayer = (b, id) => b.players.find(p => p.id === id);
 const abilitiesOf = (player, type) =>
   player.abilities.map(getAbility).filter(a => a && a.type === type);
 
-// Energia que a habilidade custa de verdade (efeitos como Sufocamento encarecem)
-const energyCost = (player, ability) => Math.ceil(ability.energyCost * fx.getMods(player).energyCostMult);
+// Magias gastam mana (manaCost); o resto gasta energia (energyCost, que efeitos como Sufocamento encarecem)
+const resourceOf = ability => (ability.manaCost !== undefined ? 'mana' : 'energy');
+const resourceLabel = ability => (resourceOf(ability) === 'mana' ? 'mana' : 'energia');
+const abilityCost = (player, ability) => (resourceOf(ability) === 'mana'
+  ? ability.manaCost
+  : Math.ceil(ability.energyCost * fx.getMods(player).energyCostMult));
+const canAfford = (player, ability) => player[resourceOf(ability)] >= abilityCost(player, ability);
+// Desconta o custo do recurso certo e retorna quanto foi gasto
+function spend(player, ability) {
+  const cost = abilityCost(player, ability);
+  const res = resourceOf(ability);
+  player[res] = Math.max(0, player[res] - cost);
+  return cost;
+}
 
 // Motivo pelo qual o jogador não pode usar essa reação agora (ou null se pode)
 function reactionBlock(player, reaction, attack) {
@@ -103,7 +115,7 @@ function reactionBlock(player, reaction, attack) {
   if (mods.noReact) return 'não consegue reagir';
   if (reaction.onlyVsMagic && attack && !attack.magic) return 'só pode usar isso contra magia';
   if (mods.noDodge && reaction.kind === 'dodge') return 'não consegue esquivar';
-  if (player.energy < energyCost(player, reaction)) return 'sem energia';
+  if (!canAfford(player, reaction)) return 'sem recurso';
   return null;
 }
 
@@ -153,14 +165,12 @@ function startActions(battle) {
 
 // Resolve um ataque. reaction: habilidade de reação usada pelo defensor, ou null.
 function resolveAttack(attacker, defender, attack, reaction) {
-  // A Resistência do defensor corta uma porcentagem do golpe (sempre sobra pelo menos 1 de dano)
-  const cut = Math.min(C.RESISTANCE_REDUCTION_CAP, defender.attrs.resistencia * C.RESISTANCE_REDUCTION_PER_POINT);
   // Dano bruto: golpe + bônus de efeitos do atacante, com chance de crítico e vulnerabilidade do alvo ao elemento
   let raw = attackDamage(attacker, attack) + fx.getMods(attacker).damageBonus;
   const crit = Math.random() < C.CRIT_CHANCE_BASE + fx.getMods(attacker).critChance;
   if (crit) raw *= C.CRIT_MULTIPLIER;
   const vuln = fx.vulnerability(defender, attack.element);
-  let damage = Math.max(1, Math.round(raw * vuln * (1 - cut)));
+  let damage = Math.max(1, Math.round(raw * vuln));
   let log = `${attacker.name} usou **${attack.name}** em ${defender.name} (${damage} de dano).`;
   if (crit) log += `\n💥 **Golpe crítico!**`;
   if (vuln > 1) log += `\n💧 ${defender.name} está vulnerável a esse elemento (dano x${vuln.toFixed(1)}).`;
@@ -184,8 +194,8 @@ function resolveAttack(attacker, defender, attack, reaction) {
       const lines = fx.applyAbilityEffects(reaction, defender, attacker);
       if (lines.length) log += `\n${lines.join('\n')}`;
     } else if (reaction.kind === 'block') {
-      const share = Math.min(C.BLOCK_ABSORB_CAP, reaction.absorb + defender.attrs.resistencia * C.RESISTANCE_BLOCK_BONUS);
-      const absorbed = Math.round(damage * share);
+      // Defesa escala como um ataque: valor sorteado + atributo × multiplicador (Bloqueio usa Resistência; defesas mágicas, Magia Defensiva)
+      const absorbed = Math.min(damage, rand(reaction.absorb) + Math.round((defender.attrs[reaction.attribute] ?? 0) * (C.DEFENSE_PER_POINT[reaction.attribute] ?? 0) * (reaction.attributeScale ?? 1)));
       damage -= absorbed;
       log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}** e absorveu ${absorbed} de dano.`;
     }
@@ -194,9 +204,8 @@ function resolveAttack(attacker, defender, attack, reaction) {
   defender.hp = Math.max(0, defender.hp - damage);
   log += `\n❤️ ${defender.name} sofreu **${damage}** de dano.`;
   if (reaction) {
-    const cost = energyCost(defender, reaction);
-    defender.energy = Math.max(0, defender.energy - cost);
-    log += `\n⚡ ${defender.name} gastou ${cost} de energia.`;
+    const cost = spend(defender, reaction);
+    log += `\n${resourceOf(reaction) === 'mana' ? '🔷' : '⚡'} ${defender.name} gastou ${cost} de ${resourceLabel(reaction)}.`;
   }
 
   // Efeitos: só se o golpe causou dano e o alvo continua de pé (o golpe também pode acordar/descongelar o alvo)
@@ -227,6 +236,6 @@ function nextTurn(battle) {
 }
 
 module.exports = {
-  createBattle, getBattle, endBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf, energyCost, reactionBlock, clampMoves,
+  createBattle, getBattle, endBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf, abilityCost, resourceOf, resourceLabel, canAfford, spend, reactionBlock, clampMoves,
   placePlayer, allPlaced, checkStep, movePlayer, startActions, resolveAttack, nextTurn,
 };

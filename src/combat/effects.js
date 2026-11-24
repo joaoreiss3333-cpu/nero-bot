@@ -1,7 +1,7 @@
 // Efeitos de combate (queimadura, lentidão, buffs...). Cada efeito é um dado do catálogo EFFECTS:
 //   kind        'debuff' (colocado no adversário) ou 'buff' (colocado em si mesmo)
 //   stackable   se aplicar de novo soma stacks (até config.EFFECT_MAX_STACKS); senão só renova a duração
-//   dot         dano por stack no fim do turno de quem tem o efeito (resist: a Resistência reduz esse dano)
+//   dot         dano por stack no fim do turno de quem tem o efeito (a Resistência não reduz: ela só serve para o Bloqueio)
 //   drainEnergy energia perdida por stack no fim do turno
 //   mods        modificadores enquanto o efeito está ativo (ver getMods)
 //   stackMods   { stacks: mods } -> modificadores extras a partir de N stacks
@@ -15,9 +15,9 @@
 const C = require('./config');
 
 const EFFECTS = {
-  sangramento: { name: 'Sangramento', emoji: '🩸', kind: 'debuff', stackable: true, dot: 1, resist: true },
-  queimadura: { name: 'Queimadura', emoji: '🔥', kind: 'debuff', dot: 2, resist: true },
-  envenenado: { name: 'Envenenado', emoji: '☠️', kind: 'debuff', stackable: true, dot: 1, resist: false }, // veneno ignora Resistência
+  sangramento: { name: 'Sangramento', emoji: '🩸', kind: 'debuff', stackable: true, dot: 1 },
+  queimadura: { name: 'Queimadura', emoji: '🔥', kind: 'debuff', dot: 2 },
+  envenenado: { name: 'Envenenado', emoji: '☠️', kind: 'debuff', stackable: true, dot: 1 }, // dano contínuo: só some quando o efeito acaba ou é removido
   encharcado: { name: 'Encharcado', emoji: '💧', kind: 'debuff', vulnerable: { relampago: 1.3, gelo: 1.3 } },
   enraizado: { name: 'Enraizado', emoji: '🌿', kind: 'debuff', mods: { noMove: true } },
   atordoado: { name: 'Atordoado', emoji: '💫', kind: 'debuff', mods: { noAct: true, noMove: true, noReact: true, skipTurn: true } }, // perde o turno inteiro (passa sozinho)
@@ -163,10 +163,7 @@ function endOfTurn(player) {
   for (const [id, state] of Object.entries({ ...effectsOf(player) })) {
     const def = EFFECTS[id];
     if (def.dot) {
-      const cut = def.resist
-        ? Math.min(C.RESISTANCE_REDUCTION_CAP, (player.attrs?.resistencia ?? 0) * C.RESISTANCE_REDUCTION_PER_POINT)
-        : 0;
-      const damage = Math.max(1, Math.round(state.power * state.stacks * (1 - cut)));
+      const damage = Math.max(1, state.power * state.stacks);
       player.hp = Math.max(0, player.hp - damage);
       lines.push(`${def.emoji} ${player.name} sofreu **${damage}** de dano de ${def.name}.`);
     }
