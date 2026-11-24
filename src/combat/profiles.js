@@ -1,7 +1,7 @@
 // Fichas dos jogadores salvas em data/players.json (sobrevivem a reinícios do bot).
 const fs = require('fs');
 const path = require('path');
-const { newProfile } = require('./progression');
+const { newProfile, skillPointsForLevel } = require('./progression');
 
 const FILE = path.join(__dirname, '..', '..', 'data', 'players.json');
 
@@ -29,6 +29,13 @@ function getProfile(userId) {
   profiles[userId].attrs = { ...newProfile().attrs, ...profiles[userId].attrs };
   profiles[userId].learned ??= [];
   profiles[userId].ranks ??= {}; // id da magia -> rank comprado (1 = a magia base)
+  // Fichas de antes dos pontos de habilidade: recebem os pontos do nível menos o que já foi comprado
+  // (nunca negativo: quem já tinha mais magias do que os pontos pagariam fica com elas e 0 pontos)
+  if (profiles[userId].skillPoints === undefined) {
+    const { spentSkillPoints } = require('./characters'); // aqui dentro para não criar dependência circular no carregamento
+    profiles[userId].skillPoints = Math.max(0, skillPointsForLevel(profiles[userId].level) - spentSkillPoints(profiles[userId]));
+    save();
+  }
   return profiles[userId];
 }
 

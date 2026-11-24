@@ -41,7 +41,7 @@ module.exports = {
     save();
     const spells = Object.values(abilities).filter(a => a.grimoire === grimoire.id);
     const list = spells.length
-      ? `Magias: ${spells.map(a => `**${a.name}**`).join(', ')} (aparecem quando o jogador tiver os pontos de atributo exigidos).`
+      ? `Magias: ${spells.map(a => `**${a.name}**`).join(', ')} (compradas com pontos de habilidade no \`/aprender\`).`
       : 'Esse grimório ainda não tem magias cadastradas.';
     return interaction.reply({
       content: `📖 ${user} agora possui o grimório de **${grimoire.name}** (${RARITIES[grimoire.rarity].name}).\n${list}`,

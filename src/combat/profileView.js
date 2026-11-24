@@ -36,6 +36,7 @@ async function profileAttachment(user, member) {
     xp: profile.xp,
     xpNext: profile.level >= MAX_LEVEL ? null : xpToNext(profile.level),
     points: profile.points,
+    skillPoints: profile.skillPoints,
     attrs: profile.attrs,
     portrait: await tryLoad(profile.portraitUrl ?? user.displayAvatarURL({ extension: 'png', size: 512 })),
     grimoire: await tryLoad(profile.grimoireUrl ?? (grimoire && grimoireImagePath(grimoire.id))),

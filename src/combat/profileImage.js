@@ -294,8 +294,7 @@ function drawXpBar(ctx, x, y, w, xp, xpNext) {
 }
 
 // Selo com os pontos de atributo que ainda dá para gastar (destacado quando há pontos)
-function drawPointsTag(ctx, cx, y, points) {
-  const w = 156;
+function drawPointsTag(ctx, cx, y, points, singular = 'PONTO', plural = 'PONTOS', w = 156) {
   const h = 30;
   const x = cx - w / 2;
   const has = points > 0;
@@ -307,11 +306,11 @@ function drawPointsTag(ctx, cx, y, points) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = `bold 17px ${FONT}`; ctx.letterSpacing = '1px';
   ctx.fillStyle = has ? GOLD_LIGHT : MUTED;
-  ctx.fillText(`${points} ${points === 1 ? 'PONTO' : 'PONTOS'}`, cx, y + 1);
+  ctx.fillText(`${points} ${points === 1 ? singular : plural}`, cx, y + 1);
   ctx.letterSpacing = '0px';
 }
 
-// data: { name, age, level, xp, xpNext, points, attrs, portrait, grimoire }  (portrait/grimoire: imagens já carregadas, ou null)
+// data: { name, age, level, xp, xpNext, points, skillPoints, attrs, portrait, grimoire }  (portrait/grimoire: imagens já carregadas, ou null)
 async function renderProfileImage(data) {
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
@@ -360,7 +359,8 @@ async function renderProfileImage(data) {
   ctx.fillText(age, 394, 150);
 
   drawLevelBadge(ctx, 880, 100, data.level);
-  drawPointsTag(ctx, 880, 178, data.points ?? 0);
+  drawPointsTag(ctx, 880, 178, data.points ?? 0, 'ATRIBUTO', 'ATRIBUTOS');
+  drawPointsTag(ctx, 700, 142, data.skillPoints ?? 0, 'HABILIDADE', 'HABILIDADES', 184); // pontos para comprar magias (/aprender)
   drawXpBar(ctx, 392, 180, 400, data.xp ?? 0, data.xpNext ?? null);
 
   // Atributos

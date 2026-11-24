@@ -216,7 +216,7 @@ async function handleFicha(interaction) {
 
       const member = interaction.guild?.members.cache.get(ownerId);
       const container = new ContainerBuilder().setAccentColor(EMBED_COLOR)
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent(`# 📜 Ficha ${editing ? 'atualizada' : 'criada'}!\nBem-vindo, **${profile.name}**. Veja seu perfil abaixo; use \`/distribuir\` para gastar seus pontos de atributo.`))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(`# 📜 Ficha ${editing ? 'atualizada' : 'criada'}!\nBem-vindo, **${profile.name}**. Veja seu perfil abaixo; use \`/distribuir\` para gastar seus pontos de atributo e \`/aprender\` para comprar magias com pontos de habilidade.`))
         .addMediaGalleryComponents(new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL('attachment://perfil.png')));
       return interaction.editReply({
         components: [container], flags: MessageFlags.IsComponentsV2,

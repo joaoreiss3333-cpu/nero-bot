@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { getProfile, save } = require('../src/combat/profiles');
 const { getAbility, TYPE_LABEL } = require('../src/combat/abilities');
-const { grimoireTree, learnBlocker, nextStep } = require('../src/combat/characters');
+const { grimoireTree, learnBlocker, nextStep, learnCost } = require('../src/combat/characters');
 const { getBattle, findPlayer } = require('../src/combat/battle');
 
 const fail = (interaction, content) => interaction.reply({ content, ephemeral: true });
@@ -9,7 +9,7 @@ const fail = (interaction, content) => interaction.reply({ content, ephemeral: t
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('aprender')
-    .setDescription('Aprende uma magia do seu grimório ou sobe o rank de uma que você já tem')
+    .setDescription('Gasta pontos de habilidade para aprender uma magia do grimório ou subir o rank dela')
     .addStringOption(o => o
       .setName('magia')
       .setDescription('Qual magia aprender ou evoluir')
@@ -24,7 +24,7 @@ module.exports = {
       .map(a => ({ a, step: nextStep(profile, a) }))
       .filter(({ a, step }) => step && a.name.toLowerCase().includes(focused))
       .map(({ a, step }) => ({
-        name: `${learnBlocker(profile, a) ? '🔒' : '✅'} ${a.name} ${step.rank === 1 ? `(${TYPE_LABEL[a.type]})` : `→ rank ${step.rank}`}`,
+        name: `${learnBlocker(profile, a) ? '🔒' : '✅'} ${a.name} ${step.rank === 1 ? `(${TYPE_LABEL[a.type]})` : `→ rank ${step.rank}`} · ${learnCost(a, step.rank)} pt`,
         value: a.id,
       }));
     await interaction.respond(choices.slice(0, 25));
@@ -41,13 +41,15 @@ module.exports = {
     if (blocker) return fail(interaction, `❌ Você não pode comprar **${ability.name}** agora: ${blocker}.`);
 
     const { rank } = nextStep(profile, ability);
+    const cost = learnCost(ability, rank);
+    profile.skillPoints -= cost;
     if (rank === 1) profile.learned.push(ability.id);
     profile.ranks[ability.id] = rank;
     save();
     return interaction.reply({
       content: rank === 1
-        ? `📖 Você aprendeu **${ability.name}**! Ela já está no seu kit.`
-        : `⬆️ **${ability.name}** evoluiu para o **rank ${rank}**!`,
+        ? `📖 Você aprendeu **${ability.name}** (-${cost} pt)! Ela já está no seu kit. Pontos de habilidade restantes: **${profile.skillPoints}**.`
+        : `⬆️ **${ability.name}** evoluiu para o **rank ${rank}** (-${cost} pt)! Pontos de habilidade restantes: **${profile.skillPoints}**.`,
       ephemeral: true,
     });
   },

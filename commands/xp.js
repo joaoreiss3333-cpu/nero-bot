@@ -19,11 +19,11 @@ module.exports = {
       return interaction.reply({ content: `${user} já está no nível máximo (${C.MAX_LEVEL}).`, ephemeral: true });
     }
 
-    const { from, to, gainedPoints } = addXp(profile, amount);
+    const { from, to, gainedPoints, gainedSkillPoints } = addXp(profile, amount);
     save();
 
     const progress = to >= C.MAX_LEVEL ? 'nível máximo' : `${profile.xp}/${xpToNext(to)} XP para o próximo nível`;
-    const levelUp = to > from ? `\n🎉 Subiu do nível **${from}** para o **${to}** e ganhou **${gainedPoints}** ponto(s) de atributo! Use \`/distribuir\`.` : '';
+    const levelUp = to > from ? `\n🎉 Subiu do nível **${from}** para o **${to}** e ganhou **${gainedPoints}** ponto(s) de atributo (\`/distribuir\`)${gainedSkillPoints ? ` e **${gainedSkillPoints}** ponto(s) de habilidade (\`/aprender\`)` : ''}!` : '';
     return interaction.reply({
       content: `✨ ${user} recebeu **${amount} XP** (${progress}).${levelUp}`,
       allowedMentions: { users: [] }, // sem notificar: o convite do desafio é o único que marca alguém

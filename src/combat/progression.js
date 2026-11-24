@@ -16,14 +16,18 @@ const newProfile = () => ({
   level: 1,
   xp: 0, // XP acumulado dentro do nível atual
   points: C.STARTING_POINTS,
+  skillPoints: C.SKILL_POINTS_START, // pontos de habilidade para comprar magias (/aprender)
   learned: [], // ids das magias de grimório já aprendidas (/aprender)
   attrs: Object.fromEntries(Object.keys(ATTRIBUTES).map(k => [k, 0])),
 });
 
+// Total de pontos de habilidade que o nível dá (desde o nível 1)
+const skillPointsForLevel = level => C.SKILL_POINTS_START + Math.floor((level - 1) / C.SKILL_POINTS_EVERY);
+
 // XP necessário para sair do nível `level` para o próximo
 const xpToNext = level => Math.round((C.XP_BASE * level ** C.XP_EXPONENT) / 10) * 10;
 
-// Soma XP e sobe de nível quantas vezes for preciso. Retorna os níveis ganhos e os pontos recebidos.
+// Soma XP e sobe de nível quantas vezes for preciso. Retorna os níveis ganhos e os pontos (de atributo e de habilidade) recebidos.
 function addXp(profile, amount) {
   const from = profile.level;
   profile.xp += amount;
@@ -33,7 +37,9 @@ function addXp(profile, amount) {
     profile.points += C.POINTS_PER_LEVEL;
   }
   if (profile.level >= C.MAX_LEVEL) profile.xp = 0;
-  return { from, to: profile.level, gainedPoints: (profile.level - from) * C.POINTS_PER_LEVEL };
+  const gainedSkillPoints = skillPointsForLevel(profile.level) - skillPointsForLevel(from);
+  profile.skillPoints = (profile.skillPoints ?? 0) + gainedSkillPoints;
+  return { from, to: profile.level, gainedPoints: (profile.level - from) * C.POINTS_PER_LEVEL, gainedSkillPoints };
 }
 
 // Valor do degrau em que o nível se encaixa
@@ -47,10 +53,7 @@ const speed = profile => C.BASE_SPEED + profile.attrs.destreza;
 // Pontos que ainda dá para colocar nesse atributo
 const roomFor = (profile, attr) => C.ATTRIBUTE_CAP - profile.attrs[attr];
 
-// Habilidades podem exigir atributos: requires: { magiaOfensiva: 3 }
-const meetsRequirements = (profile, ability) =>
-  Object.entries(ability.requires ?? {}).every(([attr, min]) => profile.attrs[attr] >= min);
 
 module.exports = {
-  ATTRIBUTES, newProfile, xpToNext, addXp, maxHp, maxMana, maxEnergy, speed, roomFor, meetsRequirements,
+  ATTRIBUTES, newProfile, xpToNext, addXp, maxHp, maxMana, maxEnergy, speed, roomFor, skillPointsForLevel,
 };

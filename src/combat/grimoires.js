@@ -1,6 +1,6 @@
 // Grimórios do servidor e suas raridades. Cada habilidade de um grimório declara `grimoire: '<id>'`
 // em abilities.js, e quem possui o grimório (profile.grimoire) recebe essas habilidades no kit
-// (se cumprir os requisitos de atributo). Hoje só o Tempo tem magias.
+// depois de comprá-las com pontos de habilidade (/aprender).
 const RARITIES = {
   comum: { name: 'Comum', chance: '55,7%' },
   raro: { name: 'Raro', chance: '27%' },
