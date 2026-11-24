@@ -93,7 +93,7 @@ async function endTurn(battle, me, interaction) {
   const fxLog = end.log ? `\n${end.log}` : '';
 
   // Sem nenhuma reação que o defensor consiga usar (sem energia, atordoado...), o golpe acontece direto
-  if (abilitiesOf(defender, 'reaction').every(a => reactionBlock(defender, a))) {
+  if (abilitiesOf(defender, 'reaction').every(a => reactionBlock(defender, a, attack))) {
     battle.message = await battle.message.channel.send(
       await panelPayload(battle, `👊 ${me.name} atacou com **${attack.name}**, e ${defender.name} não consegue reagir.${fxLog}`),
     );
@@ -129,7 +129,7 @@ async function handleButton(interaction) {
       return ephemeral(interaction, `Aguardando a reação de ${defender.name}.`);
     }
     const reaction = me.abilities.includes(arg) ? getAbility(arg) : null;
-    const why = reaction && reactionBlock(me, reaction);
+    const why = reaction && reactionBlock(me, reaction, battle.pending.attack);
     if (why === 'sem energia') {
       return ephemeral(interaction, `Energia insuficiente: **${reaction.name}** custa ${energyCost(me, reaction)} e você tem ${me.energy}.`);
     }

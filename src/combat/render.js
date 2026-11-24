@@ -36,7 +36,7 @@ function reactionRow(battle) {
     btn(`react:${a.id}`, a.kind === 'dodge' ? ButtonStyle.Primary : ButtonStyle.Success)
       .setLabel(`${a.name} (-${energyCost(defender, a)} energia)`)
       .setEmoji(a.emoji)
-      .setDisabled(!!reactionBlock(defender, a)));
+      .setDisabled(!!reactionBlock(defender, a, battle.pending.attack)));
   buttons.push(btn('react:nenhuma').setLabel('Não reagir'));
   return new ActionRowBuilder().addComponents(buttons);
 }

@@ -22,6 +22,7 @@ const EFFECTS = {
   enraizado: { name: 'Enraizado', emoji: '🌿', kind: 'debuff', mods: { noMove: true } },
   atordoado: { name: 'Atordoado', emoji: '💫', kind: 'debuff', mods: { noAct: true, noMove: true, noReact: true, skipTurn: true } }, // perde o turno inteiro (passa sozinho)
   congelado: { name: 'Congelado', emoji: '🧊', kind: 'debuff', mods: { noMove: true, noDodge: true }, endsOnElement: 'fogo' },
+  estase: { name: 'Estase Temporal', emoji: '🕰️', kind: 'debuff', mods: { noMove: true, noReact: true } }, // preso num loop do tempo: imóvel e sem reação, mas ainda pode atacar
   lentidao: { name: 'Lentidão', emoji: '🐌', kind: 'debuff', mods: { moveDelta: -1, dodgeDelta: -0.15 } },
   lentidao_temporal: { name: 'Lentidão Temporal', emoji: '⏳', kind: 'debuff', mods: { moveDelta: -1, noReact: true } },
   cegueira: { name: 'Cegueira', emoji: '🙈', kind: 'debuff', mods: { missChance: 0.4 } },
@@ -133,6 +134,15 @@ function applyAbilityEffects(ability, source, target, { hit = true, defaultTo = 
   return lines;
 }
 
+// Remove todos os debuffs do jogador (os buffs ficam). Retorna os nomes removidos.
+function clearDebuffs(player) {
+  const removed = [];
+  for (const id of Object.keys(effectsOf(player))) {
+    if (EFFECTS[id].kind === 'debuff') { removeEffect(player, id); removed.push(EFFECTS[id].name); }
+  }
+  return removed;
+}
+
 // O jogador levou um golpe direto: acorda o Sonolento e descongela se foi de fogo
 function onHit(player, element) {
   const lines = [];
@@ -183,5 +193,5 @@ function describeEffects(player) {
 
 module.exports = {
   EFFECTS, getEffect, hasEffect, getMods, vulnerability, applyEffect, applyAbilityEffects,
-  removeEffect, onHit, endOfTurn, describeEffects,
+  removeEffect, clearDebuffs, onHit, endOfTurn, describeEffects,
 };

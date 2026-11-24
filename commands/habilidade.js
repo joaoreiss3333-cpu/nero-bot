@@ -29,7 +29,7 @@ module.exports = {
     const choices = ids
       .map(getAbility)
       .filter(a => a && a.type !== 'reaction' && a.name.toLowerCase().includes(focused))
-      .map(a => ({ name: `${a.name} (${TYPE_LABEL[a.type]} · ${a.energyCost} energia)`, value: a.id }));
+      .map(a => ({ name: `${a.name} (${TYPE_LABEL[a.type]} · ${a.energyCost} energia${a.cooldown ? ` · recarga ${a.cooldown}` : ''})`, value: a.id }));
     await interaction.respond(choices.slice(0, 25));
   },
 
@@ -52,6 +52,9 @@ module.exports = {
     if (me.energy < cost) {
       return fail(interaction, `Energia insuficiente: **${ability.name}** custa ${cost} e você tem ${me.energy}.`);
     }
+    if (me.cooldowns[ability.id] > 0) {
+      return fail(interaction, `**${ability.name}** ainda está em recarga: faltam ${me.cooldowns[ability.id]} turno(s) seu(s).`);
+    }
     const mods = getMods(me);
     if (mods.noAct) return fail(interaction, 'Você não consegue agir neste turno por causa de um efeito (atordoado, dormindo...).');
     if (mods.oneAction && (battle.turn.attacked || battle.turn.bonusUsed)) {
@@ -68,6 +71,7 @@ module.exports = {
       // O ataque só é resolvido quando o atacante encerra o turno (aí o defensor reage)
       battle.turn.attacked = true;
       battle.turn.queuedAttack = ability;
+      if (ability.cooldown) me.cooldowns[ability.id] = ability.cooldown;
       me.energy -= cost;
       await interaction.reply({ content: `✅ **${ability.name}** preparado (-${cost} energia). O dano e a reação do oponente acontecem quando você encerrar o turno.`, ephemeral: true });
       // O GIF do golpe aparece na hora (como na ação bônus); o dano e a reação ficam para o fim do turno
@@ -78,6 +82,7 @@ module.exports = {
     // bonus
     if (battle.turn.bonusUsed) return fail(interaction, 'Você já usou sua ação bônus neste turno.');
     battle.turn.bonusUsed = true;
+    if (ability.cooldown) me.cooldowns[ability.id] = ability.cooldown;
     me.energy -= cost;
     // Ação bônus: usa a função própria da habilidade (use) e/ou aplica os efeitos dela (applies) em quem usou
     const lines = [];

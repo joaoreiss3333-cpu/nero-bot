@@ -37,6 +37,8 @@ function newPlayer(user) {
     abilities: getKit(user.id),
     speed: stats.speed,
     effects: {}, // efeitos ativos (ver effects.js)
+    cooldowns: {}, // id da habilidade -> turnos seus que faltam para poder usar de novo
+    hpHistory: [stats.maxHp], // vida no início dos seus últimos turnos (usado para voltar no tempo)
   };
 }
 
@@ -44,7 +46,7 @@ const rand = ([min, max]) => min + Math.floor(Math.random() * (max - min + 1));
 
 // Dano de um ataque: valor sorteado no intervalo da habilidade + atributo × multiplicador do atributo
 const attackDamage = (attacker, attack) =>
-  rand(attack.damage) + Math.round((attacker.attrs[attack.attribute] ?? 0) * (C.DAMAGE_PER_POINT[attack.attribute] ?? 0));
+  rand(attack.damage) + Math.round((attacker.attrs[attack.attribute] ?? 0) * (C.DAMAGE_PER_POINT[attack.attribute] ?? 0) * (attack.attributeScale ?? 1));
 
 // Maior velocidade começa; se empatar, sorteia entre os mais rápidos
 function whoStarts(players) {
@@ -96,9 +98,10 @@ const abilitiesOf = (player, type) =>
 const energyCost = (player, ability) => Math.ceil(ability.energyCost * fx.getMods(player).energyCostMult);
 
 // Motivo pelo qual o jogador não pode usar essa reação agora (ou null se pode)
-function reactionBlock(player, reaction) {
+function reactionBlock(player, reaction, attack) {
   const mods = fx.getMods(player);
   if (mods.noReact) return 'não consegue reagir';
+  if (reaction.onlyVsMagic && attack && !attack.magic) return 'só pode usar isso contra magia';
   if (mods.noDodge && reaction.kind === 'dodge') return 'não consegue esquivar';
   if (player.energy < energyCost(player, reaction)) return 'sem energia';
   return null;
@@ -174,6 +177,12 @@ function resolveAttack(attacker, defender, attack, reaction) {
       } else {
         log += `\n${reaction.emoji} ${defender.name} tentou **${reaction.name}**, mas falhou.`;
       }
+    } else if (reaction.kind === 'capture') {
+      // Captura a magia: ela é anulada e quem a lançou sofre os efeitos da reação (ex: Estase Temporal)
+      damage = 0;
+      log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}** e capturou a magia!`;
+      const lines = fx.applyAbilityEffects(reaction, defender, attacker);
+      if (lines.length) log += `\n${lines.join('\n')}`;
     } else if (reaction.kind === 'block') {
       const share = Math.min(C.BLOCK_ABSORB_CAP, reaction.absorb + defender.attrs.resistencia * C.RESISTANCE_BLOCK_BONUS);
       const absorbed = Math.round(damage * share);
@@ -203,10 +212,15 @@ function resolveAttack(attacker, defender, attack, reaction) {
 function nextTurn(battle) {
   const leaving = currentPlayer(battle);
   const end = fx.endOfTurn(leaving);
+  for (const id of Object.keys(leaving.cooldowns)) {
+    leaving.cooldowns[id] -= 1;
+    if (leaving.cooldowns[id] <= 0) delete leaving.cooldowns[id];
+  }
 
   battle.current = (battle.current + 1) % battle.players.length;
   if (battle.current === 0) battle.round++;
   const p = currentPlayer(battle);
+  p.hpHistory = [...p.hpHistory, p.hp].slice(-2);
   battle.turn = newTurn(p);
   p.energy = Math.min(p.maxEnergy, p.energy + ENERGY_REGEN_PER_TURN);
   return { log: end.lines.join('\n'), defeated: end.defeated, loser: end.defeated ? leaving : null };

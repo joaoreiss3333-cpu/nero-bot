@@ -11,18 +11,57 @@
 // Efeitos de combate (catálogo em effects.js):
 //   applies -> lista de efeitos que a habilidade aplica: { effect: 'sangramento', turns: 3, stacks: 1, power: 2, to: 'enemy'|'self', chance: 0.5 }
 //              (só `effect` é obrigatório; ataque aplica no alvo se causar dano, ação bônus aplica em quem usou; `to` muda isso)
+//   magic    -> true se for uma magia (reações como Chrono Stasis Grigora só funcionam contra magia)
+//   cooldown -> turnos seus até poder usar de novo (1ª vez livre)
+//   grimoire -> id do grimório (grimoires.js) a que a habilidade pertence; quem tem esse grimório recebe a habilidade no kit
 //   element -> elemento do golpe ('fogo', 'gelo', 'relampago'...), usado nas interações (Encharcado, Congelado)
+//
+//   attributeScale -> multiplica o bônus de dano do atributo (padrão 1); magias fortes usam valores maiores, e o Tempo (mítico) usa 2.5
 //
 // Campos opcionais para o aviso da ação (o embed "X utilizou ..." com o GIF):
 //   actionText -> como a ação aparece no título, ex: "um Soco" (padrão: o nome)
 //   gif        -> URL do GIF, ou nome de um arquivo da pasta assets/gifs (ex: 'soco.gif').
 //                 Sem GIF, o aviso aparece só com o título.
 //   gifDurationMs -> quanto o jogo espera esse GIF rodar (padrão: ACTION_GIF_WAIT_MS)
+const fx = require('./effects');
+const NL = '\n';
+
 const abilities = {
   soco: { id: 'soco', name: 'Soco', actionText: 'um Soco', gif: 'soco.gif', type: 'attack', range: 1, damage: [2, 4], attribute: 'forca', energyCost: 10 },
 
   esquiva: { id: 'esquiva', name: 'Esquiva', type: 'reaction', kind: 'dodge', chance: 0.5, energyCost: 15, emoji: '💨' }, // 50% (+ Destreza) de evitar todo o dano
   bloqueio: { id: 'bloqueio', name: 'Bloqueio', type: 'reaction', kind: 'block', absorb: 0.4, energyCost: 10, emoji: '🛡️' }, // absorve 40% do dano (+ Resistência)
+
+  // ---- Grimório do Tempo ----
+  // Grimório MÍTICO: a magia de ataque mais forte do servidor. Dano bem acima do Soco e prende o alvo em Estase Temporal (imóvel e sem reação, ainda pode atacar)
+  chrono_stasis: {
+    id: 'chrono_stasis', name: 'Chrono Stasis', actionText: 'Chrono Stasis', gif: 'chrono_stasis.gif', grimoire: 'tempo', magic: true,
+    type: 'attack', range: 3, damage: [8, 12], attributeScale: 2.5, attribute: 'magiaOfensiva', energyCost: 25,
+    requires: { magiaOfensiva: 3 }, applies: [{ effect: 'estase', turns: 3 }],
+  },
+  // Captura a magia inimiga (ela é anulada) e prende quem a lançou em Estase Temporal. Só funciona contra magia.
+  chrono_stasis_grigora: {
+    id: 'chrono_stasis_grigora', name: 'Chrono Stasis Grigora', actionText: 'Chrono Stasis Grigora', gif: 'chrono_stasis_grigora.gif', grimoire: 'tempo',
+    type: 'reaction', kind: 'capture', onlyVsMagic: true, energyCost: 30, emoji: '🕰️',
+    requires: { magiaDefensiva: 3 }, applies: [{ effect: 'estase', turns: 3 }],
+  },
+  // Volta no tempo: a vida retorna ao que era no início do seu turno anterior e os debuffs somem
+  chrono_anastasis: {
+    id: 'chrono_anastasis', name: 'Chrono Anastasis', actionText: 'Chrono Anastasis', gif: 'chrono_anastasis.gif', grimoire: 'tempo', magic: true,
+    type: 'bonus', energyCost: 30, cooldown: 3, requires: { magiaSuplementar: 3 },
+    use(battle, user) {
+      const target = Math.max(user.hp, user.hpHistory[0] ?? user.hp);
+      const healed = target - user.hp;
+      user.hp = target;
+      user.energy = Math.min(user.maxEnergy, user.energy + 15); // o tempo volta também para a energia gasta (reembolsa metade do custo)
+      const cleared = fx.clearDebuffs(user);
+      let text = `⏪ ${user.name} usou **Chrono Anastasis** e voltou no tempo.`;
+      text += healed > 0 ? `${NL}❤️ Recuperou **${healed}** de vida.` : `${NL}Nenhum dano para desfazer.`;
+      if (cleared.length) text += `${NL}✨ Removeu: ${cleared.join(', ')}.`;
+      text += `${NL}⚡ Recuperou 15 de energia.`;
+      return text;
+    },
+  },
 };
 
 const TYPE_LABEL = { attack: 'Ataque', bonus: 'Ação bônus', reaction: 'Reação' };
