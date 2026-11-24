@@ -2,7 +2,7 @@ const {
   AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags,
   ContainerBuilder, TextDisplayBuilder, MediaGalleryBuilder, MediaGalleryItemBuilder, SeparatorBuilder,
 } = require('discord.js');
-const { currentPlayer, opponentOf, checkStep, abilitiesOf, abilityCost, resourceLabel, reactionBlock } = require('./battle');
+const { currentPlayer, findPlayer, checkStep, abilitiesOf, abilityCost, resourceLabel, reactionBlock } = require('./battle');
 const { describeEffects } = require('./effects');
 const { renderMapImage, renderPanelImage } = require('./image');
 const { EMBED_COLOR } = require('./config');
@@ -31,7 +31,7 @@ function controlRows(battle) {
 
 // Botões com as reações que o defensor possui (desativadas se faltar energia)
 function reactionRow(battle) {
-  const defender = opponentOf(battle, battle.pending.attackerId);
+  const defender = findPlayer(battle, battle.pending.defenderId);
   const buttons = abilitiesOf(defender, 'reaction').map(a =>
     btn(`react:${a.id}`, a.kind === 'dodge' ? ButtonStyle.Primary : ButtonStyle.Success)
       .setLabel(`${a.name} (-${abilityCost(defender, a)} ${resourceLabel(a)})`)
@@ -57,6 +57,7 @@ async function panelPayload(battle, text = '', { frozen = false } = {}) {
   let title;
   if (battle.over) title = 'Batalha encerrada';
   else if (placing) title = 'Posicionamento';
+  else if (battle.pending) title = `Reação de ${findPlayer(battle, battle.pending.defenderId).name}`;
   else title = `Turno de ${currentPlayer(battle).name}`;
 
   let footer = '';
@@ -76,7 +77,7 @@ async function panelPayload(battle, text = '', { frozen = false } = {}) {
       new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL('attachment://painel.png')),
     );
   // Efeitos ativos de cada jogador (só aparece se alguém tiver algum)
-  const active = battle.phase === 'combat' ? battle.players.filter(p => describeEffects(p)) : [];
+  const active = battle.phase === 'combat' ? battle.players.filter(p => p.hp > 0 && describeEffects(p)) : [];
   if (active.length) {
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
       active.map(p => `**${p.name}:** ${describeEffects(p)}`).join('\n'),

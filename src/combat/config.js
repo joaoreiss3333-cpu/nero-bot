@@ -48,6 +48,8 @@ module.exports = {
   CRIT_CHANCE_BASE: 0.05,         // chance base de crítico em todo ataque (efeitos como Brilho Estelar somam)
   CRIT_MULTIPLIER: 1.5,           // o crítico multiplica o dano por isso
   ENERGY_REGEN_PER_TURN: 0,       // energia recuperada no início de cada turno (0 = não recupera)
+  PARTY_MAX_SIZE: 4,              // jogadores por party (o mapa cresce junto: ver gridSizeFor)
+  PARTY_INVITE_TIMEOUT_MS: 120_000, // tempo para aceitar o convite de party
   ACTION_TIMEOUT_MS: 60_000,      // tempo para o defensor escolher a reação
   CHALLENGE_TIMEOUT_MS: 120_000,  // tempo para o oponente aceitar o desafio
 };

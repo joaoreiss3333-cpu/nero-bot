@@ -33,6 +33,8 @@ const EFFECTS = {
     name: 'Sonolento', emoji: '😴', kind: 'debuff', stackable: true, endsOnHit: true,
     mods: { oneAction: true }, stackMods: { 3: { noAct: true } }, // com 3 stacks o alvo dorme de vez
   },
+  // Buraco negro ao redor de quem usou: apaga parte da magia que o atinge (e libera o Impulso da Morte)
+  lua_negra: { name: 'Lua Negra', emoji: '🌑', kind: 'buff', mods: { magicResist: 0.35 } },
   instinto_selvagem: {
     name: 'Instinto Selvagem', emoji: '🐺', kind: 'buff',
     mods: { damageBonus: 3, moveDelta: 1 }, lowHpMods: { damageBonus: 3 },
@@ -46,7 +48,7 @@ const EFFECTS = {
 const getEffect = id => EFFECTS[id];
 
 const NEUTRAL_MODS = () => ({
-  moveDelta: 0, dodgeDelta: 0, damageBonus: 0, critChance: 0, missChance: 0,
+  moveDelta: 0, dodgeDelta: 0, damageBonus: 0, critChance: 0, missChance: 0, magicResist: 0, // magicResist: fração do dano de magia que o dono não sofre
   visionCap: Infinity, energyCostMult: 1,
   noMove: false, noAct: false, noReact: false, noDodge: false, oneAction: false, skipTurn: false,
 });

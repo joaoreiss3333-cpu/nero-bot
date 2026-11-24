@@ -79,7 +79,7 @@ const abilities = {
     ],
     use(battle, user) {
       const affected = battle.players.filter(p => p === user
-        || (user.team !== undefined && p.team === user.team && p.pos && user.pos && distance(p.pos, user.pos) <= this.radius));
+        || (user.team !== undefined && p.team === user.team && p.hp > 0 && p.pos && user.pos && distance(p.pos, user.pos) <= this.radius));
       let text = `⏪ ${user.name} usou **Chrono Anastasis** e voltou o tempo${affected.length > 1 ? ' de todos os aliados próximos' : ''}.`;
       for (const p of affected) {
         const healed = Math.min(Math.max(0, (p.hpHistory[0] ?? p.hp) - p.hp), Math.round(p.maxHp * this.healCap));
@@ -166,6 +166,60 @@ const abilities = {
     id: 'crevice_men', name: 'Crevice Men', gif: 'espaco_crevice_men.gif', grimoire: 'espaco', magic: true,
     type: 'bonus', manaCost: 60, cooldown: 5, attribute: 'magiaOfensiva', summon: { count: 3, duration: 3, damage: [2, 4], share: 0.22 },
     requires: { magiaOfensiva: 17 }, minLevel: 38, after: 'unopening_red_room',
+  },
+
+  // ---- Grimório das Trevas (LENDÁRIO) ----
+  // Espadeiro: tudo gira em torno da espada imbuída em trevas. Escala de atributo da raridade (1,7x). Sem `ranks`.
+  // Árvore: Lâmina Negra -> { Corte da Escuridão -> { Corte Selvagem, Corte Dimensional } }, { Casulo Negro },
+  //         { Lâmina Sem Fio -> Lua Negra -> Impulso da Morte }.
+  // Lua Negra: buff que apaga parte da magia recebida e libera o Impulso da Morte (que a consome).
+  lamina_negra: {
+    id: 'lamina_negra', name: 'Lâmina Negra Imbuída em Trevas', actionText: 'Lâmina Negra Imbuída em Trevas', gif: 'trevas_lamina_negra.gif', grimoire: 'trevas', magic: true, element: 'trevas',
+    type: 'attack', range: 2, damage: [8, 12], attribute: 'magiaOfensiva', manaCost: 22, // a lâmina longa dá alcance 2, mas é o golpe mais fraco
+    requires: { magiaOfensiva: 5 }, minLevel: 8, // raiz da árvore das Trevas
+  },
+  // Onda de escuridão afiada que voa até o alvo (alcance longo)
+  corte_da_escuridao: {
+    id: 'corte_da_escuridao', name: 'Corte da Escuridão Imbuído em Trevas', actionText: 'Corte da Escuridão Imbuído em Trevas', gif: 'trevas_corte_da_escuridao.gif', grimoire: 'trevas', magic: true, element: 'trevas',
+    type: 'attack', range: 4, damage: [10, 15], attribute: 'magiaOfensiva', manaCost: 32,
+    requires: { magiaOfensiva: 8 }, minLevel: 12, after: 'lamina_negra',
+  },
+  // Vários cortes desordenados: dano menor, mas difíceis de esquivar
+  corte_selvagem: {
+    id: 'corte_selvagem', name: 'Corte Selvagem Imbuído em Trevas', actionText: 'Corte Selvagem Imbuído em Trevas', gif: 'trevas_corte_selvagem.gif', grimoire: 'trevas', magic: true, element: 'trevas',
+    type: 'attack', range: 3, damage: [9, 13], attribute: 'magiaOfensiva', manaCost: 38, cooldown: 2, dodgePenalty: 0.3,
+    requires: { magiaOfensiva: 12 }, minLevel: 18, after: 'corte_da_escuridao',
+  },
+  // Barra descendente que corta até magia espacial: ignora Bloqueio e derruba as defesas do Espaço (Reflexo e Captura)
+  corte_dimensional: {
+    id: 'corte_dimensional', name: 'Corte Dimensional Imbuído em Trevas', actionText: 'Corte Dimensional Imbuído em Trevas', gif: 'trevas_corte_dimensional.gif', grimoire: 'trevas', magic: true, element: 'trevas',
+    type: 'attack', range: 5, damage: [17, 24], attribute: 'magiaOfensiva', manaCost: 52, cooldown: 3, ignoreBlock: true, cutsSpace: true,
+    requires: { magiaOfensiva: 18 }, minLevel: 28, after: 'corte_da_escuridao',
+  },
+  // Esfera oca de escuridão: a defesa mais forte do grimório (absorve como um bloqueio mágico)
+  casulo_negro: {
+    id: 'casulo_negro', name: 'Casulo Negro', actionText: 'Casulo Negro', gif: 'trevas_casulo_negro.gif', grimoire: 'trevas',
+    type: 'reaction', kind: 'block', absorb: [5, 9], attribute: 'magiaDefensiva', manaCost: 30, emoji: '⚫',
+    requires: { magiaDefensiva: 6 }, minLevel: 14, after: 'lamina_negra',
+  },
+  // Lado cego da lâmina: afasta o alvo do corpo a corpo (sem dano)
+  lamina_negra_sem_fio: {
+    id: 'lamina_negra_sem_fio', name: 'Lâmina Negra Sem Fio Imbuída em Trevas', actionText: 'Lâmina Negra Sem Fio Imbuída em Trevas', gif: 'trevas_lamina_negra_sem_fio.gif', grimoire: 'trevas', magic: true,
+    type: 'bonus', manaCost: 25, cooldown: 3, targetRange: 2, push: 3,
+    requires: { magiaSuplementar: 6 }, minLevel: 14, after: 'lamina_negra',
+  },
+  // Buraco negro: 3 turnos absorvendo 35% do dano de magia que você sofre; libera o Impulso da Morte
+  lua_negra: {
+    id: 'lua_negra', name: 'Lua Negra', actionText: 'Lua Negra', gif: 'trevas_lua_negra.gif', grimoire: 'trevas', magic: true,
+    type: 'bonus', manaCost: 40, cooldown: 4, applies: [{ effect: 'lua_negra', turns: 3 }],
+    requires: { magiaSuplementar: 10 }, minLevel: 22, after: 'lamina_negra_sem_fio',
+  },
+  // Explosão focada no braço: só com a Lua Negra ativa (que é gasta no golpe). Corpo a corpo, enorme e ignora Bloqueio
+  impulso_da_morte: {
+    id: 'impulso_da_morte', name: 'Impulso da Morte', actionText: 'Impulso da Morte', gif: 'trevas_impulso_da_morte.gif', grimoire: 'trevas', magic: true, element: 'trevas',
+    type: 'attack', range: 1, damage: [24, 32], attribute: 'magiaOfensiva', manaCost: 50, cooldown: 2, ignoreBlock: true,
+    requiresEffect: 'lua_negra', consumesEffect: 'lua_negra',
+    requires: { magiaOfensiva: 16 }, minLevel: 32, after: 'lua_negra',
   },
 };
 

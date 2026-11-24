@@ -24,11 +24,13 @@ const newTurn = player => ({
 });
 
 // Os números do personagem (vida, mana, energia, atributos) vêm da ficha no momento em que a batalha começa
-function newPlayer(user) {
+function newPlayer(user, team) {
   const stats = getCombatStats(user.id);
   return {
     id: user.id,
     name: user.name,
+    team, // 0 ou 1: quem é do mesmo time luta junto
+    avatarUrl: user.avatarUrl,
     level: stats.level,
     attrs: stats.attrs,
     maxHp: stats.maxHp,
@@ -60,9 +62,14 @@ function whoStarts(players) {
   return fastest[Math.floor(Math.random() * fastest.length)];
 }
 
-// users: { id, name } de cada participante. O tamanho do mapa cresce com o número de jogadores.
-function createBattle(channelId, ...users) {
-  const players = users.map(newPlayer);
+// teamA / teamB: listas de { id, name, avatarUrl } (uma party inteira ou um jogador sozinho). Os turnos alternam entre os times.
+// O tamanho do mapa cresce com o número de jogadores.
+function createBattle(channelId, teamA, teamB) {
+  const players = [];
+  for (let i = 0; i < Math.max(teamA.length, teamB.length); i++) {
+    if (teamA[i]) players.push(newPlayer(teamA[i], 0));
+    if (teamB[i]) players.push(newPlayer(teamB[i], 1));
+  }
   const { cols, rows } = gridSizeFor(players.length);
   const battle = {
     channelId,
@@ -93,8 +100,33 @@ function endBattle(battle) {
 }
 
 const currentPlayer = b => b.players[b.current];
-const opponentOf = (b, id) => b.players.find(p => p.id !== id);
+const isAlive = p => p.hp > 0;
+const enemiesOf = (b, player) => b.players.filter(p => p.team !== player.team && isAlive(p));
+const alliesOf = (b, player) => b.players.filter(p => p.team === player.team && p !== player && isAlive(p));
 const findPlayer = (b, id) => b.players.find(p => p.id === id);
+
+// Time vencedor (0 ou 1) quando só um time tem gente de pé; null se a luta continua
+function winnerTeam(battle) {
+  const teams = new Set(battle.players.filter(isAlive).map(p => p.team));
+  return teams.size === 1 ? [...teams][0] : null;
+}
+
+const victoryText = (battle, team) => {
+  const names = battle.players.filter(p => p.team === team).map(p => `**${p.name}**`);
+  return `🏆 ${names.join(' e ')} ${names.length > 1 ? 'venceram' : 'venceu'} a batalha!`;
+};
+
+// Quem caiu desde a última vez: avisa e tira os clones deles do mapa. Retorna as linhas do log.
+function collectFallen(battle) {
+  const lines = [];
+  for (const p of battle.players) {
+    if (p.hp > 0 || p.fallen) continue;
+    p.fallen = true;
+    lines.push(`☠️ **${p.name}** foi derrotado!`);
+  }
+  battle.summons = (battle.summons ?? []).filter(s => battle.players.find(p => p.id === s.ownerId)?.hp > 0);
+  return lines;
+}
 
 // Habilidades do jogador de um tipo ('attack' | 'bonus' | 'reaction')
 // A habilidade `id` no rank do jogador (undefined se não existir)
@@ -160,15 +192,18 @@ function checkStep(battle, player, dir) {
 
 // A casa tem um jogador ou um clone? `except` é quem está perguntando (não conta contra si mesmo)
 const isOccupied = (battle, pos, except) =>
-  battle.players.some(p => p !== except && p.pos && samePos(p.pos, pos))
+  battle.players.some(p => p !== except && p.hp > 0 && p.pos && samePos(p.pos, pos))
   || (battle.summons ?? []).some(s => s !== except && samePos(s.pos, pos));
 
 const inBounds = (battle, { col, row }) => col >= 0 && col < battle.cols && row >= 0 && row < battle.rows;
 
 // Planeja o teleporte de uma ação bônus (`teleport: 'self' | 'enemy'`): o destino é N casas numa direção (o mapa não mostra
 // coordenadas no combate). Retorna { dest } (ou {} se a habilidade não teleporta) ou { error }.
-function planBonus(battle, me, ability, dir, steps) {
-  const foe = opponentOf(battle, me.id);
+// Uma ação bônus precisa de alvo inimigo se tiver alcance de alvo, teleportar o inimigo, empurrar ou aplicar efeito nele
+const needsTarget = ability => ability.type === 'attack' || ability.targetRange !== undefined || ability.teleport === 'enemy'
+  || !!ability.push || (ability.applies ?? []).some(a => a.to === 'enemy');
+
+function planBonus(battle, me, ability, dir, steps, foe) {
   if (ability.targetRange !== undefined && distance(me.pos, foe.pos) > ability.targetRange) {
     return { error: `Alvo fora de alcance: **${ability.name}** alcança ${ability.targetRange} casas (sem diagonal).` };
   }
@@ -211,21 +246,38 @@ function summonClones(battle, owner, ability) {
 }
 
 // Efeitos de posição e invocação de uma ação bônus (o teleporte já foi planejado por planBonus)
-function applyBonus(battle, me, ability, dest) {
-  const foe = opponentOf(battle, me.id);
+function applyBonus(battle, me, ability, dest, foe) {
   const lines = [];
   if (ability.teleport === 'self') { me.pos = dest; lines.push(`🌀 ${me.name} atravessou um portal e reapareceu em outro ponto do mapa.`); }
   if (ability.teleport === 'enemy') { foe.pos = dest; lines.push(`⬛ ${foe.name} foi engolido pela escuridão e levado para outro ponto do mapa.`); }
   if (ability.summon) lines.push(...summonClones(battle, me, ability));
+  if (ability.push) lines.push(...pushAway(battle, me, foe, ability.push));
   return lines;
 }
 
+// Empurra `target` até `steps` casas para longe de `from` (no eixo em que estão mais distantes), parando na borda ou num obstáculo
+function pushAway(battle, from, target, steps) {
+  const dc = target.pos.col - from.pos.col;
+  const dr = target.pos.row - from.pos.row;
+  const dir = Math.abs(dc) >= Math.abs(dr) ? { col: Math.sign(dc) || 1, row: 0 } : { col: 0, row: Math.sign(dr) };
+  let moved = 0;
+  while (moved < steps) {
+    const next = { col: target.pos.col + dir.col, row: target.pos.row + dir.row };
+    if (!inBounds(battle, next) || isOccupied(battle, next, target)) break;
+    target.pos = next;
+    moved++;
+  }
+  return [moved ? `💥 ${target.name} foi empurrado ${moved} casa(s) para trás.` : `💥 ${target.name} foi atingido, mas não tinha para onde recuar.`];
+}
+
 // No fim do turno do dono, cada clone anda até 2 casas rumo ao inimigo e, se ficar colado nele, ataca (sem reação).
-// Retorna { lines, defeated, loser }.
+// Retorna { lines }.
 function runSummons(battle, owner) {
-  const foe = opponentOf(battle, owner.id);
   const lines = [];
   for (const s of battle.summons.filter(x => x.ownerId === owner.id)) {
+    // Cada clone persegue o inimigo vivo mais próximo
+    const foe = enemiesOf(battle, owner).sort((a, b) => distance(a.pos, s.pos) - distance(b.pos, s.pos))[0];
+    if (!foe) break;
     for (let i = 0; i < C.MOVES_PER_TURN && distance(s.pos, foe.pos) > 1; i++) {
       const steps = Object.values(DIRECTIONS)
         .map(({ dc, dr }) => ({ col: s.pos.col + dc, row: s.pos.row + dr }))
@@ -238,14 +290,13 @@ function runSummons(battle, owner) {
       const dmg = Math.max(1, rand(s.damage) + s.bonus);
       foe.hp = Math.max(0, foe.hp - dmg);
       lines.push(`🗡️ ${s.name} atacou ${foe.name} (**${dmg}** de dano).`, ...fx.onHit(foe));
-      if (foe.hp === 0) return { lines, defeated: true, loser: foe };
     }
     s.turns -= 1;
   }
   const expired = battle.summons.filter(s => s.ownerId === owner.id && s.turns <= 0);
   if (expired.length) lines.push(`👥 ${expired.length} clone(s) de ${owner.name} se desfizeram.`);
   battle.summons = battle.summons.filter(s => !(s.ownerId === owner.id && s.turns <= 0));
-  return { lines, defeated: false, loser: null };
+  return { lines };
 }
 
 // Teletransporta `target` para uma casa livre aleatória a pelo menos `minDist` casas de `from`. Retorna true se moveu.
@@ -278,13 +329,17 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
   const crit = Math.random() < C.CRIT_CHANCE_BASE + fx.getMods(attacker).critChance;
   if (crit) raw *= C.CRIT_MULTIPLIER;
   const vuln = fx.vulnerability(defender, attack.element);
-  let damage = Math.max(1, Math.round(raw * vuln));
+  const resist = attack.magic ? Math.min(0.9, fx.getMods(defender).magicResist) : 0; // a Lua Negra apaga parte da magia
+  let damage = Math.max(1, Math.round(raw * vuln * (1 - resist)));
   let log = `${attacker.name} usou **${attack.name}** em ${defender.name} (${damage} de dano).`;
   if (crit) log += `\n💥 **Golpe crítico!**`;
+  if (resist > 0) log += `\n🌑 A Lua Negra de ${defender.name} absorveu ${Math.round(resist * 100)}% da magia.`;
   if (vuln > 1) log += `\n💧 ${defender.name} está vulnerável a esse elemento (dano x${vuln.toFixed(1)}).`;
 
   if (reaction) {
-    if (reaction.kind === 'dodge') {
+    if (attack.cutsSpace && reaction.grimoire === 'espaco' && ['capture', 'reflect'].includes(reaction.kind)) {
+      log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}**, mas **${attack.name}** corta a magia espacial ao meio: a defesa falhou.`;
+    } else if (reaction.kind === 'dodge') {
       const chance = Math.max(0, Math.min(
         C.DODGE_CHANCE_CAP,
         reaction.chance + defender.attrs.destreza * C.DODGE_CHANCE_PER_DEXTERITY + fx.getMods(defender).dodgeDelta - (attack.dodgePenalty ?? 0), // golpes que cercam ou perseguem o alvo (dodgePenalty) são mais difíceis de esquivar
@@ -341,32 +396,31 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
 }
 
 // Passa a vez. Antes, o fim do turno de quem jogava: dano contínuo, drenagem de energia e contagem dos efeitos.
-// Retorna { log, defeated, loser }: o log lista o que os efeitos fizeram; `defeated` se alguém caiu por eles.
+// Retorna { log }: o que os efeitos e os clones fizeram, e quem caiu. Quem decide se a luta acabou é winnerTeam().
+// O turno pula quem já caiu.
 function nextTurn(battle) {
   const leaving = currentPlayer(battle);
   const end = fx.endOfTurn(leaving);
-  let loser = end.defeated ? leaving : null;
-  if (!end.defeated) {
-    // Os clones de quem terminou o turno agem agora; se derrubarem o inimigo, a batalha acaba
-    const summons = runSummons(battle, leaving);
-    end.lines.push(...summons.lines);
-    if (summons.defeated) { end.defeated = true; loser = summons.loser; }
-  }
+  if (!end.defeated) end.lines.push(...runSummons(battle, leaving).lines); // os clones de quem terminou o turno agem agora
+  end.lines.push(...collectFallen(battle));
   for (const id of Object.keys(leaving.cooldowns)) {
     leaving.cooldowns[id] -= 1;
     if (leaving.cooldowns[id] <= 0) delete leaving.cooldowns[id];
   }
 
-  battle.current = (battle.current + 1) % battle.players.length;
-  if (battle.current === 0) battle.round++;
+  if (winnerTeam(battle) !== null) return { log: end.lines.join('\n') }; // a luta acabou: ninguém começa um turno novo
+  do {
+    battle.current = (battle.current + 1) % battle.players.length;
+    if (battle.current === 0) battle.round++;
+  } while (!isAlive(currentPlayer(battle)));
   const p = currentPlayer(battle);
   p.hpHistory = [...p.hpHistory, p.hp].slice(-2);
   battle.turn = newTurn(p);
   p.energy = Math.min(p.maxEnergy, p.energy + ENERGY_REGEN_PER_TURN);
-  return { log: end.lines.join('\n'), defeated: end.defeated, loser };
+  return { log: end.lines.join('\n') };
 }
 
 module.exports = {
-  createBattle, getBattle, endBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf, abilityOf, abilityCost, resourceOf, resourceLabel, canAfford, spend, reactionBlock, clampMoves,
+  createBattle, getBattle, endBattle, currentPlayer, enemiesOf, alliesOf, isAlive, winnerTeam, victoryText, collectFallen, needsTarget, findPlayer, abilitiesOf, abilityOf, abilityCost, resourceOf, resourceLabel, canAfford, spend, reactionBlock, clampMoves,
   planBonus, applyBonus, isOccupied, placePlayer, allPlaced, checkStep, movePlayer, startActions, resolveAttack, nextTurn,
 };

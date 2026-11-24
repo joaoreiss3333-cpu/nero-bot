@@ -48,7 +48,7 @@ async function handlePlacement(interaction) {
     if (result.error) return ephemeral(interaction, `${result.error} Clique em "Escolher setor" para tentar de novo.`);
 
     if (!allPlaced(battle)) {
-      await ephemeral(interaction, `✅ Você começará em **${formatCoord(pos)}**. Para trocar antes do oponente escolher, clique em "Escolher setor" de novo.`);
+      await ephemeral(interaction, `✅ Você começará em **${formatCoord(pos)}**. Para trocar antes de todos escolherem, clique em "Escolher setor" de novo.`);
       return battle.message.edit(asEdit(await panelPayload(battle, `${me.name} escolheu o setor inicial.`)));
     }
 

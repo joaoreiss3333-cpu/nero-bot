@@ -4,7 +4,9 @@ const { panelPayload, asEdit } = require('./render');
 const { loadAvatar } = require('./image');
 const { CHALLENGE_TIMEOUT_MS } = require('./config');
 
-const challenges = new Map(); // channelId -> { challenger, opponent, message, timer }
+// channelId -> { challenger, opponent, sideA, sideB, message, timer }
+// challenger/opponent: quem fala por cada lado (o líder da party ou o jogador sozinho); sideA/sideB: todos que lutam em cada time
+const challenges = new Map();
 
 const getChallenge = channelId => challenges.get(channelId);
 
@@ -16,15 +18,20 @@ const row = () => new ActionRowBuilder().addComponents(
   new ButtonBuilder().setCustomId('ch:cancel').setLabel('Cancelar desafio').setStyle(ButtonStyle.Secondary),
 );
 
-// challenger/opponent: { id, name, avatarUrl }
-async function startChallenge(interaction, challenger, opponent) {
+const sideText = side => (side.length > 1 ? `a party de <@${side[0].id}> (${side.map(p => p.name).join(', ')})` : `<@${side[0].id}>`);
+
+// sideA/sideB: listas de { id, name, avatarUrl }. O primeiro de cada lista é quem fala pelo lado (o líder da party).
+async function startChallenge(interaction, sideA, sideB) {
+  const challenger = sideA[0];
+  const opponent = sideB[0];
   await interaction.reply({
-    content: `⚔️ <@${challenger.id}> desafiou <@${opponent.id}> para uma batalha!\n<@${opponent.id}>, você aceita?`,
+    content: `⚔️ ${sideText(sideA)} desafiou ${sideText(sideB)} para uma batalha de ${sideA.length}v${sideB.length}!\n<@${opponent.id}>, você aceita?`,
     components: [row()],
+    allowedMentions: { users: [opponent.id] },
   });
   const message = await interaction.fetchReply();
 
-  const challenge = { challenger, opponent, message, timer: null };
+  const challenge = { challenger, opponent, sideA, sideB, message, timer: null };
   challenge.timer = setTimeout(() => {
     challenges.delete(interaction.channelId);
     message.edit({ content: `⌛ O desafio de ${challenger.name} para ${opponent.name} expirou.`, components: [] }).catch(() => {});
@@ -69,14 +76,11 @@ async function handleChallenge(interaction) {
     challenges.delete(interaction.channelId);
     await interaction.deferUpdate(); // baixar avatares e desenhar a imagem pode passar de 3s
 
-    const battle = createBattle(interaction.channelId, ch.challenger, ch.opponent);
-    [battle.players[0].avatar, battle.players[1].avatar] = await Promise.all([
-      loadAvatar(ch.challenger.avatarUrl),
-      loadAvatar(ch.opponent.avatarUrl),
-    ]);
+    const battle = createBattle(interaction.channelId, ch.sideA, ch.sideB);
+    await Promise.all(battle.players.map(async p => { p.avatar = await loadAvatar(p.avatarUrl); }));
     battle.message = await interaction.editReply(asEdit(await panelPayload(
       battle,
-      'Desafio aceito! Cada jogador escolhe o setor inicial. O combate começa quando os dois estiverem prontos.',
+      'Desafio aceito! Cada jogador escolhe o setor inicial. O combate começa quando todos estiverem prontos.',
     )));
   }
 }

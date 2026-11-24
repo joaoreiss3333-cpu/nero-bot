@@ -264,7 +264,9 @@ function drawPanel(ctx, battle) {
       ctx.fillRect(18, rowTop + 1, W - 36, ROW_H - 2);
     }
 
-    ctx.fillStyle = PLAYER_COLORS[i];
+    ctx.save();
+    if (p.hp <= 0) ctx.globalAlpha = 0.4; // quem caiu fica apagado
+    ctx.fillStyle = PLAYER_COLORS[p.team];
     ctx.beginPath(); ctx.arc(40, mid, 10, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
 
@@ -276,6 +278,7 @@ function drawPanel(ctx, battle) {
     drawBar(ctx, barX[0], mid - 17, barW, 34, p.hp, p.maxHp, '#59d24a', '#1f7a1c');
     drawBar(ctx, barX[1], mid - 17, barW, 34, p.mana, p.maxMana, '#4aa8f0', '#1b5aa6');
     drawBar(ctx, barX[2], mid - 17, barW, 34, p.energy, p.maxEnergy, '#f6b73c', '#c46a0a');
+    ctx.restore();
   });
 
   const footY = top + 112 + battle.players.length * ROW_H + 18;
@@ -328,10 +331,11 @@ async function renderMapImage(battle) {
       }
     }
     for (const s of battle.summons ?? []) {
-      const i = battle.players.findIndex(p => p.id === s.ownerId);
-      drawSummon(ctx, L, s, battle.players[i], i);
+      const owner = battle.players.find(p => p.id === s.ownerId);
+      drawSummon(ctx, L, s, owner, owner?.team ?? 0);
     }
-    battle.players.forEach((p, i) => drawToken(ctx, L, p, i, !battle.over && p === cur));
+    // A cor do anel é a do time (azul/vermelho); quem caiu sai do mapa
+    for (const p of battle.players.filter(q => q.hp > 0)) drawToken(ctx, L, p, p.team, !battle.over && p === cur);
   }
 
   ctx.strokeStyle = '#5a3b1a';

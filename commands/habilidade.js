@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { getBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf, abilityOf, planBonus, applyBonus, abilityCost, resourceLabel, resourceOf, canAfford, spend } = require('../src/combat/battle');
-const { getMods, applyAbilityEffects } = require('../src/combat/effects');
+const { getBattle, currentPlayer, enemiesOf, needsTarget, findPlayer, abilitiesOf, abilityOf, planBonus, applyBonus, abilityCost, resourceLabel, resourceOf, canAfford, spend } = require('../src/combat/battle');
+const { getMods, applyAbilityEffects, hasEffect, removeEffect, getEffect } = require('../src/combat/effects');
 const { panelPayload, asEdit } = require('../src/combat/render');
 const { playAction } = require('../src/combat/actions');
 const { TYPE_LABEL } = require('../src/combat/abilities');
@@ -18,6 +18,9 @@ module.exports = {
       .setDescription('Qual habilidade usar')
       .setRequired(true)
       .setAutocomplete(true))
+    .addUserOption(o => o
+      .setName('alvo')
+      .setDescription('Quem atacar (obrigatório se houver mais de um inimigo vivo)'))
     .addStringOption(o => o
       .setName('direcao')
       .setDescription('Só para habilidades de teleporte (portais): para onde levar')
@@ -70,15 +73,32 @@ module.exports = {
     if (me.cooldowns[ability.id] > 0) {
       return fail(interaction, `**${ability.name}** ainda está em recarga: faltam ${me.cooldowns[ability.id]} turno(s) seu(s).`);
     }
+    if (ability.requiresEffect && !hasEffect(me, ability.requiresEffect)) {
+      return fail(interaction, `**${ability.name}** só pode ser usada com **${getEffect(ability.requiresEffect).name}** ativa.`);
+    }
     const mods = getMods(me);
     if (mods.noAct) return fail(interaction, 'Você não consegue agir neste turno por causa de um efeito (atordoado, dormindo...).');
     if (mods.oneAction && (battle.turn.attacked || battle.turn.bonusUsed)) {
       return fail(interaction, 'O **Sonolento** só deixa você fazer uma ação por turno.');
     }
 
+    // O alvo: o jogador marcado em `alvo` ou, se só restar um inimigo vivo, ele mesmo
+    let foe = null;
+    if (needsTarget(ability)) {
+      const enemies = enemiesOf(battle, me);
+      const picked = interaction.options.getUser('alvo');
+      if (picked) {
+        foe = enemies.find(e => e.id === picked.id);
+        if (!foe) return fail(interaction, 'O alvo precisa ser um inimigo que ainda está de pé na batalha.');
+      } else if (enemies.length === 1) {
+        foe = enemies[0];
+      } else {
+        return fail(interaction, `Há mais de um inimigo: escolha em quem usar **${ability.name}** na opção \`alvo\`.`);
+      }
+    }
+
     if (ability.type === 'attack') {
       if (battle.turn.attacked) return fail(interaction, 'Você já usou sua ação de ataque neste turno.');
-      const foe = opponentOf(battle, me.id);
       if (distance(me.pos, foe.pos) > Math.min(ability.range, mods.visionCap)) {
         if (distance(me.pos, foe.pos) <= ability.range) return fail(interaction, 'A **Escuridão** limita sua visão: você não enxerga o alvo a essa distância.');
         return fail(interaction, `Alvo fora de alcance: **${ability.name}** alcança ${ability.range} casa (sem diagonal).`);
@@ -86,18 +106,20 @@ module.exports = {
       // O ataque só é resolvido quando o atacante encerra o turno (aí o defensor reage)
       battle.turn.attacked = true;
       battle.turn.queuedAttack = ability;
+      battle.turn.queuedTargetId = foe.id;
       if (ability.cooldown) me.cooldowns[ability.id] = ability.cooldown;
       spend(me, ability);
-      await interaction.reply({ content: `✅ **${ability.name}** preparado (-${cost} ${resourceLabel(ability)}). O dano e a reação do oponente acontecem quando você encerrar o turno.`, ephemeral: true });
+      if (ability.consumesEffect) removeEffect(me, ability.consumesEffect); // a Lua Negra é gasta no golpe
+      await interaction.reply({ content: `✅ **${ability.name}** preparado em ${foe.name} (-${cost} ${resourceLabel(ability)}). O dano e a reação do oponente acontecem quando você encerrar o turno.`, ephemeral: true });
       // O GIF do golpe aparece na hora (como na ação bônus); o dano e a reação ficam para o fim do turno
       await playAction(battle.message.channel, me.name, ability, { block: false });
-      return battle.message.edit(asEdit(await panelPayload(battle, `👊 ${me.name} preparou **${ability.name}** (-${cost} ${resourceLabel(ability)}). O golpe acontece ao fim do turno.`)));
+      return battle.message.edit(asEdit(await panelPayload(battle, `👊 ${me.name} preparou **${ability.name}** contra ${foe.name} (-${cost} ${resourceLabel(ability)}). O golpe acontece ao fim do turno.`)));
     }
 
     // bonus
     if (battle.turn.bonusUsed) return fail(interaction, 'Você já usou sua ação bônus neste turno.');
     // Alcance e teleporte são conferidos antes de gastar mana ou a ação
-    const plan = planBonus(battle, me, ability, interaction.options.getString('direcao'), interaction.options.getInteger('casas'));
+    const plan = planBonus(battle, me, ability, interaction.options.getString('direcao'), interaction.options.getInteger('casas'), foe);
     if (plan.error) return fail(interaction, plan.error);
     battle.turn.bonusUsed = true;
     if (ability.cooldown) me.cooldowns[ability.id] = ability.cooldown;
@@ -105,8 +127,8 @@ module.exports = {
     // Ação bônus: usa a função própria da habilidade (use) e/ou aplica os efeitos dela (applies) em quem usou
     const lines = [];
     if (ability.use) lines.push(ability.use(battle, me));
-    lines.push(...applyBonus(battle, me, ability, plan.dest));
-    lines.push(...applyAbilityEffects(ability, me, opponentOf(battle, me.id), { defaultTo: 'self' }));
+    lines.push(...applyBonus(battle, me, ability, plan.dest, foe));
+    lines.push(...applyAbilityEffects(ability, me, foe, { defaultTo: 'self' }));
     const text = lines.join('\n') || `${me.name} usou **${ability.name}**.`;
     await interaction.reply({ content: `✅ Você usou **${ability.name}**.`, ephemeral: true });
     // A ação bônus acontece na hora: o GIF roda e some sozinho, sem travar o turno
