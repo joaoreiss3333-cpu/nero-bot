@@ -183,13 +183,13 @@ const abilities = {
   // Onda de escuridão afiada que voa até o alvo (alcance longo)
   corte_da_escuridao: {
     id: 'corte_da_escuridao', name: 'Corte da Escuridão Imbuído em Trevas', actionText: 'Corte da Escuridão Imbuído em Trevas', gif: 'trevas_corte_da_escuridao.gif', grimoire: 'trevas', magic: true, element: 'trevas',
-    type: 'attack', range: 4, damage: [10, 15], attribute: 'magiaOfensiva', manaCost: 32,
+    type: 'attack', range: 4, damage: [10, 15], attribute: 'magiaOfensiva', manaCost: 32, applies: [{ effect: 'escuridao', turns: 1 }], // a escuridão cega o alvo por 1 turno
     requires: { magiaOfensiva: 8 }, minLevel: 12, after: 'lamina_negra',
   },
   // Vários cortes desordenados: dano menor, mas difíceis de esquivar
   corte_selvagem: {
     id: 'corte_selvagem', name: 'Corte Selvagem Imbuído em Trevas', actionText: 'Corte Selvagem Imbuído em Trevas', gif: 'trevas_corte_selvagem.gif', grimoire: 'trevas', magic: true, element: 'trevas',
-    type: 'attack', range: 3, damage: [9, 13], attribute: 'magiaOfensiva', manaCost: 38, cooldown: 2, dodgePenalty: 0.3, splash: { radius: 1, share: 0.5 }, // os cortes desordenados também pegam quem está colado no alvo
+    type: 'attack', range: 3, damage: [9, 13], attribute: 'magiaOfensiva', manaCost: 38, cooldown: 2, dodgePenalty: 0.3, splash: { radius: 1, share: 0.5 }, applies: [{ effect: 'escuridao', turns: 2 }], // os cortes desordenados também pegam quem está colado no alvo
     requires: { magiaOfensiva: 12 }, minLevel: 18, after: 'corte_da_escuridao',
   },
   // Barra descendente que corta até magia espacial: ignora Bloqueio e derruba as defesas do Espaço (Reflexo e Captura)
@@ -219,7 +219,7 @@ const abilities = {
   // Explosão focada no braço: só com a Lua Negra ativa (que é gasta no golpe). Corpo a corpo, enorme e ignora Bloqueio
   impulso_da_morte: {
     id: 'impulso_da_morte', name: 'Impulso da Morte', actionText: 'Impulso da Morte', gif: 'trevas_impulso_da_morte.gif', grimoire: 'trevas', magic: true, element: 'trevas',
-    type: 'attack', range: 1, damage: [24, 32], attribute: 'magiaOfensiva', manaCost: 50, cooldown: 2, ignoreBlock: true,
+    type: 'attack', range: 1, damage: [24, 32], attribute: 'magiaOfensiva', manaCost: 50, cooldown: 2, ignoreBlock: true, applies: [{ effect: 'escuridao', turns: 2 }],
     requiresEffect: 'lua_negra', consumesEffect: 'lua_negra',
     requires: { magiaOfensiva: 16 }, minLevel: 32, after: 'lua_negra',
   },
