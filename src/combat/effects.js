@@ -35,6 +35,8 @@ const EFFECTS = {
   },
   // Buraco negro ao redor de quem usou: apaga parte da magia que o atinge (e libera o Impulso da Morte)
   lua_negra: { name: 'Lua Negra', emoji: '🌑', kind: 'buff', mods: { magicResist: 0.35 } },
+  // Galhos da Formação Dracaena envolvem e protegem: reduzem todo dano recebido
+  abrigo_dracaena: { name: 'Abrigo Dracaena', emoji: '🌳', kind: 'buff', mods: { damageResist: 0.3 } },
   instinto_selvagem: {
     name: 'Instinto Selvagem', emoji: '🐺', kind: 'buff',
     mods: { damageBonus: 3, moveDelta: 1 }, lowHpMods: { damageBonus: 3 },
@@ -48,7 +50,7 @@ const EFFECTS = {
 const getEffect = id => EFFECTS[id];
 
 const NEUTRAL_MODS = () => ({
-  moveDelta: 0, dodgeDelta: 0, damageBonus: 0, critChance: 0, missChance: 0, magicResist: 0, // magicResist: fração do dano de magia que o dono não sofre
+  moveDelta: 0, dodgeDelta: 0, damageBonus: 0, critChance: 0, missChance: 0, magicResist: 0, damageResist: 0, // magicResist: fração do dano de magia que o dono não sofre
   visionCap: Infinity, energyCostMult: 1,
   noMove: false, noAct: false, noReact: false, noDodge: false, oneAction: false, skipTurn: false,
 });

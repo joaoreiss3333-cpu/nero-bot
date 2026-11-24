@@ -34,6 +34,8 @@
 //                 Sem GIF, o aviso aparece só com o título.
 //   gifDurationMs -> quanto o jogo espera esse GIF rodar (padrão: ACTION_GIF_WAIT_MS)
 const fx = require('./effects');
+const C = require('./config');
+const { getGrimoire } = require('./grimoires');
 const { distance } = require('./grid');
 const NL = '\n';
 
@@ -108,7 +110,7 @@ const abilities = {
   // Balas mágicas por portais ao redor do alvo: alcance maior e mais difícil de esquivar, dano um pouco menor
   myriad_black: {
     id: 'myriad_black', name: 'Myriad Black', gif: 'espaco_myriad_black.gif', grimoire: 'espaco', magic: true, element: 'espaco',
-    type: 'attack', range: 4, damage: [9, 14], attribute: 'magiaOfensiva', manaCost: 34, dodgePenalty: 0.25,
+    type: 'attack', range: 4, damage: [9, 14], attribute: 'magiaOfensiva', manaCost: 34, dodgePenalty: 0.25, splash: { radius: 1, share: 0.4 }, // balas por portais ao redor do alvo
     requires: { magiaOfensiva: 8 }, minLevel: 12, after: 'archangel_shootdown',
   },
   // Massa de magia espacial que persegue o alvo; ao acertar, o teletransporta para longe (3+ casas de quem atacou)
@@ -120,7 +122,7 @@ const abilities = {
   // A grande massa: o golpe mais forte do Espaço, ignora Bloqueio, mas cara e com recarga
   archangel_destruction: {
     id: 'archangel_destruction', name: 'Archangel Destruction', gif: 'espaco_archangel_destruction.gif', grimoire: 'espaco', magic: true, element: 'espaco',
-    type: 'attack', range: 4, damage: [18, 26], attribute: 'magiaOfensiva', manaCost: 55, cooldown: 3, ignoreBlock: true,
+    type: 'attack', range: 4, damage: [18, 26], attribute: 'magiaOfensiva', manaCost: 55, cooldown: 3, ignoreBlock: true, splash: { radius: 2, share: 0.6 }, // a grande massa engole quem está por perto
     requires: { magiaOfensiva: 18 }, minLevel: 28, after: 'fallen_angel_flapping',
   },
   // Portal: leva você N casas numa direção (use `direcao` e `casas` no /habilidade). Não funciona imobilizado.
@@ -187,7 +189,7 @@ const abilities = {
   // Vários cortes desordenados: dano menor, mas difíceis de esquivar
   corte_selvagem: {
     id: 'corte_selvagem', name: 'Corte Selvagem Imbuído em Trevas', actionText: 'Corte Selvagem Imbuído em Trevas', gif: 'trevas_corte_selvagem.gif', grimoire: 'trevas', magic: true, element: 'trevas',
-    type: 'attack', range: 3, damage: [9, 13], attribute: 'magiaOfensiva', manaCost: 38, cooldown: 2, dodgePenalty: 0.3,
+    type: 'attack', range: 3, damage: [9, 13], attribute: 'magiaOfensiva', manaCost: 38, cooldown: 2, dodgePenalty: 0.3, splash: { radius: 1, share: 0.5 }, // os cortes desordenados também pegam quem está colado no alvo
     requires: { magiaOfensiva: 12 }, minLevel: 18, after: 'corte_da_escuridao',
   },
   // Barra descendente que corta até magia espacial: ignora Bloqueio e derruba as defesas do Espaço (Reflexo e Captura)
@@ -220,6 +222,65 @@ const abilities = {
     type: 'attack', range: 1, damage: [24, 32], attribute: 'magiaOfensiva', manaCost: 50, cooldown: 2, ignoreBlock: true,
     requiresEffect: 'lua_negra', consumesEffect: 'lua_negra',
     requires: { magiaOfensiva: 16 }, minLevel: 32, after: 'lua_negra',
+  },
+
+  // ---- Grimório da Árvore do Mundo (LENDÁRIO) ----
+  // Controle de área e suporte: prende, cura e protege o time. Escala de atributo da raridade (1,7x). Sem `ranks`.
+  // Árvore: Semente -> { Descida da Árvore Mágica, Florescer da Yggdrasil, Grande Árvore Mistilteinn -> Formação Dracaena }.
+  // Enraizado impede de se mover (ainda pode atacar e reagir).
+  // Lança uma semente que vira madeira ao redor do alvo e o prende
+  semente_de_mistilteinn: {
+    id: 'semente_de_mistilteinn', name: 'Semente de Mistilteinn', actionText: 'Semente de Mistilteinn', gif: 'arvore_semente_de_mistilteinn.gif', grimoire: 'arvore_do_mundo', magic: true, element: 'planta',
+    type: 'attack', range: 4, damage: [7, 11], attribute: 'magiaOfensiva', manaCost: 28, cooldown: 3,
+    applies: [{ effect: 'enraizado', turns: 2 }],
+    requires: { magiaOfensiva: 5 }, minLevel: 8, // raiz da árvore
+  },
+  // Estacas de madeira em alta velocidade: o alvo reage normalmente e quem está perto dele leva 60% do dano
+  descida_da_arvore_magica: {
+    id: 'descida_da_arvore_magica', name: 'Descida da Árvore Mágica', actionText: 'Descida da Árvore Mágica', gif: 'arvore_descida_da_arvore_magica.gif', grimoire: 'arvore_do_mundo', magic: true, element: 'planta',
+    type: 'attack', range: 5, damage: [11, 16], attribute: 'magiaOfensiva', manaCost: 45, cooldown: 3, dodgePenalty: 0.1,
+    splash: { radius: 2, share: 0.6 },
+    requires: { magiaOfensiva: 12 }, minLevel: 18, after: 'semente_de_mistilteinn',
+  },
+  // Cura você e os aliados a até `radius` casas (valor sorteado + Magia Suplementar). Sem aliados por perto, cura só você.
+  florescer_da_yggdrasil: {
+    id: 'florescer_da_yggdrasil', name: 'Florescer da Yggdrasil', actionText: 'Florescer da Yggdrasil', gif: 'arvore_florescer_da_yggdrasil.gif', grimoire: 'arvore_do_mundo', magic: true,
+    type: 'bonus', manaCost: 55, cooldown: 4, radius: 4, heal: [10, 16], attribute: 'magiaSuplementar',
+    requires: { magiaSuplementar: 8 }, minLevel: 16, after: 'semente_de_mistilteinn',
+    use(battle, user) {
+      const scale = this.attributeScale ?? C.RARITY_SCALE[getGrimoire(this.grimoire)?.rarity] ?? 1;
+      const bonus = Math.round((user.attrs[this.attribute] ?? 0) * (C.DAMAGE_PER_POINT[this.attribute] ?? 0) * scale);
+      const affected = battle.players.filter(p => p.hp > 0 && (p === user
+        || (p.team === user.team && p.pos && user.pos && distance(p.pos, user.pos) <= this.radius)));
+      let text = `🌳 ${user.name} usou **Florescer da Yggdrasil**: os galhos curam ${affected.length > 1 ? 'o time' : 'quem os invocou'}.`;
+      for (const p of affected) {
+        const healed = Math.max(0, Math.min(p.maxHp - p.hp,this.heal[0] + Math.floor(Math.random() * (this.heal[1] - this.heal[0] + 1)) + bonus));
+        p.hp += healed;
+        text += `${NL}${p.name}: ❤️ +${healed} de vida.`;
+      }
+      return text;
+    },
+  },
+  // Raízes gigantes prendem todos os inimigos a até 4 casas (sem dano)
+  grande_arvore_mistilteinn: {
+    id: 'grande_arvore_mistilteinn', name: 'Grande Árvore Mistilteinn', actionText: 'Grande Árvore Mistilteinn', gif: 'arvore_grande_arvore_mistilteinn.gif', grimoire: 'arvore_do_mundo', magic: true,
+    type: 'bonus', manaCost: 50, cooldown: 5, area: { radius: 4 }, applies: [{ effect: 'enraizado', turns: 2, to: 'enemy' }],
+    requires: { magiaSuplementar: 12 }, minLevel: 24, after: 'semente_de_mistilteinn',
+  },
+  // Estrutura de madeira: prende os inimigos num raio de 3 casas e protege você e os aliados (-30% de dano por 2 turnos)
+  formacao_dracaena: {
+    id: 'formacao_dracaena', name: 'Formação Dracaena', actionText: 'Formação Dracaena', gif: 'arvore_formacao_dracaena.gif', grimoire: 'arvore_do_mundo', magic: true,
+    type: 'bonus', manaCost: 70, cooldown: 5, radius: 3,
+    requires: { magiaSuplementar: 16 }, minLevel: 34, after: 'grande_arvore_mistilteinn',
+    use(battle, user) {
+      const near = p => p.hp > 0 && p.pos && user.pos && distance(p.pos, user.pos) <= this.radius;
+      const allies = battle.players.filter(p => p === user || (p.team === user.team && near(p)));
+      const foes = battle.players.filter(p => p.team !== user.team && near(p));
+      const lines = [`🌳 ${user.name} usou **Formação Dracaena**: a madeira protege o time e prende quem está por perto.`];
+      for (const p of allies) lines.push(fx.applyEffect(p, 'abrigo_dracaena', { turns: 2 }));
+      for (const p of foes) lines.push(fx.applyEffect(p, 'enraizado', { turns: 2 }));
+      return lines.join(NL);
+    },
   },
 };
 

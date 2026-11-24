@@ -121,6 +121,9 @@ module.exports = {
     // Alcance e teleporte são conferidos antes de gastar mana ou a ação
     const plan = planBonus(battle, me, ability, interaction.options.getString('direcao'), interaction.options.getInteger('casas'), foe);
     if (plan.error) return fail(interaction, plan.error);
+    // Ação bônus em área (`area`): atinge todos os inimigos dentro do raio, a partir de quem usou
+    const inArea = ability.area ? enemiesOf(battle, me).filter(e => distance(me.pos, e.pos) <= ability.area.radius) : null;
+    if (ability.area && !inArea.length) return fail(interaction, `Nenhum inimigo dentro da área de **${ability.name}** (${ability.area.radius} casas).`);
     battle.turn.bonusUsed = true;
     if (ability.cooldown) me.cooldowns[ability.id] = ability.cooldown;
     spend(me, ability);
@@ -128,7 +131,8 @@ module.exports = {
     const lines = [];
     if (ability.use) lines.push(ability.use(battle, me));
     lines.push(...applyBonus(battle, me, ability, plan.dest, foe));
-    lines.push(...applyAbilityEffects(ability, me, foe, { defaultTo: 'self' }));
+    if (inArea) for (const e of inArea) lines.push(...applyAbilityEffects(ability, me, e, { defaultTo: 'self' }));
+    else lines.push(...applyAbilityEffects(ability, me, foe, { defaultTo: 'self' }));
     const text = lines.join('\n') || `${me.name} usou **${ability.name}**.`;
     await interaction.reply({ content: `✅ Você usou **${ability.name}**.`, ephemeral: true });
     // A ação bônus acontece na hora: o GIF roda e some sozinho, sem travar o turno

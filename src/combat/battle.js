@@ -200,8 +200,8 @@ const inBounds = (battle, { col, row }) => col >= 0 && col < battle.cols && row 
 // Planeja o teleporte de uma ação bônus (`teleport: 'self' | 'enemy'`): o destino é N casas numa direção (o mapa não mostra
 // coordenadas no combate). Retorna { dest } (ou {} se a habilidade não teleporta) ou { error }.
 // Uma ação bônus precisa de alvo inimigo se tiver alcance de alvo, teleportar o inimigo, empurrar ou aplicar efeito nele
-const needsTarget = ability => ability.type === 'attack' || ability.targetRange !== undefined || ability.teleport === 'enemy'
-  || !!ability.push || (ability.applies ?? []).some(a => a.to === 'enemy');
+const needsTarget = ability => !ability.area && (ability.type === 'attack' || ability.targetRange !== undefined || ability.teleport === 'enemy'
+  || !!ability.push || (ability.applies ?? []).some(a => a.to === 'enemy'));
 
 function planBonus(battle, me, ability, dir, steps, foe) {
   if (ability.targetRange !== undefined && distance(me.pos, foe.pos) > ability.targetRange) {
@@ -329,11 +329,12 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
   const crit = Math.random() < C.CRIT_CHANCE_BASE + fx.getMods(attacker).critChance;
   if (crit) raw *= C.CRIT_MULTIPLIER;
   const vuln = fx.vulnerability(defender, attack.element);
-  const resist = attack.magic ? Math.min(0.9, fx.getMods(defender).magicResist) : 0; // a Lua Negra apaga parte da magia
+  const dm = fx.getMods(defender);
+  const resist = Math.min(0.9, dm.damageResist + (attack.magic ? dm.magicResist : 0)); // Lua Negra (só magia) e Abrigo Dracaena (tudo)
   let damage = Math.max(1, Math.round(raw * vuln * (1 - resist)));
   let log = `${attacker.name} usou **${attack.name}** em ${defender.name} (${damage} de dano).`;
   if (crit) log += `\n💥 **Golpe crítico!**`;
-  if (resist > 0) log += `\n🌑 A Lua Negra de ${defender.name} absorveu ${Math.round(resist * 100)}% da magia.`;
+  if (resist > 0) log += `\n🛡️ As proteções de ${defender.name} reduziram o dano em ${Math.round(resist * 100)}%.`;
   if (vuln > 1) log += `\n💧 ${defender.name} está vulnerável a esse elemento (dano x${vuln.toFixed(1)}).`;
 
   if (reaction) {
@@ -382,6 +383,17 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
   if (reaction) {
     const cost = spend(defender, reaction);
     log += `\n${resourceOf(reaction) === 'mana' ? '🔷' : '⚡'} ${defender.name} gastou ${cost} de ${resourceLabel(reaction)}.`;
+  }
+
+  // Golpe em área (`splash`): os outros inimigos perto do alvo também levam uma parte do dano, sem direito a reação
+  if (battle && attack.splash) {
+    const hitLines = [];
+    for (const other of enemiesOf(battle, attacker).filter(p => p !== defender && distance(p.pos, defender.pos) <= attack.splash.radius)) {
+      const splashDmg = Math.max(1, Math.round(raw * attack.splash.share * (1 - Math.min(0.9, fx.getMods(other).damageResist))));
+      other.hp = Math.max(0, other.hp - splashDmg);
+      hitLines.push(`💢 ${other.name} também foi atingido (**${splashDmg}** de dano).`, ...fx.onHit(other, attack.element));
+    }
+    if (hitLines.length) log += `\n${hitLines.join('\n')}`;
   }
 
   // Efeitos: só se o golpe causou dano e o alvo continua de pé (o golpe também pode acordar/descongelar o alvo)

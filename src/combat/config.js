@@ -34,7 +34,7 @@ module.exports = {
   MANA_STEPS: [[1, 100], [10, 120], [20, 150], [35, 200]],
   ENERGY_STEPS: [[1, 100], [10, 120], [20, 150], [35, 200]],
   // Dano = valor sorteado no intervalo da habilidade + atributo * multiplicador (um multiplicador por atributo)
-  DAMAGE_PER_POINT: { forca: 1, armasBrancas: 1, magiaOfensiva: 1.25 }, // 1 ponto de Força = +1 de dano
+  DAMAGE_PER_POINT: { forca: 1, armasBrancas: 1, magiaOfensiva: 1.25, magiaSuplementar: 1 }, // 1 ponto de Força = +1 de dano
   // Defesa (Bloqueio e afins) absorve um valor sorteado no intervalo da habilidade + atributo × multiplicador, como um ataque ao contrário.
   // Os multiplicadores são ~metade dos de ataque: uma defesa absorve cerca de metade de um golpe de atributo igual.
   // Escala do bônus de atributo por raridade do grimório da habilidade (a habilidade pode sobrescrever com `attributeScale`).
