@@ -43,6 +43,9 @@ module.exports = {
   DODGE_CHANCE_PER_DEXTERITY: 0.004, // chance extra de esquiva por ponto de Destreza (+0,4%)
   DODGE_CHANCE_CAP: 0.8,
   BASE_SPEED: 10,                 // velocidade = BASE_SPEED + Destreza
+  EFFECT_MAX_STACKS: 5,           // máximo de stacks de um efeito acumulável (sangramento, veneno...)
+  CRIT_CHANCE_BASE: 0.05,         // chance base de crítico em todo ataque (efeitos como Brilho Estelar somam)
+  CRIT_MULTIPLIER: 1.5,           // o crítico multiplica o dano por isso
   ENERGY_REGEN_PER_TURN: 0,       // energia recuperada no início de cada turno (0 = não recupera)
   ACTION_TIMEOUT_MS: 60_000,      // tempo para o defensor escolher a reação
   CHALLENGE_TIMEOUT_MS: 120_000,  // tempo para o oponente aceitar o desafio

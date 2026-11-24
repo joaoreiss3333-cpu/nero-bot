@@ -1,5 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { getBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf } = require('../src/combat/battle');
+const { getBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf, energyCost } = require('../src/combat/battle');
+const { getMods, applyAbilityEffects } = require('../src/combat/effects');
 const { panelPayload, asEdit } = require('../src/combat/render');
 const { playAction } = require('../src/combat/actions');
 const { getAbility, TYPE_LABEL } = require('../src/combat/abilities');
@@ -47,31 +48,42 @@ module.exports = {
     const ability = getAbility(interaction.options.getString('nome'));
     const owned = ability && abilitiesOf(me, ability.type).some(a => a.id === ability.id);
     if (!owned || ability.type === 'reaction') return fail(interaction, 'Você não possui essa habilidade.');
-    if (me.energy < ability.energyCost) {
-      return fail(interaction, `Energia insuficiente: **${ability.name}** custa ${ability.energyCost} e você tem ${me.energy}.`);
+    const cost = energyCost(me, ability);
+    if (me.energy < cost) {
+      return fail(interaction, `Energia insuficiente: **${ability.name}** custa ${cost} e você tem ${me.energy}.`);
+    }
+    const mods = getMods(me);
+    if (mods.noAct) return fail(interaction, 'Você não consegue agir neste turno por causa de um efeito (atordoado, dormindo...).');
+    if (mods.oneAction && (battle.turn.attacked || battle.turn.bonusUsed)) {
+      return fail(interaction, 'O **Sonolento** só deixa você fazer uma ação por turno.');
     }
 
     if (ability.type === 'attack') {
       if (battle.turn.attacked) return fail(interaction, 'Você já usou sua ação de ataque neste turno.');
       const foe = opponentOf(battle, me.id);
-      if (distance(me.pos, foe.pos) > ability.range) {
+      if (distance(me.pos, foe.pos) > Math.min(ability.range, mods.visionCap)) {
+        if (distance(me.pos, foe.pos) <= ability.range) return fail(interaction, 'A **Escuridão** limita sua visão: você não enxerga o alvo a essa distância.');
         return fail(interaction, `Alvo fora de alcance: **${ability.name}** alcança ${ability.range} casa (sem diagonal).`);
       }
       // O ataque só é resolvido quando o atacante encerra o turno (aí o defensor reage)
       battle.turn.attacked = true;
       battle.turn.queuedAttack = ability;
-      me.energy -= ability.energyCost;
-      await interaction.reply({ content: `✅ **${ability.name}** preparado (-${ability.energyCost} energia). O dano e a reação do oponente acontecem quando você encerrar o turno.`, ephemeral: true });
+      me.energy -= cost;
+      await interaction.reply({ content: `✅ **${ability.name}** preparado (-${cost} energia). O dano e a reação do oponente acontecem quando você encerrar o turno.`, ephemeral: true });
       // O GIF do golpe aparece na hora (como na ação bônus); o dano e a reação ficam para o fim do turno
       await playAction(battle.message.channel, me.name, ability, { block: false });
-      return battle.message.edit(asEdit(await panelPayload(battle, `👊 ${me.name} preparou **${ability.name}** (-${ability.energyCost} energia). O golpe acontece ao fim do turno.`)));
+      return battle.message.edit(asEdit(await panelPayload(battle, `👊 ${me.name} preparou **${ability.name}** (-${cost} energia). O golpe acontece ao fim do turno.`)));
     }
 
     // bonus
     if (battle.turn.bonusUsed) return fail(interaction, 'Você já usou sua ação bônus neste turno.');
     battle.turn.bonusUsed = true;
-    me.energy -= ability.energyCost;
-    const text = ability.use(battle, me);
+    me.energy -= cost;
+    // Ação bônus: usa a função própria da habilidade (use) e/ou aplica os efeitos dela (applies) em quem usou
+    const lines = [];
+    if (ability.use) lines.push(ability.use(battle, me));
+    lines.push(...applyAbilityEffects(ability, me, opponentOf(battle, me.id), { defaultTo: 'self' }));
+    const text = lines.join('\n') || `${me.name} usou **${ability.name}**.`;
     await interaction.reply({ content: `✅ Você usou **${ability.name}**.`, ephemeral: true });
     // A ação bônus acontece na hora: o GIF roda e some sozinho, sem travar o turno
     await playAction(battle.message.channel, me.name, ability, { block: false });

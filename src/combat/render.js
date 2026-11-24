@@ -2,7 +2,8 @@ const {
   AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags,
   ContainerBuilder, TextDisplayBuilder, MediaGalleryBuilder, MediaGalleryItemBuilder, SeparatorBuilder,
 } = require('discord.js');
-const { currentPlayer, opponentOf, checkStep, abilitiesOf } = require('./battle');
+const { currentPlayer, opponentOf, checkStep, abilitiesOf, energyCost, reactionBlock } = require('./battle');
+const { describeEffects } = require('./effects');
 const { renderMapImage, renderPanelImage } = require('./image');
 const { EMBED_COLOR } = require('./config');
 
@@ -33,9 +34,9 @@ function reactionRow(battle) {
   const defender = opponentOf(battle, battle.pending.attackerId);
   const buttons = abilitiesOf(defender, 'reaction').map(a =>
     btn(`react:${a.id}`, a.kind === 'dodge' ? ButtonStyle.Primary : ButtonStyle.Success)
-      .setLabel(`${a.name} (-${a.energyCost} energia)`)
+      .setLabel(`${a.name} (-${energyCost(defender, a)} energia)`)
       .setEmoji(a.emoji)
-      .setDisabled(defender.energy < a.energyCost));
+      .setDisabled(!!reactionBlock(defender, a)));
   buttons.push(btn('react:nenhuma').setLabel('Não reagir'));
   return new ActionRowBuilder().addComponents(buttons);
 }
@@ -74,6 +75,13 @@ async function panelPayload(battle, text = '', { frozen = false } = {}) {
       new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL('attachment://mapa.png')),
       new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL('attachment://painel.png')),
     );
+  // Efeitos ativos de cada jogador (só aparece se alguém tiver algum)
+  const active = battle.phase === 'combat' ? battle.players.filter(p => describeEffects(p)) : [];
+  if (active.length) {
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      active.map(p => `**${p.name}:** ${describeEffects(p)}`).join('\n'),
+    ));
+  }
   if (footer) container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`-# ${footer}`));
   if (rows.length) {
     container.addSeparatorComponents(new SeparatorBuilder());

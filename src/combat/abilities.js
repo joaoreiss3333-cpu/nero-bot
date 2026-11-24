@@ -8,6 +8,11 @@
 // `attribute` diz qual atributo conta. A árvore de habilidades vai melhorar esse intervalo.
 // `requires: { magiaOfensiva: 3 }` exige pontos nesse atributo para a habilidade aparecer.
 //
+// Efeitos de combate (catálogo em effects.js):
+//   applies -> lista de efeitos que a habilidade aplica: { effect: 'sangramento', turns: 3, stacks: 1, power: 2, to: 'enemy'|'self', chance: 0.5 }
+//              (só `effect` é obrigatório; ataque aplica no alvo se causar dano, ação bônus aplica em quem usou; `to` muda isso)
+//   element -> elemento do golpe ('fogo', 'gelo', 'relampago'...), usado nas interações (Encharcado, Congelado)
+//
 // Campos opcionais para o aviso da ação (o embed "X utilizou ..." com o GIF):
 //   actionText -> como a ação aparece no título, ex: "um Soco" (padrão: o nome)
 //   gif        -> URL do GIF, ou nome de um arquivo da pasta assets/gifs (ex: 'soco.gif').
