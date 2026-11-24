@@ -24,7 +24,6 @@ const EFFECTS = {
   congelado: { name: 'Congelado', emoji: '🧊', kind: 'debuff', mods: { noMove: true, noDodge: true }, endsOnElement: 'fogo' },
   estase: { name: 'Estase Temporal', emoji: '🕰️', kind: 'debuff', mods: { noMove: true, noReact: true } }, // preso num loop do tempo: imóvel e sem reação, mas ainda pode atacar
   lentidao: { name: 'Lentidão', emoji: '🐌', kind: 'debuff', mods: { moveDelta: -1, dodgeDelta: -0.15 } },
-  lentidao_temporal: { name: 'Lentidão Temporal', emoji: '⏳', kind: 'debuff', mods: { moveDelta: -1, noReact: true } },
   cegueira: { name: 'Cegueira', emoji: '🙈', kind: 'debuff', mods: { missChance: 0.4 } },
   escuridao: { name: 'Escuridão', emoji: '🌑', kind: 'debuff', mods: { visionCap: 2 } },
   sufocamento: { name: 'Sufocamento', emoji: '😮‍💨', kind: 'debuff', drainEnergy: 5, mods: { energyCostMult: 1.5 } },

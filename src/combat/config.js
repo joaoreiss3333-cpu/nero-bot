@@ -25,11 +25,11 @@ module.exports = {
   MAX_LEVEL: 50,
   ATTRIBUTE_CAP: 100,             // teto de cada atributo
   STARTING_POINTS: 3,             // pontos para distribuir no nível 1
-  POINTS_PER_LEVEL: 2,            // pontos ganhos a cada nível (com 50 níveis dá ~100 pontos no total: dá para maximizar ~1 atributo)
+  POINTS_PER_LEVEL: 3,            // pontos ganhos a cada nível (3 iniciais + 49 níveis × 3 = 150 pontos no total: dá para maximizar 1 atributo e sobra pouco)
   XP_BASE: 100,                   // XP para sair do nível n = XP_BASE * n^XP_EXPONENT (arredondado para 10)
   XP_EXPONENT: 1.5,
   HP_BASE: 20,                    // vida no nível 1 (começa baixa de propósito)
-  HP_PER_LEVEL: 15,               // vida sobe sozinha a cada nível (nível 50 = 755)
+  HP_PER_LEVEL: 20,               // vida sobe sozinha a cada nível (nível 50 = 1000)
   // Mana e energia sobem em degraus: [nível a partir do qual vale, valor]
   MANA_STEPS: [[1, 100], [10, 120], [20, 150], [35, 200]],
   ENERGY_STEPS: [[1, 100], [10, 120], [20, 150], [35, 200]],
@@ -37,6 +37,9 @@ module.exports = {
   DAMAGE_PER_POINT: { forca: 1, armasBrancas: 1, magiaOfensiva: 1.25 }, // 1 ponto de Força = +1 de dano
   // Defesa (Bloqueio e afins) absorve um valor sorteado no intervalo da habilidade + atributo × multiplicador, como um ataque ao contrário.
   // Os multiplicadores são ~metade dos de ataque: uma defesa absorve cerca de metade de um golpe de atributo igual.
+  // Escala do bônus de atributo por raridade do grimório da habilidade (a habilidade pode sobrescrever com `attributeScale`).
+  // Soco e habilidades sem grimório usam 1. O dano base e os efeitos também mudam de magia para magia.
+  RARITY_SCALE: { comum: 1, raro: 1.15, epico: 1.4, lendario: 1.7, mitico: 2 },
   DEFENSE_PER_POINT: { resistencia: 0.5, magiaDefensiva: 0.6 },
   DODGE_CHANCE_PER_DEXTERITY: 0.004, // chance extra de esquiva por ponto de Destreza (+0,4%)
   DODGE_CHANCE_CAP: 0.8,

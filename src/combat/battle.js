@@ -1,9 +1,13 @@
 const C = require('./config');
 const { gridSizeFor, MOVES_PER_TURN, ENERGY_REGEN_PER_TURN } = C;
 const { samePos, DIRECTIONS } = require('./grid');
-const { getAbility } = require('./abilities');
-const { getKit, getCombatStats } = require('./characters');
+const { getAbility, resolveAbility } = require('./abilities');
+const { getKit, getRanks, getCombatStats } = require('./characters');
 const fx = require('./effects');
+const { getGrimoire } = require('./grimoires');
+
+// Escala do bônus de atributo: `attributeScale` da habilidade, ou a da raridade do grimório dela, ou 1
+const abilityScale = ability => ability.attributeScale ?? C.RARITY_SCALE[getGrimoire(ability.grimoire)?.rarity] ?? 1;
 
 const battles = new Map(); // channelId -> batalha
 
@@ -35,6 +39,7 @@ function newPlayer(user) {
     energy: stats.maxEnergy,
     pos: null, // definida na fase de posicionamento
     abilities: getKit(user.id),
+    ranks: getRanks(user.id), // id da magia -> rank (ver resolveAbility)
     speed: stats.speed,
     effects: {}, // efeitos ativos (ver effects.js)
     cooldowns: {}, // id da habilidade -> turnos seus que faltam para poder usar de novo
@@ -46,7 +51,7 @@ const rand = ([min, max]) => min + Math.floor(Math.random() * (max - min + 1));
 
 // Dano de um ataque: valor sorteado no intervalo da habilidade + atributo × multiplicador do atributo
 const attackDamage = (attacker, attack) =>
-  rand(attack.damage) + Math.round((attacker.attrs[attack.attribute] ?? 0) * (C.DAMAGE_PER_POINT[attack.attribute] ?? 0) * (attack.attributeScale ?? 1));
+  rand(attack.damage) + Math.round((attacker.attrs[attack.attribute] ?? 0) * (C.DAMAGE_PER_POINT[attack.attribute] ?? 0) * abilityScale(attack));
 
 // Maior velocidade começa; se empatar, sorteia entre os mais rápidos
 function whoStarts(players) {
@@ -91,8 +96,11 @@ const opponentOf = (b, id) => b.players.find(p => p.id !== id);
 const findPlayer = (b, id) => b.players.find(p => p.id === id);
 
 // Habilidades do jogador de um tipo ('attack' | 'bonus' | 'reaction')
+// A habilidade `id` no rank do jogador (undefined se não existir)
+const abilityOf = (player, id) => resolveAbility(getAbility(id), player.ranks?.[id] ?? 1);
+
 const abilitiesOf = (player, type) =>
-  player.abilities.map(getAbility).filter(a => a && a.type === type);
+  player.abilities.map(id => abilityOf(player, id)).filter(a => a && a.type === type);
 
 // Magias gastam mana (manaCost); o resto gasta energia (energyCost, que efeitos como Sufocamento encarecem)
 const resourceOf = ability => (ability.manaCost !== undefined ? 'mana' : 'energy');
@@ -188,14 +196,14 @@ function resolveAttack(attacker, defender, attack, reaction) {
         log += `\n${reaction.emoji} ${defender.name} tentou **${reaction.name}**, mas falhou.`;
       }
     } else if (reaction.kind === 'capture') {
-      // Captura a magia: ela é anulada e quem a lançou sofre os efeitos da reação (ex: Estase Temporal)
+      // Captura a magia: ela é anulada; se a reação tiver `applies`, quem a lançou sofre esses efeitos
       damage = 0;
       log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}** e capturou a magia!`;
       const lines = fx.applyAbilityEffects(reaction, defender, attacker);
       if (lines.length) log += `\n${lines.join('\n')}`;
     } else if (reaction.kind === 'block') {
       // Defesa escala como um ataque: valor sorteado + atributo × multiplicador (Bloqueio usa Resistência; defesas mágicas, Magia Defensiva)
-      const absorbed = Math.min(damage, rand(reaction.absorb) + Math.round((defender.attrs[reaction.attribute] ?? 0) * (C.DEFENSE_PER_POINT[reaction.attribute] ?? 0) * (reaction.attributeScale ?? 1)));
+      const absorbed = Math.min(damage, rand(reaction.absorb) + Math.round((defender.attrs[reaction.attribute] ?? 0) * (C.DEFENSE_PER_POINT[reaction.attribute] ?? 0) * abilityScale(reaction)));
       damage -= absorbed;
       log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}** e absorveu ${absorbed} de dano.`;
     }
@@ -236,6 +244,6 @@ function nextTurn(battle) {
 }
 
 module.exports = {
-  createBattle, getBattle, endBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf, abilityCost, resourceOf, resourceLabel, canAfford, spend, reactionBlock, clampMoves,
+  createBattle, getBattle, endBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf, abilityOf, abilityCost, resourceOf, resourceLabel, canAfford, spend, reactionBlock, clampMoves,
   placePlayer, allPlaced, checkStep, movePlayer, startActions, resolveAttack, nextTurn,
 };

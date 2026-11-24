@@ -27,6 +27,8 @@ function getProfile(userId) {
   }
   // Atributos novos adicionados no futuro entram zerados nas fichas antigas
   profiles[userId].attrs = { ...newProfile().attrs, ...profiles[userId].attrs };
+  profiles[userId].learned ??= [];
+  profiles[userId].ranks ??= {}; // id da magia -> rank comprado (1 = a magia base)
   return profiles[userId];
 }
 

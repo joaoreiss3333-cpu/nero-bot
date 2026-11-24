@@ -1,10 +1,10 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { getBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf, abilityCost, resourceLabel, resourceOf, canAfford, spend } = require('../src/combat/battle');
+const { getBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf, abilityOf, abilityCost, resourceLabel, resourceOf, canAfford, spend } = require('../src/combat/battle');
 const { getMods, applyAbilityEffects } = require('../src/combat/effects');
 const { panelPayload, asEdit } = require('../src/combat/render');
 const { playAction } = require('../src/combat/actions');
-const { getAbility, TYPE_LABEL } = require('../src/combat/abilities');
-const { getKit } = require('../src/combat/characters');
+const { TYPE_LABEL } = require('../src/combat/abilities');
+const { getKit, getRanks } = require('../src/combat/characters');
 const { distance } = require('../src/combat/grid');
 
 const fail = (interaction, content) => interaction.reply({ content, ephemeral: true });
@@ -26,10 +26,11 @@ module.exports = {
     const ids = me ? me.abilities : getKit(interaction.user.id);
     const focused = interaction.options.getFocused().toLowerCase();
 
+    const holder = me ?? { ranks: getRanks(interaction.user.id) };
     const choices = ids
-      .map(getAbility)
+      .map(id => abilityOf(holder, id))
       .filter(a => a && a.type !== 'reaction' && a.name.toLowerCase().includes(focused))
-      .map(a => ({ name: `${a.name} (${TYPE_LABEL[a.type]} · ${a.manaCost ?? a.energyCost} ${a.manaCost !== undefined ? 'mana' : 'energia'}${a.cooldown ? ` · recarga ${a.cooldown}` : ''})`, value: a.id }));
+      .map(a => ({ name: `${a.name}${a.rank > 1 ? ` (rank ${a.rank})` : ''} (${TYPE_LABEL[a.type]} · ${a.manaCost ?? a.energyCost} ${a.manaCost !== undefined ? 'mana' : 'energia'}${a.cooldown ? ` · recarga ${a.cooldown}` : ''})`, value: a.id }));
     await interaction.respond(choices.slice(0, 25));
   },
 
@@ -45,7 +46,7 @@ module.exports = {
       return fail(interaction, 'Primeiro faça sua movimentação: use as setas e depois clique em **Ir para as ações**.');
     }
 
-    const ability = getAbility(interaction.options.getString('nome'));
+    const ability = abilityOf(me, interaction.options.getString('nome'));
     const owned = ability && abilitiesOf(me, ability.type).some(a => a.id === ability.id);
     if (!owned || ability.type === 'reaction') return fail(interaction, 'Você não possui essa habilidade.');
     const cost = abilityCost(me, ability);

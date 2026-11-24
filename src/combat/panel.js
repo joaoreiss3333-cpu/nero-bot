@@ -1,5 +1,5 @@
 const {
-  getBattle, endBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf,
+  getBattle, endBattle, currentPlayer, opponentOf, findPlayer, abilitiesOf, abilityOf,
   movePlayer, startActions, resolveAttack, nextTurn, reactionBlock, abilityCost, resourceLabel, resourceOf, clampMoves,
 } = require('./battle');
 const { getMods } = require('./effects');
@@ -128,7 +128,7 @@ async function handleButton(interaction) {
     if (kind !== 'react' || me.id !== defender.id) {
       return ephemeral(interaction, `Aguardando a reação de ${defender.name}.`);
     }
-    const reaction = me.abilities.includes(arg) ? getAbility(arg) : null;
+    const reaction = me.abilities.includes(arg) ? abilityOf(me, arg) : null;
     const why = reaction && reactionBlock(me, reaction, battle.pending.attack);
     if (why === 'sem recurso') {
       return ephemeral(interaction, `Sem ${resourceLabel(reaction)} suficiente: **${reaction.name}** custa ${abilityCost(me, reaction)} e você tem ${me[resourceOf(reaction)]}.`);

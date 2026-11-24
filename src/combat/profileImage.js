@@ -164,7 +164,7 @@ function drawPortrait(ctx, img, x, y, w, h) {
   ctx.lineWidth = 1.5; ctx.stroke();
 }
 
-// Grimório: um livro de lado (lombada à esquerda). Com imagem, ela vira a capa; sem imagem, capa de couro com o trevo.
+// Grimório: um livro de lado (lombada à esquerda). Com imagem, ela vira a capa; sem imagem, capa de couro lisa (o trevo do grimório virá de um sistema próprio, depois).
 function drawGrimoire(ctx, img, x, y, w, h) {
   const spine = 14;
   ctx.save();
@@ -178,7 +178,6 @@ function drawGrimoire(ctx, img, x, y, w, h) {
     ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = 'rgba(217,180,90,0.55)'; ctx.lineWidth = 1.5;
     ctx.strokeRect(x + spine + 8, y + 8, w - spine - 16, h - 16);
-    drawClover(ctx, x + spine + (w - spine) / 2, y + h / 2, 26, { fill: GOLD });
   }
   // lombada
   const sg = ctx.createLinearGradient(x, 0, x + spine, 0);
@@ -326,10 +325,21 @@ async function renderProfileImage(data) {
   ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.font = `bold 17px ${FONT}`; ctx.letterSpacing = '4px';
   ctx.fillStyle = GOLD;
-  ctx.fillText('GRIMÓRIO', 176, 500);
+  ctx.fillText('GRIMÓRIO', 176, 468);
   ctx.letterSpacing = '0px';
   ctx.strokeStyle = 'rgba(217,180,90,0.5)'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(176, 520); ctx.lineTo(354, 520); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(176, 486); ctx.lineTo(354, 486); ctx.stroke();
+  // tipo da magia (nome do grimório) e raridade, ao lado da foto
+  let gSize = 34;
+  const gName = data.grimoireName ?? 'Sem grimório';
+  ctx.font = `bold ${gSize}px ${FONT}`;
+  while (gSize > 18 && ctx.measureText(gName).width > 178) { gSize -= 2; ctx.font = `bold ${gSize}px ${FONT}`; }
+  ctx.fillStyle = data.grimoireName ? goldGradient(ctx, 0, 500, 0, 540) : MUTED;
+  ctx.fillText(gName, 176, 518);
+  if (data.grimoireRarity) {
+    ctx.font = `italic 20px ${FONT}`; ctx.fillStyle = MUTED;
+    ctx.fillText(data.grimoireRarity, 177, 552);
+  }
 
   // Cabeçalho: nome, idade e nível
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';

@@ -4,11 +4,17 @@
 //   reaction -> usada pelo defensor quando é atacado (aparece como botão)
 // Reações têm um `kind` ('dodge', 'block' ou 'capture') que define como são resolvidas.
 // Defesas `block` usam `absorb: [mín, máx]` + `attribute` (resistencia, magiaDefensiva...) e escalam como um ataque
-// (valor sorteado + atributo × config.DEFENSE_PER_POINT); `attributeScale` reforça o bônus do atributo.
+// (valor sorteado + atributo × config.DEFENSE_PER_POINT).
 // `energyCost` é a energia gasta ao usar a habilidade. Magias usam `manaCost` no lugar (gastam mana, não energia).
 // Ataques causam um dano sorteado em `damage: [mín, máx]` + atributo × multiplicador (config.DAMAGE_PER_POINT);
 // `attribute` diz qual atributo conta. A árvore de habilidades vai melhorar esse intervalo.
-// `requires: { magiaOfensiva: 3 }` exige pontos nesse atributo para a habilidade aparecer.
+// Magias de grimório precisam ser APRENDIDAS (/aprender) para entrar no kit; é uma árvore:
+//   minLevel -> nível mínimo do jogador para poder aprender
+//   requires -> mínimo de pontos em atributos para poder aprender, ex: { magiaOfensiva: 5 } (não gasta os pontos; magias mais fortes pedem mais)
+//   after    -> id da magia que precisa ter sido aprendida antes (a raiz da árvore não tem `after`)
+//   ranks    -> evoluções da magia dentro da árvore (/aprender de novo compra o próximo rank). A habilidade em si é o rank 1;
+//               cada item de `ranks` é o rank 2, 3... com `minLevel` e `requires` próprios e os campos que mudam (damage, manaCost,
+//               cooldown, applies, absorb...). Os campos se acumulam rank a rank (resolveAbility).
 //
 // Efeitos de combate (catálogo em effects.js):
 //   applies -> lista de efeitos que a habilidade aplica: { effect: 'sangramento', turns: 3, stacks: 1, power: 2, to: 'enemy'|'self', chance: 0.5 }
@@ -18,7 +24,9 @@
 //   grimoire -> id do grimório (grimoires.js) a que a habilidade pertence; quem tem esse grimório recebe a habilidade no kit
 //   element -> elemento do golpe ('fogo', 'gelo', 'relampago'...), usado nas interações (Encharcado, Congelado)
 //
-//   attributeScale -> multiplica o bônus de dano do atributo (padrão 1); magias fortes usam valores maiores, e o Tempo (mítico) usa 2.5
+//   O bônus do atributo (config.DAMAGE_PER_POINT) é multiplicado pela escala da raridade do grimório (config.RARITY_SCALE);
+//   `attributeScale` na habilidade sobrescreve. Dano base, mana e efeitos também variam por magia (um efeito forte pede dano menor).
+//   A árvore de habilidades melhora o `damage` base (e talvez a escala).
 //
 // Campos opcionais para o aviso da ação (o embed "X utilizou ..." com o GIF):
 //   actionText -> como a ação aparece no título, ex: "um Soco" (padrão: o nome)
@@ -26,6 +34,7 @@
 //                 Sem GIF, o aviso aparece só com o título.
 //   gifDurationMs -> quanto o jogo espera esse GIF rodar (padrão: ACTION_GIF_WAIT_MS)
 const fx = require('./effects');
+const { distance } = require('./grid');
 const NL = '\n';
 
 const abilities = {
@@ -38,29 +47,50 @@ const abilities = {
   // Grimório MÍTICO: a magia de ataque mais forte do servidor. Dano bem acima do Soco e prende o alvo em Estase Temporal (imóvel e sem reação, ainda pode atacar)
   chrono_stasis: {
     id: 'chrono_stasis', name: 'Chrono Stasis', actionText: 'Chrono Stasis', gif: 'chrono_stasis.gif', grimoire: 'tempo', magic: true,
-    type: 'attack', range: 3, damage: [8, 12], attributeScale: 2.5, attribute: 'magiaOfensiva', manaCost: 25,
-    requires: { magiaOfensiva: 3 }, applies: [{ effect: 'estase', turns: 3 }],
+    type: 'attack', range: 3, damage: [12, 18], attribute: 'magiaOfensiva', manaCost: 40,
+    requires: { magiaOfensiva: 5 }, minLevel: 6, applies: [{ effect: 'estase', turns: 2 }], cooldown: 3, // raiz da árvore do Tempo
+    // A Estase (imóvel + sem reação) é o que a faz forte, então o dano sobe pouco por rank e o controle é limitado por recarga:
+    // 2 turnos de Estase dão no máximo UM golpe livre; nunca dá para encadear uma Estase na outra.
+    ranks: [
+      { minLevel: 15, requires: { magiaOfensiva: 10 }, damage: [17, 24] },
+      { minLevel: 26, requires: { magiaOfensiva: 16 }, damage: [23, 32], manaCost: 45, applies: [{ effect: 'estase', turns: 3 }], cooldown: 4 },
+    ],
   },
-  // Captura a magia inimiga (ela é anulada) e prende quem a lançou em Estase Temporal. Só funciona contra magia.
+  // Captura a magia inimiga: ela é anulada por completo (sem prender o atacante: anular magia já é forte). Só funciona contra magia.
+  // O rank 2 só a deixa mais barata.
   chrono_stasis_grigora: {
     id: 'chrono_stasis_grigora', name: 'Chrono Stasis Grigora', actionText: 'Chrono Stasis Grigora', gif: 'chrono_stasis_grigora.gif', grimoire: 'tempo',
-    type: 'reaction', kind: 'capture', onlyVsMagic: true, manaCost: 30, emoji: '🕰️',
-    requires: { magiaDefensiva: 3 }, applies: [{ effect: 'estase', turns: 3 }],
+    type: 'reaction', kind: 'capture', onlyVsMagic: true, manaCost: 35, emoji: '🕰️',
+    requires: { magiaDefensiva: 8 }, minLevel: 12, after: 'chrono_stasis',
+    ranks: [
+      { minLevel: 24, requires: { magiaDefensiva: 14 }, manaCost: 25 },
+    ],
   },
-  // Volta no tempo: a vida retorna ao que era no início do seu turno anterior e os debuffs somem
+  // Volta no tempo em área: a vida de quem usa e dos aliados a até `radius` casas volta ao que era no início do turno anterior
+  // (limitada a `healCap` da vida máxima, para não desfazer um golpe enorme de uma vez) e os debuffs somem. É o feitiço mais forte
+  // do Tempo, então custa muito mais mana e tem recarga longa. Aliados = jogadores do mesmo `team` (ainda não existe luta em equipe:
+  // por enquanto só afeta quem usou).
   chrono_anastasis: {
     id: 'chrono_anastasis', name: 'Chrono Anastasis', actionText: 'Chrono Anastasis', gif: 'chrono_anastasis.gif', grimoire: 'tempo', magic: true,
-    type: 'bonus', manaCost: 30, cooldown: 3, requires: { magiaSuplementar: 3 },
+    type: 'bonus', manaCost: 70, cooldown: 4, requires: { magiaSuplementar: 10 }, minLevel: 18, after: 'chrono_stasis_grigora',
+    radius: 3, healCap: 0.4, manaRefund: 15,
+    ranks: [
+      { minLevel: 30, requires: { magiaSuplementar: 16 }, cooldown: 3, healCap: 0.6, manaRefund: 25 },
+    ],
     use(battle, user) {
-      const target = Math.max(user.hp, user.hpHistory[0] ?? user.hp);
-      const healed = target - user.hp;
-      user.hp = target;
-      user.mana = Math.min(user.maxMana, user.mana + 15); // o tempo volta também para a mana gasta (reembolsa metade do custo)
-      const cleared = fx.clearDebuffs(user);
-      let text = `⏪ ${user.name} usou **Chrono Anastasis** e voltou no tempo.`;
-      text += healed > 0 ? `${NL}❤️ Recuperou **${healed}** de vida.` : `${NL}Nenhum dano para desfazer.`;
-      if (cleared.length) text += `${NL}✨ Removeu: ${cleared.join(', ')}.`;
-      text += `${NL}🔷 Recuperou 15 de mana.`;
+      const affected = battle.players.filter(p => p === user
+        || (user.team !== undefined && p.team === user.team && p.pos && user.pos && distance(p.pos, user.pos) <= this.radius));
+      let text = `⏪ ${user.name} usou **Chrono Anastasis** e voltou o tempo${affected.length > 1 ? ' de todos os aliados próximos' : ''}.`;
+      for (const p of affected) {
+        const healed = Math.min(Math.max(0, (p.hpHistory[0] ?? p.hp) - p.hp), Math.round(p.maxHp * this.healCap));
+        p.hp += healed;
+        const cleared = fx.clearDebuffs(p);
+        const parts = [healed > 0 ? `❤️ +${healed} de vida` : 'nenhum dano para desfazer'];
+        if (cleared.length) parts.push(`✨ removeu ${cleared.join(', ')}`);
+        text += `${NL}${p.name}: ${parts.join(' · ')}.`;
+      }
+      user.mana = Math.min(user.maxMana, user.mana + this.manaRefund); // o tempo volta também para parte da mana gasta
+      text += `${NL}🔷 ${user.name} recuperou ${this.manaRefund} de mana.`;
       return text;
     },
   },
@@ -70,4 +100,12 @@ const TYPE_LABEL = { attack: 'Ataque', bonus: 'Ação bônus', reaction: 'Reaç�
 
 const getAbility = id => abilities[id];
 
-module.exports = { abilities, getAbility, TYPE_LABEL };
+// A habilidade no rank do jogador: os campos de cada rank até ele sobrescrevem os da habilidade base
+// (os `ranks` aplicam de forma acumulada: o rank 3 parte do que o rank 2 já mudou).
+function resolveAbility(ability, rank = 1) {
+  if (!ability || rank <= 1 || !ability.ranks) return ability && { ...ability, rank: 1 };
+  const { minLevel, requires, ...changes } = Object.assign({}, ...ability.ranks.slice(0, rank - 1));
+  return { ...ability, ...changes, rank: Math.min(rank, ability.ranks.length + 1) };
+}
+
+module.exports = { abilities, getAbility, resolveAbility, TYPE_LABEL };
