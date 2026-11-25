@@ -852,6 +852,78 @@ const abilities = {
     type: 'attack', range: 7, damage: [22, 30], attribute: 'magiaOfensiva', manaCost: 65, cooldown: 4, dodgePenalty: 1, piercesDarkness: true,
     minLevel: 34, after: 'luz_de_avior',
   },
+
+  // ---- Grimório do Mercúrio (ÉPICO) ----
+  // Metal líquido e pesado que alterna entre ataque e defesa: balas, lanças, lâmina flutuante, chuva em área,
+  // um escudo forte contra golpes físicos e uma gaiola que prende o alvo. Escala de atributo da raridade (1,4x).
+  // Árvore: Bala de Prata -> { Lanças de Prata -> Lança Real }, { Lâmina de Prata -> Chuva Prateada }, { Escudo -> Estrela de Prata }.
+  // Pequenas esferas de mercúrio condensado disparadas no alvo
+  bala_de_prata: {
+    id: 'bala_de_prata', name: 'Bala de Prata', description: 'Condensa mercúrio em pequenas esferas e as dispara contra o alvo. Ataque básico de média distância do grimório.', actionText: 'Bala de Prata', gif: 'mercurio_bala_de_prata.gif', grimoire: 'mercurio', magic: true,
+    type: 'attack', range: 3, damage: [10, 15], attribute: 'magiaOfensiva', manaCost: 22,
+    minLevel: 6, // raiz da árvore do Mercúrio
+    // Rank II e III: esferas mais densas, mais dano
+    ranks: [
+      { minLevel: 16, damage: [13, 18] },
+      { minLevel: 28, damage: [16, 22] },
+    ],
+  },
+  // Lança de mercúrio arremessada de longe; no rank II várias lanças saem juntas
+  lancas_de_prata: {
+    id: 'lancas_de_prata', name: 'Lanças de Prata', description: 'Gera uma lança de mercúrio e a arremessa contra o alvo, de longe. Várias lanças podem ser disparadas ao mesmo tempo, atingindo também quem está perto do alvo.', actionText: 'Lanças de Prata', gif: 'mercurio_lancas_de_prata.gif', grimoire: 'mercurio', magic: true,
+    type: 'attack', range: 5, damage: [12, 17], attribute: 'magiaOfensiva', manaCost: 32, cooldown: 1,
+    minLevel: 12, after: 'bala_de_prata',
+    // Rank II: múltiplas lanças (respingo em quem está perto do alvo)
+    ranks: [
+      { minLevel: 24, damage: [14, 20], splash: { radius: 1, share: 0.4 } },
+    ],
+  },
+  // Espada de dois gumes que flutua e ataca sozinha: difícil de prever, faz sangrar
+  lamina_de_prata: {
+    id: 'lamina_de_prata', name: 'Lâmina de Prata', description: 'Cria uma espada de dois gumes feita de mercúrio, que flutua no ar e ataca sem precisar da mão do usuário. Média distância, mais difícil de esquivar e faz o alvo sangrar.', actionText: 'Lâmina de Prata', gif: 'mercurio_lamina_de_prata.gif', grimoire: 'mercurio', magic: true,
+    type: 'attack', range: 3, damage: [12, 17], attribute: 'magiaOfensiva', manaCost: 30, dodgePenalty: 0.15,
+    applies: [{ effect: 'sangramento', turns: 2, stacks: 1, power: 2 }],
+    minLevel: 10, after: 'bala_de_prata',
+  },
+  // Barreira de metal pesado: absorve bem, e ainda mais contra golpes físicos e projéteis
+  escudo_de_mercurio: {
+    id: 'escudo_de_mercurio', name: 'Escudo de Mercúrio', description: 'Molda mercúrio líquido numa barreira metálica densa e espessa ao redor do corpo, que se recompõe com facilidade. Reação que absorve parte do golpe, e absorve ainda mais contra ataques físicos.', actionText: 'Escudo de Mercúrio', gif: 'mercurio_escudo_de_mercurio.gif', grimoire: 'mercurio',
+    type: 'reaction', kind: 'block', absorb: [5, 8], attribute: 'magiaDefensiva', manaCost: 22, physicalBonus: 1.5, emoji: '🪩',
+    minLevel: 10, after: 'bala_de_prata',
+    // Rank II: barreira mais espessa
+    ranks: [
+      { minLevel: 24, absorb: [8, 12] },
+    ],
+  },
+  // Feixe de mercúrio brilhante que segue a palma da mão: perfura rocha (ignora Bloqueio) e alcança longe
+  lanca_real_prateada: {
+    id: 'lanca_real_prateada', name: 'Lança Real Prateada Brilhante', description: 'Estende a palma da mão e dela sai um longo feixe de mercúrio brilhante, que segue o movimento da mão e é afiado o bastante para perfurar metros de rocha. Alcance longo, dano alto e atravessa o Bloqueio.', actionText: 'Lança Real Prateada Brilhante', gif: 'mercurio_lanca_real_prateada.gif', grimoire: 'mercurio', magic: true,
+    type: 'attack', range: 6, damage: [17, 24], attribute: 'magiaOfensiva', manaCost: 50, cooldown: 3, ignoreBlock: true,
+    minLevel: 26, after: 'lancas_de_prata',
+  },
+  // Gotas de mercúrio caem do céu sobre todos os inimigos ao redor; o usuário desvia as gotas de si mesmo
+  chuva_prateada: {
+    id: 'chuva_prateada', name: 'Chuva Prateada', description: 'Invoca inúmeras gotas de mercúrio do céu, tão densas que rompem tudo no caminho. Ação bônus que atinge todos os inimigos ao seu redor; você controla as gotas para não ser atingido.', actionText: 'Chuva Prateada', gif: 'mercurio_chuva_prateada.gif', grimoire: 'mercurio', magic: true,
+    type: 'bonus', manaCost: 48, cooldown: 4, area: { radius: 3 }, damage: [10, 14], attribute: 'magiaOfensiva',
+    minLevel: 20, after: 'lamina_de_prata',
+    use(battle, user) {
+      const lines = [`🌧️ ${user.name} fez cair uma **Chuva Prateada**: as gotas de mercúrio desviam dele e caem sobre os inimigos.`];
+      for (const foe of foesInArea(battle, user, this.area.radius)) {
+        lines.push(`🪩 ${foe.name} foi atingido pelas gotas (**${hitWithMagic(this, user, foe)}** de dano).`, ...fx.onHit(foe));
+      }
+      return lines.join(NL);
+    },
+  },
+  // Gaiola gigante de mercúrio: as barras lançam lanças no alvo e bloqueiam fuga e contra-ataques
+  estrela_de_prata: {
+    id: 'estrela_de_prata', name: 'Estrela de Prata da Execução', description: 'Espalha fios e gotas de mercúrio pela área e os reúne numa gaiola gigante ao redor do alvo. As barras disparam Lanças de Prata nele e bloqueiam fugas e contra-ataques: causa dano e deixa o alvo sem se mover e sem reagir.', actionText: 'Estrela de Prata da Execução', gif: 'mercurio_estrela_de_prata.gif', grimoire: 'mercurio', magic: true,
+    type: 'bonus', manaCost: 55, cooldown: 5, targetRange: 4, damage: [10, 14], attribute: 'magiaOfensiva',
+    applies: [{ effect: 'gaiola_de_prata', turns: 2, to: 'enemy' }],
+    minLevel: 28, after: 'escudo_de_mercurio',
+    use(battle, user, foe) {
+      return [`⭐ ${user.name} prendeu ${foe.name} na **Estrela de Prata da Execução**: as barras dispararam lanças de prata (**${hitWithMagic(this, user, foe)}** de dano).`, ...fx.onHit(foe)].join(NL);
+    },
+  },
 };
 
 const TYPE_LABEL = { attack: 'Ataque', bonus: 'Ação bônus', reaction: 'Reação' };

@@ -396,7 +396,9 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
       log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}**, mas **${attack.name}** ${attack.grimoire === 'espaco' ? 'apaga tudo que toca' : 'atravessa a defesa'}: nada foi absorvido.`;
     } else if (reaction.kind === 'block') {
       // Defesa escala como um ataque: valor sorteado + atributo × multiplicador (Bloqueio usa Resistência; defesas mágicas, Magia Defensiva)
-      const absorbed = Math.min(damage, rand(reaction.absorb) + Math.round((defender.attrs[reaction.attribute] ?? 0) * (C.DEFENSE_PER_POINT[reaction.attribute] ?? 0) * abilityScale(reaction)));
+      // `physicalBonus` (Escudo de Mercúrio): o metal pesado absorve mais contra golpes físicos
+      const physical = reaction.physicalBonus && !attack.magic ? reaction.physicalBonus : 1;
+      const absorbed = Math.min(damage, Math.round((rand(reaction.absorb) + Math.round((defender.attrs[reaction.attribute] ?? 0) * (C.DEFENSE_PER_POINT[reaction.attribute] ?? 0) * abilityScale(reaction))) * physical));
       damage -= absorbed;
       log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}** e absorveu ${absorbed} de dano.`;
       // Barreira com espinhos (`thorns`): quem atacou se fere nela (nunca morre disso) e sofre os efeitos da barreira
