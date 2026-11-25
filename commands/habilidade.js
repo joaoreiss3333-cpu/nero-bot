@@ -74,7 +74,7 @@ module.exports = {
       return fail(interaction, `**${ability.name}** ainda está em recarga: faltam ${me.cooldowns[ability.id]} turno(s) seu(s).`);
     }
     if (ability.requiresEffect && !hasEffect(me, ability.requiresEffect)) {
-      return fail(interaction, `**${ability.name}** só pode ser usada com **${getEffect(ability.requiresEffect).name}** ativa.`);
+      return fail(interaction, `**${ability.name}** só pode ser usada com o efeito **${getEffect(ability.requiresEffect).name}** ativo.`);
     }
     const mods = getMods(me);
     if (mods.noAct) return fail(interaction, 'Você não consegue agir neste turno por causa de um efeito (atordoado, dormindo...).');

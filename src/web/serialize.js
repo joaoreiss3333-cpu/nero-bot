@@ -6,7 +6,13 @@ const { learnCost, learnBlocker, nextStep, rankOf } = require('../combat/charact
 const { ATTRIBUTES, xpToNext, maxHp, maxMana, maxEnergy, speed } = require('../combat/progression');
 const C = require('../combat/config');
 
-const gifUrl = gif => (!gif ? null : /^https?:/.test(gif) ? gif : `/gifs/${encodeURIComponent(gif)}`);
+const fs = require('fs');
+const path = require('path');
+
+const GIF_DIR = path.join(__dirname, '..', '..', 'assets', 'gifs');
+// Só manda o GIF se o arquivo já estiver em assets/gifs (magia nova sem GIF mostra a inicial no site)
+const gifUrl = gif => (!gif ? null : /^https?:/.test(gif) ? gif
+  : fs.existsSync(path.join(GIF_DIR, gif)) ? `/gifs/${encodeURIComponent(gif)}` : null);
 
 // Os detalhes de combate da magia num determinado rank, como frases curtas
 function details(a) {
@@ -31,7 +37,8 @@ function details(a) {
   if (a.summon) out.push(`Invoca ${a.summon.count} clones por ${a.summon.duration} turnos`);
   if (a.healCap) out.push(`Volta até ${Math.round(a.healCap * 100)}% da vida`);
   if (a.manaRefund) out.push(`Recupera ${a.manaRefund} de mana`);
-  if (a.requiresEffect) out.push(`Exige ${getEffect(a.requiresEffect)?.name} ativa`);
+  if (a.requiresEffect) out.push(`Exige o efeito ${getEffect(a.requiresEffect)?.name} ativo`);
+  if (a.keepsAsleep) out.push('Não acorda quem está dormindo');
   if (a.chance) out.push(`${Math.round(a.chance * 100)}% de chance`);
   for (const e of a.applies ?? []) {
     const fx = getEffect(e.effect);

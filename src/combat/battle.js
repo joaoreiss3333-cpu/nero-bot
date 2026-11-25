@@ -251,7 +251,7 @@ function summonClones(battle, owner, ability) {
 // Efeitos de posição e invocação de uma ação bônus (o teleporte já foi planejado por planBonus)
 function applyBonus(battle, me, ability, dest, foe) {
   const lines = [];
-  if (ability.teleport === 'self') { me.pos = dest; lines.push(`🌀 ${me.name} atravessou um portal e reapareceu em outro ponto do mapa.`); }
+  if (ability.teleport === 'self') { me.pos = dest; lines.push(ability.teleportText?.(me) ?? `🌀 ${me.name} atravessou um portal e reapareceu em outro ponto do mapa.`); }
   if (ability.teleport === 'enemy') { foe.pos = dest; lines.push(`⬛ ${foe.name} foi engolido pela escuridão e levado para outro ponto do mapa.`); }
   if (ability.summon) lines.push(...summonClones(battle, me, ability));
   if (ability.push) lines.push(...pushAway(battle, me, foe, ability.push));
@@ -338,7 +338,7 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
   let log = `${attacker.name} usou **${attack.name}** em ${defender.name} (${damage} de dano).`;
   if (crit) log += `\n💥 **Golpe crítico!**`;
   if (resist > 0) log += `\n🛡️ As proteções de ${defender.name} reduziram o dano em ${Math.round(resist * 100)}%.`;
-  if (vuln > 1) log += `\n💧 ${defender.name} está vulnerável a esse elemento (dano x${vuln.toFixed(1)}).`;
+  if (vuln > 1) log += `\n💧 ${defender.name} está vulnerável a esse elemento (dano x${+vuln.toFixed(2)}).`;
 
   if (reaction) {
     if (attack.cutsSpace && reaction.grimoire === 'espaco' && ['capture', 'reflect'].includes(reaction.kind)) {
@@ -394,14 +394,14 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
     for (const other of enemiesOf(battle, attacker).filter(p => p !== defender && distance(p.pos, defender.pos) <= attack.splash.radius)) {
       const splashDmg = Math.max(1, Math.round(raw * attack.splash.share * (1 - Math.min(0.9, fx.getMods(other).damageResist))));
       other.hp = Math.max(0, other.hp - splashDmg);
-      hitLines.push(`💢 ${other.name} também foi atingido (**${splashDmg}** de dano).`, ...fx.onHit(other, attack.element));
+      hitLines.push(`💢 ${other.name} também foi atingido (**${splashDmg}** de dano).`, ...fx.onHit(other, attack.element, attack));
     }
     if (hitLines.length) log += `\n${hitLines.join('\n')}`;
   }
 
   // Efeitos: só se o golpe causou dano e o alvo continua de pé (o golpe também pode acordar/descongelar o alvo)
   if (damage > 0 && defender.hp > 0) {
-    const lines = [...fx.onHit(defender, attack.element), ...fx.applyAbilityEffects(attack, attacker, defender)];
+    const lines = [...fx.onHit(defender, attack.element, attack), ...fx.applyAbilityEffects(attack, attacker, defender)];
     if (battle && attack.displace && displaceFar(battle, defender, attacker.pos, attack.displace)) {
       lines.push(`🌀 ${defender.name} foi atingido e teletransportado para outro ponto do mapa!`);
     }

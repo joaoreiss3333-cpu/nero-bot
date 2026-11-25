@@ -226,7 +226,8 @@ const abilities = {
   },
 
   // ---- Grimório da Árvore do Mundo (LENDÁRIO) ----
-  // Controle de área e suporte: prende, cura e protege o time. Escala de atributo da raridade (1,7x). Sem `ranks`.
+  // Controle de área e suporte: prende, cura e protege o time. Escala de atributo da raridade (1,7x).
+  // Ranks na Semente, no Florescer, na Grande Árvore e na Formação: a árvore tem poucas magias, então elas evoluem.
   // Árvore: Semente -> { Descida da Árvore Mágica, Florescer da Yggdrasil, Grande Árvore Mistilteinn -> Formação Dracaena }.
   // Enraizado impede de se mover (ainda pode atacar e reagir).
   // Lança uma semente que vira madeira ao redor do alvo e o prende
@@ -235,6 +236,11 @@ const abilities = {
     type: 'attack', range: 4, damage: [7, 11], attribute: 'magiaOfensiva', manaCost: 28, cooldown: 3,
     applies: [{ effect: 'enraizado', turns: 2 }],
     minLevel: 8, // raiz da árvore
+    // Rank II: mais dano. Rank III: a madeira prende por mais tempo.
+    ranks: [
+      { minLevel: 16, damage: [10, 15] },
+      { minLevel: 28, damage: [13, 19], applies: [{ effect: 'enraizado', turns: 3 }] },
+    ],
   },
   // Estacas de madeira em alta velocidade: o alvo reage normalmente e quem está perto dele leva 60% do dano
   descida_da_arvore_magica: {
@@ -248,6 +254,11 @@ const abilities = {
     id: 'florescer_da_yggdrasil', name: 'Florescer da Yggdrasil', description: 'Uma árvore mágica se espalha e seus galhos envolvem os aliados feridos para restaurá-los. Cura você e os aliados por perto.', actionText: 'Florescer da Yggdrasil', gif: 'arvore_florescer_da_yggdrasil.gif', grimoire: 'arvore_do_mundo', magic: true,
     type: 'bonus', manaCost: 55, cooldown: 4, radius: 4, heal: [10, 16], attribute: 'magiaSuplementar',
     minLevel: 16, after: 'semente_de_mistilteinn',
+    // Rank II: cura mais. Rank III: cura ainda mais e recarrega mais rápido.
+    ranks: [
+      { minLevel: 26, heal: [15, 22] },
+      { minLevel: 40, heal: [20, 30], cooldown: 3 },
+    ],
     use(battle, user) {
       const scale = this.attributeScale ?? C.RARITY_SCALE[getGrimoire(this.grimoire)?.rarity] ?? 1;
       const bonus = Math.round((user.attrs[this.attribute] ?? 0) * (C.DAMAGE_PER_POINT[this.attribute] ?? 0) * scale);
@@ -267,12 +278,20 @@ const abilities = {
     id: 'grande_arvore_mistilteinn', name: 'Grande Árvore Mistilteinn', description: 'Libera uma enorme quantidade de mana: raízes gigantes tomam o campo e uma árvore colossal cresce. Enraíza todos os inimigos ao seu redor.', actionText: 'Grande Árvore Mistilteinn', gif: 'arvore_grande_arvore_mistilteinn.gif', grimoire: 'arvore_do_mundo', magic: true,
     type: 'bonus', manaCost: 50, cooldown: 5, area: { radius: 4 }, applies: [{ effect: 'enraizado', turns: 2, to: 'enemy' }],
     minLevel: 24, after: 'semente_de_mistilteinn',
+    // Rank II: as raízes cobrem uma área maior e prendem por mais tempo
+    ranks: [
+      { minLevel: 36, area: { radius: 5 }, applies: [{ effect: 'enraizado', turns: 3, to: 'enemy' }] },
+    ],
   },
   // Estrutura de madeira: prende os inimigos num raio de 3 casas e protege você e os aliados (-30% de dano por 2 turnos)
   formacao_dracaena: {
     id: 'formacao_dracaena', name: 'Formação Dracaena', description: 'Raízes emergem do solo e formam uma estrutura gigante de madeira. Enraíza os inimigos próximos e protege você e os aliados, que recebem menos dano.', actionText: 'Formação Dracaena', gif: 'arvore_formacao_dracaena.gif', grimoire: 'arvore_do_mundo', magic: true,
     type: 'bonus', manaCost: 70, cooldown: 5, radius: 3,
     minLevel: 34, after: 'grande_arvore_mistilteinn',
+    // Rank II: a estrutura cobre um raio maior e sai mais vezes
+    ranks: [
+      { minLevel: 44, radius: 4, cooldown: 4 },
+    ],
     use(battle, user) {
       const near = p => p.hp > 0 && p.pos && user.pos && distance(p.pos, user.pos) <= this.radius;
       const allies = battle.players.filter(p => p === user || (p.team === user.team && near(p)));
@@ -282,6 +301,114 @@ const abilities = {
       for (const p of foes) lines.push(fx.applyEffect(p, 'enraizado', { turns: 2 }));
       return lines.join(NL);
     },
+  },
+
+  // ---- Grimório dos Sonhos (LENDÁRIO) ----
+  // Controle pelo sono: o Mundo do Glamour prende os inimigos num sonho onde ficam mais sonolentos a cada turno
+  // (Sonolento x3 = dormindo, sem agir). As outras magias só funcionam com o Mundo aberto e acontecem DENTRO do sonho:
+  // `keepsAsleep` faz elas não acordarem quem está dormindo, e o elemento `sonho` causa +25% em quem está Preso no Sonho.
+  // Qualquer outro golpe acorda o alvo. Escala de atributo da raridade (1,7x). Todas têm ranks: a árvore tem só 4 magias.
+  // Árvore: Mundo do Glamour -> { Materialização dos Sonhos -> Manipulação do Mundo dos Sonhos }, { Névoa do Sono }.
+  // Névoa escura em área: prende os inimigos próximos no mundo dos sonhos e abre o Mundo do Glamour para quem usou
+  mundo_do_glamour: {
+    id: 'mundo_do_glamour', name: 'Mundo do Glamour', description: 'Libera uma névoa escura que puxa os inimigos próximos para um mundo de sonhos, onde ficam mais sonolentos a cada turno até adormecerem. Abre o Mundo do Glamour, que libera as outras magias dos Sonhos.', actionText: 'Mundo do Glamour', gif: 'sonhos_mundo_do_glamour.gif', grimoire: 'sonhos', magic: true,
+    type: 'bonus', manaCost: 45, cooldown: 5, area: { radius: 4 },
+    applies: [{ effect: 'preso_no_sonho', turns: 4, to: 'enemy' }, { effect: 'mundo_do_glamour', turns: 4, to: 'self' }],
+    minLevel: 8, // raiz da árvore dos Sonhos
+    // Rank II: a névoa puxa de mais longe. Rank III: o sonho dura mais (o inimigo dorme e o Mundo fica aberto por mais tempo).
+    ranks: [
+      { minLevel: 20, area: { radius: 5 } },
+      { minLevel: 34, applies: [{ effect: 'preso_no_sonho', turns: 5, to: 'enemy' }, { effect: 'mundo_do_glamour', turns: 5, to: 'self' }] },
+    ],
+  },
+  // A imaginação ganha forma dentro do sonho e ataca o alvo (não o acorda)
+  materializacao_dos_sonhos: {
+    id: 'materializacao_dos_sonhos', name: 'Materialização dos Sonhos', description: 'Dentro do Mundo do Glamour, a imaginação ganha forma física em objetos, estruturas e criaturas que atacam o alvo. Só funciona com o Mundo do Glamour aberto e não acorda quem está dormindo.', actionText: 'Materialização dos Sonhos', gif: 'sonhos_materializacao_dos_sonhos.gif', grimoire: 'sonhos', magic: true, element: 'sonho',
+    type: 'attack', range: 4, damage: [10, 15], attribute: 'magiaOfensiva', manaCost: 34, dodgePenalty: 0.15, keepsAsleep: true,
+    requiresEffect: 'mundo_do_glamour',
+    minLevel: 12, after: 'mundo_do_glamour',
+    // Rank II: mais dano. Rank III: as criaturas também atacam quem está colado no alvo.
+    ranks: [
+      { minLevel: 24, damage: [14, 20] },
+      { minLevel: 36, damage: [18, 26], splash: { radius: 1, share: 0.4 } },
+    ],
+  },
+  // Dano baixo e muito sono: com o Mundo do Glamour, o alvo adormece rápido
+  nevoa_do_sono: {
+    id: 'nevoa_do_sono', name: 'Névoa do Sono', description: 'Manipula o mundo dos sonhos para encher o alvo de uma sonolência crescente. Causa pouco dano, mas deixa o alvo muito Sonolento, e com 3 acúmulos ele adormece.', actionText: 'Névoa do Sono', gif: 'sonhos_nevoa_do_sono.gif', grimoire: 'sonhos', magic: true, element: 'sonho',
+    type: 'attack', range: 4, damage: [5, 8], attribute: 'magiaOfensiva', attributeScale: 0.85, manaCost: 36, cooldown: 2, keepsAsleep: true, // metade da escala lendária: o forte dela é o sono, não o dano
+    applies: [{ effect: 'sonolento', turns: 2, stacks: 2 }],
+    requiresEffect: 'mundo_do_glamour',
+    minLevel: 16, after: 'mundo_do_glamour',
+    // Rank II: o alvo adormece num golpe só (3 acúmulos), mas a recarga sobe
+    ranks: [
+      { minLevel: 32, applies: [{ effect: 'sonolento', turns: 2, stacks: 3 }], cooldown: 3 },
+    ],
+  },
+  // O cenário muda à vontade de quem usa: você se move pelo sonho (use `direcao` e `casas`) e montanhas e construções te protegem
+  manipulacao_do_mundo_dos_sonhos: {
+    id: 'manipulacao_do_mundo_dos_sonhos', name: 'Manipulação do Mundo dos Sonhos', description: 'Com um gesto, o cenário do sonho muda por completo: montanhas e construções surgem e desaparecem. Leva você até outro ponto do mapa e ergue o Cenário Onírico, que reduz o dano recebido.', actionText: 'Manipulação do Mundo dos Sonhos', gif: 'sonhos_manipulacao_do_mundo_dos_sonhos.gif', grimoire: 'sonhos', magic: true,
+    type: 'bonus', manaCost: 40, cooldown: 4, teleport: 'self', destRange: 6,
+    applies: [{ effect: 'cenario_onirico', turns: 2, to: 'self' }],
+    teleportText: me => `🏔️ O cenário do sonho se moveu e levou ${me.name} para outro ponto do mapa.`,
+    requiresEffect: 'mundo_do_glamour',
+    minLevel: 22, after: 'materializacao_dos_sonhos',
+    // Rank II: leva mais longe e o Cenário Onírico protege por mais um turno
+    ranks: [
+      { minLevel: 34, destRange: 8, applies: [{ effect: 'cenario_onirico', turns: 3, to: 'self' }] },
+    ],
+  },
+
+  // ---- Grimório da Fera (ÉPICO) ----
+  // Lutador: auras de animais que deixam o corpo mais forte e rápido. Escala de atributo da raridade (1,4x).
+  // Os golpes e a investida acendem o Instinto Selvagem em quem usa (+dano e +1 casa de movimento; mais dano com pouca vida).
+  // Todas têm ranks: a árvore tem só 4 magias.
+  // Árvore: Garra de Urso -> { Investida de Guepardo -> Beast Magic: Whale }, { Armadura de Rinoceronte }.
+  // Garras de aura no braço: corpo a corpo; nos ranks a aura se estende e lança cortes no ar (mais alcance)
+  garra_de_urso: {
+    id: 'garra_de_urso', name: 'Garra de Urso', description: 'Envolve os braços numa aura alaranjada em forma de garras de urso, aumentando muito a força dos golpes. Ataque corpo a corpo que acende o Instinto Selvagem em você; nos ranks, a aura se estende e lança cortes no ar.', actionText: 'Garra de Urso', gif: 'fera_garra_de_urso.gif', grimoire: 'fera', magic: true,
+    type: 'attack', range: 1, damage: [9, 13], attribute: 'magiaOfensiva', manaCost: 20,
+    applies: [{ effect: 'instinto_selvagem', turns: 2, to: 'self' }],
+    minLevel: 6, // raiz da árvore da Fera
+    // Rank II: mais dano e a aura alcança 2 casas. Rank III: cortes no ar até 3 casas e o Instinto dura mais.
+    ranks: [
+      { minLevel: 16, damage: [12, 17], range: 2 },
+      { minLevel: 28, damage: [15, 21], range: 3, applies: [{ effect: 'instinto_selvagem', turns: 3, to: 'self' }] },
+    ],
+  },
+  // Investida rápida: leva você N casas numa direção (use `direcao` e `casas`) e acende o Instinto Selvagem
+  investida_de_guepardo: {
+    id: 'investida_de_guepardo', name: 'Investida de Guepardo', description: 'Uma aura de guepardo aumenta sua velocidade e permite investidas extremamente rápidas. Leva você até outro ponto do mapa e acende o Instinto Selvagem.', actionText: 'Investida de Guepardo', gif: 'fera_investida_de_guepardo.gif', grimoire: 'fera', magic: true,
+    type: 'bonus', manaCost: 25, cooldown: 3, teleport: 'self', destRange: 4,
+    applies: [{ effect: 'instinto_selvagem', turns: 2, to: 'self' }],
+    teleportText: me => `🐆 ${me.name} disparou numa investida de guepardo até outro ponto do mapa.`,
+    minLevel: 10, after: 'garra_de_urso',
+    // Rank II: investida mais longa e mais frequente
+    ranks: [
+      { minLevel: 22, destRange: 6, cooldown: 2 },
+    ],
+  },
+  // Aura de rinoceronte: bloqueio mágico que segura impactos fortes
+  armadura_de_rinoceronte: {
+    id: 'armadura_de_rinoceronte', name: 'Armadura de Rinoceronte', description: 'Gera uma aura em forma de rinoceronte ao redor do corpo, capaz de impedir impactos poderosos. Reação que absorve boa parte do golpe recebido.', actionText: 'Armadura de Rinoceronte', gif: 'fera_armadura_de_rinoceronte.gif', grimoire: 'fera',
+    type: 'reaction', kind: 'block', absorb: [4, 7], attribute: 'magiaDefensiva', manaCost: 26, emoji: '🦏',
+    minLevel: 12, after: 'garra_de_urso',
+    // Rank II e III: a aura fica mais resistente
+    ranks: [
+      { minLevel: 24, absorb: [7, 11] },
+      { minLevel: 36, absorb: [10, 15], manaCost: 30 },
+    ],
+  },
+  // Baleia de mana: o golpe mais forte da Fera; o tamanho esmaga também quem está perto do alvo
+  beast_magic_whale: {
+    id: 'beast_magic_whale', name: 'Beast Magic: Whale', description: 'Uma enorme baleia feita de mana avança contra os adversários e os esmaga com seu tamanho e força. O golpe mais forte da Fera: atinge também quem está perto do alvo e acende o Instinto Selvagem.', actionText: 'Beast Magic: Whale', gif: 'fera_beast_magic_whale.gif', grimoire: 'fera', magic: true,
+    type: 'attack', range: 4, damage: [16, 23], attribute: 'magiaOfensiva', manaCost: 48, cooldown: 3,
+    splash: { radius: 1, share: 0.5 }, applies: [{ effect: 'instinto_selvagem', turns: 2, to: 'self' }],
+    minLevel: 20, after: 'investida_de_guepardo',
+    // Rank II: baleia maior: mais dano e esmaga numa área maior
+    ranks: [
+      { minLevel: 34, damage: [21, 29], splash: { radius: 2, share: 0.6 } },
+    ],
   },
 };
 

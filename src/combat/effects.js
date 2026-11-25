@@ -8,6 +8,8 @@
 //   lowHpMods   modificadores extras quando a vida do dono está abaixo de 50%
 //   vulnerable  { elemento: multiplicador } -> o dono leva mais dano desse elemento
 //   endsOnHit   o efeito acaba quando o dono sofre dano direto; endsOnElement: ... só se o golpe for desse elemento
+//               (golpes com `keepsAsleep` na habilidade, como as magias dos Sonhos, não acordam o Sonolento)
+//   eachTurn    { effect, turns, stacks } -> aplica esse efeito no dono no fim de cada turno dele (ex: sono crescente)
 //
 // A duração (turnos), os stacks e a força (`power`, dano por stack) vêm da habilidade que aplica:
 //   applies: [{ effect: 'sangramento', turns: 3, stacks: 1, power: 2, to: 'enemy' | 'self' }]
@@ -37,6 +39,15 @@ const EFFECTS = {
   lua_negra: { name: 'Lua Negra', emoji: '🌑', kind: 'buff', mods: { magicResist: 0.35 } },
   // Galhos da Formação Dracaena envolvem e protegem: reduzem todo dano recebido
   abrigo_dracaena: { name: 'Abrigo Dracaena', emoji: '🌳', kind: 'buff', mods: { damageResist: 0.3 } },
+  // Sonhos: quem abriu o Mundo do Glamour (libera as outras magias dos Sonhos)
+  mundo_do_glamour: { name: 'Mundo do Glamour', emoji: '🌙', kind: 'buff' },
+  // Preso no mundo dos sonhos: fica mais sonolento a cada turno e sofre mais dano das magias dos Sonhos
+  preso_no_sonho: {
+    name: 'Preso no Sonho', emoji: '💭', kind: 'debuff', vulnerable: { sonho: 1.25 },
+    eachTurn: { effect: 'sonolento', turns: 2 },
+  },
+  // O cenário do sonho se ergue para proteger quem o manipula
+  cenario_onirico: { name: 'Cenário Onírico', emoji: '🏔️', kind: 'buff', mods: { damageResist: 0.25 } },
   instinto_selvagem: {
     name: 'Instinto Selvagem', emoji: '🐺', kind: 'buff',
     mods: { damageBonus: 3, moveDelta: 1 }, lowHpMods: { damageBonus: 3 },
@@ -148,12 +159,12 @@ function clearDebuffs(player) {
   return removed;
 }
 
-// O jogador levou um golpe direto: acorda o Sonolento e descongela se foi de fogo
-function onHit(player, element) {
+// O jogador levou um golpe direto: acorda o Sonolento (menos com golpes `keepsAsleep`) e descongela se foi de fogo
+function onHit(player, element, { keepsAsleep = false } = {}) {
   const lines = [];
   for (const [id, def] of Object.entries({ ...EFFECTS })) {
     if (!hasEffect(player, id)) continue;
-    if (def.endsOnHit || (def.endsOnElement && def.endsOnElement === element)) {
+    if ((def.endsOnHit && !keepsAsleep) || (def.endsOnElement && def.endsOnElement === element)) {
       removeEffect(player, id);
       lines.push(`${def.emoji} **${def.name}** de ${player.name} acabou ao ser atingido.`);
     }
@@ -176,6 +187,10 @@ function endOfTurn(player) {
       const lost = Math.min(player.energy, def.drainEnergy * state.stacks);
       player.energy -= lost;
       lines.push(`${def.emoji} ${player.name} perdeu ${lost} de energia (${def.name}).`);
+    }
+    if (def.eachTurn && player.hp > 0) {
+      const line = applyEffect(player, def.eachTurn.effect, def.eachTurn);
+      if (line) lines.push(`${def.emoji} ${def.name}: ${line}`);
     }
     state.turns -= 1;
     if (state.turns <= 0) {
