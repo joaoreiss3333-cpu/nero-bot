@@ -46,3 +46,6 @@ client.on(Events.Error, err => console.error('Erro do client:', err));
 process.on('unhandledRejection', err => console.error('Promise rejeitada:', err));
 
 client.login(process.env.DISCORD_TOKEN);
+
+// O site roda junto com o bot (mesmas fichas em memória). SITE=off no .env desliga.
+if (process.env.SITE !== 'off') require('./src/web/server').start();

@@ -105,6 +105,9 @@ const enemiesOf = (b, player) => b.players.filter(p => p.team !== player.team &&
 const alliesOf = (b, player) => b.players.filter(p => p.team === player.team && p !== player && isAlive(p));
 const findPlayer = (b, id) => b.players.find(p => p.id === id);
 
+// O jogador está em alguma batalha, em qualquer canal? (o site usa para bloquear compras no meio da luta)
+const inAnyBattle = userId => [...battles.values()].some(b => findPlayer(b, userId));
+
 // Time vencedor (0 ou 1) quando só um time tem gente de pé; null se a luta continua
 function winnerTeam(battle) {
   const teams = new Set(battle.players.filter(isAlive).map(p => p.team));
@@ -433,6 +436,6 @@ function nextTurn(battle) {
 }
 
 module.exports = {
-  createBattle, getBattle, endBattle, currentPlayer, enemiesOf, alliesOf, isAlive, winnerTeam, victoryText, collectFallen, needsTarget, findPlayer, abilitiesOf, abilityOf, abilityCost, resourceOf, resourceLabel, canAfford, spend, reactionBlock, clampMoves,
+  createBattle, getBattle, inAnyBattle, endBattle, currentPlayer, enemiesOf, alliesOf, isAlive, winnerTeam, victoryText, collectFallen, needsTarget, findPlayer, abilitiesOf, abilityOf, abilityCost, resourceOf, resourceLabel, canAfford, spend, reactionBlock, clampMoves,
   planBonus, applyBonus, isOccupied, placePlayer, allPlaced, checkStep, movePlayer, startActions, resolveAttack, nextTurn,
 };

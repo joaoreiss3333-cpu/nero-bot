@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { getProfile, save } = require('../src/combat/profiles');
 const { getAbility, TYPE_LABEL } = require('../src/combat/abilities');
-const { grimoireTree, learnBlocker, nextStep, learnCost } = require('../src/combat/characters');
+const { grimoireTree, learnBlocker, nextStep, learnCost, learn } = require('../src/combat/characters');
 const { getBattle, findPlayer } = require('../src/combat/battle');
 
 const fail = (interaction, content) => interaction.reply({ content, ephemeral: true });
@@ -37,14 +37,8 @@ module.exports = {
     if (!profile.grimoire) return fail(interaction, 'Você ainda não tem um grimório. Peça à staff para definir o seu.');
     const ability = getAbility(interaction.options.getString('magia'));
     if (!ability) return fail(interaction, 'Magia não encontrada.');
-    const blocker = learnBlocker(profile, ability);
-    if (blocker) return fail(interaction, `❌ Você não pode comprar **${ability.name}** agora: ${blocker}.`);
-
-    const { rank } = nextStep(profile, ability);
-    const cost = learnCost(ability, rank);
-    profile.skillPoints -= cost;
-    if (rank === 1) profile.learned.push(ability.id);
-    profile.ranks[ability.id] = rank;
+    const { error, rank, cost } = learn(profile, ability);
+    if (error) return fail(interaction, `❌ Você não pode comprar **${ability.name}** agora: ${error}.`);
     save();
     return interaction.reply({
       content: rank === 1

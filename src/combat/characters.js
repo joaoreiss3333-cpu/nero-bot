@@ -58,6 +58,19 @@ function learnBlocker(profile, ability) {
   return null;
 }
 
+// Compra o próximo passo da magia (aprender ou subir de rank), gastando os pontos. Usado pelo /aprender e pelo site.
+// Retorna { error } se não puder, ou { rank, cost } da compra feita. Quem chama precisa salvar a ficha (save()).
+function learn(profile, ability) {
+  const blocker = learnBlocker(profile, ability);
+  if (blocker) return { error: blocker };
+  const { rank } = nextStep(profile, ability);
+  const cost = learnCost(ability, rank);
+  profile.skillPoints -= cost;
+  if (rank === 1) profile.learned.push(ability.id);
+  profile.ranks[ability.id] = rank;
+  return { rank, cost };
+}
+
 // Habilidades do kit: o kit base + as magias aprendidas do grimório
 const getKit = userId => {
   const profile = getProfile(userId);
@@ -85,4 +98,4 @@ const getRanks = userId => {
   return Object.fromEntries(profile.learned.map(id => [id, rankOf(profile, id)]));
 };
 
-module.exports = { getKit, getCombatStats, getRanks, grimoireTree, learnBlocker, nextStep, rankOf, learnCost, spentSkillPoints };
+module.exports = { getKit, getCombatStats, getRanks, grimoireTree, learnBlocker, nextStep, rankOf, learnCost, spentSkillPoints, learn };
