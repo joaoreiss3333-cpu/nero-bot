@@ -173,6 +173,20 @@ th { color: var(--muted); font-weight: 600; }
 .blocker { color: var(--bad); font-size: 13px; margin: 8px 0; }
 .points-pill { display: inline-flex; gap: 6px; align-items: center; background: var(--card-2); border: 1px solid var(--gold); color: var(--gold); padding: 6px 14px; border-radius: 999px; font-weight: 600; }
 
+/* Melhorias (rank II, III...) */
+.tree svg path.upgrade { stroke-width: 2; }
+.node.upgrade .orb { width: 70px; height: 70px; margin-top: 7px; border-style: double; border-width: 4px; }
+.node.upgrade .orb img { opacity: .75; }
+.node .roman {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-family: Cinzel, serif; font-weight: 800; font-size: 24px; color: #fff;
+  text-shadow: 0 0 6px #000, 0 0 12px #000; background: rgba(13, 11, 20, .35);
+}
+.node.locked .roman { display: none; }
+.node .n-name small { display: block; font-size: 10.5px; color: var(--gold); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.rank-tag { font-size: 13px; color: var(--gold); border: 1px solid var(--gold); border-radius: 999px; padding: 1px 8px; vertical-align: middle; font-family: Inter, sans-serif; }
+.dot.upgrade { border-style: double; border-width: 3px; border-color: var(--muted); }
+
 /* ---- Grimórios ---- */
 .grim-card { cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
 .grim-card:hover { border-color: var(--accent); }

@@ -205,40 +205,61 @@ function pagePerfil() {
 }
 
 // ================= Árvore de habilidades =================
-// Cada magia é um nó; `after` liga a magia à anterior (é preciso aprender a de cima para liberar a de baixo).
+// Cada magia é um nó, e cada rank extra dela (II, III...) é outro nó logo abaixo, no mesmo galho.
+// `after` liga a magia à anterior: é preciso aprender a de cima para liberar a de baixo.
 // A mesma tela serve para a árvore do jogador (compra) e para a prévia de qualquer grimório (só leitura).
 const NODE_W = 136, NODE_H = 150, GAP_X = 26, GAP_Y = 54, ORB = 84;
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
 let selectedId = null;
 let justBought = null;
 
-// Posição de cada magia: filhos abaixo do pai, folhas lado a lado e o pai centralizado sobre os filhos
-function layoutTree(abilities) {
+const nodeKey = (id, r) => (r === 1 ? id : `${id}#${r}`);
+
+// Os nós da árvore: um por rank de cada magia. O rank 1 fica sob a magia anterior (`after`);
+// o rank N fica sob o rank N-1. Os ranks vêm antes das magias filhas, para o galho da melhoria ficar junto.
+function buildNodes(abilities) {
   const ids = new Set(abilities.map(a => a.id));
+  const nodes = [];
+  for (const a of abilities) {
+    a.ranks.forEach((spec, i) => {
+      const r = i + 1;
+      nodes.push({
+        key: nodeKey(a.id, r), a, r, spec,
+        parent: r > 1 ? nodeKey(a.id, r - 1) : a.after && ids.has(a.after) ? a.after : null,
+      });
+    });
+  }
+  return nodes;
+}
+
+// Posição de cada nó: filhos abaixo do pai, folhas lado a lado e o pai centralizado sobre os filhos
+function layoutTree(nodes) {
   const kids = {};
-  for (const a of abilities) if (a.after && ids.has(a.after)) (kids[a.after] ||= []).push(a.id);
-  const roots = abilities.filter(a => !a.after || !ids.has(a.after)).map(a => a.id);
+  for (const n of nodes) if (n.parent) (kids[n.parent] ||= []).push(n);
+  for (const list of Object.values(kids)) list.sort((x, y) => (y.r > 1) - (x.r > 1)); // galho dos ranks primeiro
   const pos = {};
   let leaf = 0, maxDepth = 0;
-  const place = (id, depth) => {
+  const place = (n, depth) => {
     maxDepth = Math.max(maxDepth, depth);
-    const c = kids[id] || [];
+    const c = kids[n.key] || [];
     let x;
     if (!c.length) x = leaf++;
     else { const xs = c.map(k => place(k, depth + 1)); x = (xs[0] + xs[xs.length - 1]) / 2; }
-    pos[id] = { x: x * (NODE_W + GAP_X), y: depth * (NODE_H + GAP_Y), depth };
+    pos[n.key] = { x: x * (NODE_W + GAP_X), y: depth * (NODE_H + GAP_Y) };
     return x;
   };
-  roots.forEach(r => place(r, 0));
-  return { pos, width: Math.max(leaf, 1) * (NODE_W + GAP_X) - GAP_X, height: (maxDepth + 1) * (NODE_H + GAP_Y) - GAP_Y };
+  nodes.filter(n => !n.parent).forEach(n => place(n, 0));
+  return { pos, kids, width: Math.max(leaf, 1) * (NODE_W + GAP_X) - GAP_X, height: (maxDepth + 1) * (NODE_H + GAP_Y) - GAP_Y };
 }
 
 // Estado do nó para o jogador
-function stateOf(a, tree) {
+function stateOf(n, tree) {
   if (tree.preview) return 'preview';
-  if (a.rank > 0) return a.next ? 'learned' : 'maxed';
-  const parentOk = !a.after || (tree.byId[a.after]?.rank ?? 0) > 0;
-  if (!parentOk) return 'locked';           // ainda falta a magia anterior
-  return a.blocker ? 'reachable' : 'available'; // liberada pela árvore, mas pode faltar nível ou pontos
+  const { a, r } = n;
+  if (a.rank >= r) return r === a.ranks.length ? 'maxed' : 'learned';
+  if (a.rank < r - 1) return 'locked';                                            // falta o rank anterior
+  if (r === 1 && a.after && !((tree.byId[a.after]?.rank ?? 0) > 0)) return 'locked'; // falta a magia anterior
+  return a.blocker ? 'reachable' : 'available'; // é o próximo passo, mas pode faltar nível ou pontos
 }
 
 // Uma árvore "de vitrine" a partir do catálogo (ninguém aprendeu nada)
@@ -249,30 +270,32 @@ const previewTree = g => ({
 
 function renderTree(tree) {
   tree.byId = Object.fromEntries(tree.abilities.map(a => [a.id, a]));
-  const { pos, width, height } = layoutTree(tree.abilities);
-  const byId = tree.byId;
-  if (!byId[selectedId]) {
-    selectedId = (tree.abilities.find(a => stateOf(a, tree) === 'available') || tree.abilities.find(a => !a.after) || tree.abilities[0])?.id;
+  tree.nodes = buildNodes(tree.abilities);
+  const nodeByKey = Object.fromEntries(tree.nodes.map(n => [n.key, n]));
+  const { pos, kids, width, height } = layoutTree(tree.nodes);
+  tree.kids = kids;
+  if (!nodeByKey[selectedId]) {
+    selectedId = (tree.nodes.find(n => stateOf(n, tree) === 'available') || tree.nodes.find(n => !n.parent) || tree.nodes[0])?.key;
   }
 
-  const edges = tree.abilities.filter(a => a.after && pos[a.after]).map(a => {
-    const p = pos[a.after], c = pos[a.id];
+  const edges = tree.nodes.filter(n => n.parent && pos[n.parent]).map(n => {
+    const p = pos[n.parent], c = pos[n.key];
     const x1 = p.x + NODE_W / 2, y1 = p.y + ORB + 4, x2 = c.x + NODE_W / 2, y2 = c.y - 4, my = (y1 + y2) / 2;
-    const cls = tree.preview ? '' : a.rank > 0 ? 'on' : (byId[a.after].rank > 0 ? 'open' : '');
-    return `<path class="${cls}" d="M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}"/>`;
+    const parentOwned = nodeByKey[n.parent].a.rank >= nodeByKey[n.parent].r;
+    const cls = tree.preview ? '' : n.a.rank >= n.r ? 'on' : parentOwned ? 'open' : '';
+    return `<path class="${cls} ${n.r > 1 ? 'upgrade' : ''}" d="M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}"/>`;
   }).join('');
 
-  const nodes = tree.abilities.map(a => {
-    const st = stateOf(a, tree);
-    const pips = a.ranks.length > 1
-      ? `<span class="pips">${a.ranks.map((_, i) => `<i class="${i < a.rank ? 'on' : ''}"></i>`).join('')}</span>` : '';
-    const price = st === 'maxed' ? '★ Máx.' : st === 'preview' ? `${a.ranks[0].cost} pt` : a.next ? `${a.next.cost} pt` : '';
-    return `<button class="node ${st} ${a.id === selectedId ? 'selected' : ''} ${a.id === justBought ? 'burst' : ''}" data-id="${a.id}"
-        style="left:${pos[a.id].x}px;top:${pos[a.id].y}px;width:${NODE_W}px" title="${esc(a.name)}">
-      <span class="orb">${a.gif ? `<img src="${esc(a.gif)}" alt="" loading="lazy">` : `<b>${esc(a.name[0])}</b>`}</span>
-      <span class="lvl">Nv ${a.ranks[0].minLevel}</span>
-      ${price ? `<span class="price">${price}</span>` : ''}
-      <span class="n-name">${esc(a.name)}</span>${pips}
+  const nodes = tree.nodes.map(n => {
+    const { a, r, spec } = n;
+    const st = stateOf(n, tree);
+    return `<button class="node ${st} ${r > 1 ? 'upgrade' : ''} ${n.key === selectedId ? 'selected' : ''} ${n.key === justBought ? 'burst' : ''}" data-key="${esc(n.key)}"
+        style="left:${pos[n.key].x}px;top:${pos[n.key].y}px;width:${NODE_W}px" title="${esc(a.name)}${r > 1 ? ` — Rank ${ROMAN[r - 1]}` : ''}">
+      <span class="orb">${a.gif ? `<img src="${esc(a.gif)}" alt="" loading="lazy">` : `<b>${esc(a.name[0])}</b>`}
+        ${r > 1 ? `<span class="roman">${ROMAN[r - 1]}</span>` : ''}</span>
+      <span class="lvl">Nv ${spec.minLevel}</span>
+      <span class="price">${st === 'learned' || st === 'maxed' ? '✓' : `${spec.cost} pt`}</span>
+      <span class="n-name">${r > 1 ? `<small>Rank ${ROMAN[r - 1]}</small>` : ''}${esc(a.name)}</span>
     </button>`;
   }).join('');
 
@@ -301,68 +324,70 @@ function renderTree(tree) {
         <svg width="${width}" height="${height}">${edges}</svg>${nodes}</div></div>
       <aside class="card detail" id="detail"></aside>
     </div>
-    ${owned ? `<div class="legend">
-      <span><i class="dot available"></i> Pode comprar</span>
+    <div class="legend">
+      ${owned ? `<span><i class="dot available"></i> Pode comprar</span>
       <span><i class="dot reachable"></i> Liberada, falta nível ou pontos</span>
       <span><i class="dot learned"></i> Aprendida</span>
       <span><i class="dot maxed"></i> Rank máximo</span>
-      <span><i class="dot locked"></i> Bloqueada: aprenda a magia de cima</span>
-    </div>` : ''}`;
+      <span><i class="dot locked"></i> Bloqueada: compre o nó de cima</span>` : ''}
+      <span><i class="dot upgrade"></i> Melhoria (rank II, III...) da magia de cima</span>
+    </div>`;
 
   justBought = null;
   // Em tela estreita a árvore rola para o lado: começa centralizada na raiz
   const wrap = $app.querySelector('.tree-wrap');
   wrap.scrollLeft = (wrap.scrollWidth - wrap.clientWidth) / 2;
-  $app.querySelectorAll('.node').forEach(n => n.onclick = () => {
-    selectedId = n.dataset.id;
+  $app.querySelectorAll('.node').forEach(el => el.onclick = () => {
+    selectedId = el.dataset.key;
     $app.querySelectorAll('.node.selected').forEach(x => x.classList.remove('selected'));
-    n.classList.add('selected');
-    renderDetail(byId[selectedId], tree);
+    el.classList.add('selected');
+    renderDetail(nodeByKey[selectedId], tree);
     if (window.innerWidth <= 900) document.getElementById('detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
-  renderDetail(byId[selectedId], tree);
+  renderDetail(nodeByKey[selectedId], tree);
 }
 
 const rankLine = r => `${r.resourceCost.amount} ${r.resourceCost.resource}${r.cooldown ? ` · recarga ${r.cooldown}` : ''}`;
+const nodeName = n => `${n.a.name}${n.r > 1 ? ` (Rank ${ROMAN[n.r - 1]})` : ''}`;
+const selLink = n => `<a href="#" data-sel="${esc(n.key)}">${esc(nodeName(n))}</a>`;
 
-function renderDetail(a, tree) {
+function renderDetail(n, tree) {
   const el = document.getElementById('detail');
-  if (!a) { el.innerHTML = ''; return; }
-  const byId = tree.byId;
-  const st = stateOf(a, tree);
-  const parent = a.after && byId[a.after];
-  const children = tree.abilities.filter(x => x.after === a.id);
-  const shown = a.ranks[Math.max(0, a.rank - 1)];
-  const nextRank = a.next && a.rank > 0 && a.ranks[a.next.rank - 1];
+  if (!n) { el.innerHTML = ''; return; }
+  const { a, r, spec } = n;
+  const st = stateOf(n, tree);
+  const parent = n.parent && tree.nodes.find(x => x.key === n.parent);
+  const parentOwned = parent && parent.a.rank >= parent.r;
+  const children = tree.kids[n.key] || [];
+  const isNext = !tree.preview && a.next && a.next.rank === r;
+  const prev = r > 1 && a.ranks[r - 2];
 
   let action = '';
-  if (st === 'maxed') action = '<div class="maxed-note">★ Rank máximo</div>';
-  else if (!tree.preview && a.next) {
+  if (st === 'maxed' || st === 'learned') action = `<div class="maxed-note">✓ ${r > 1 ? `Rank ${ROMAN[r - 1]} comprado` : 'Aprendida'}${st === 'maxed' && a.ranks.length > 1 ? ' · rank máximo' : ''}</div>`;
+  else if (isNext) {
     action = `${a.blocker ? `<div class="blocker">🔒 ${esc(a.blocker.replace(/\*\*/g, ''))}</div>` : ''}
       <button class="btn primary buy" id="buy" ${a.blocker ? 'disabled' : ''}>
-        ${a.next.rank === 1 ? 'Aprender' : `Evoluir para rank ${a.next.rank}`} · ${a.next.cost} pt</button>`;
-  }
+        ${r === 1 ? 'Aprender' : `Evoluir para rank ${ROMAN[r - 1]}`} · ${spec.cost} pt</button>`;
+  } else if (st === 'locked') action = `<div class="blocker">🔒 Compre antes ${esc(nodeName(parent))}</div>`;
 
   el.innerHTML = `
     ${a.gif ? `<img src="${esc(a.gif)}" alt="">` : ''}
-    <h3>${esc(a.name)}</h3>
-    <div class="muted" style="font-size:13px">${esc(a.typeLabel)}${a.ranks.length > 1 ? ` · rank ${a.rank}/${a.ranks.length}` : a.rank ? ' · aprendida' : ''}</div>
-    ${parent ? `<div class="req ${parent.rank > 0 || tree.preview ? '' : 'missing'}">${tree.preview ? '↑' : parent.rank > 0 ? '✓' : '✗'} Requer: <a href="#" data-sel="${parent.id}">${esc(parent.name)}</a></div>`
+    <h3>${esc(a.name)}${r > 1 ? ` <span class="rank-tag">Rank ${ROMAN[r - 1]}</span>` : ''}</h3>
+    <div class="muted" style="font-size:13px">${esc(a.typeLabel)}${r > 1 ? ' · melhoria' : ''}${a.ranks.length > 1 ? ` · ${a.ranks.length} ranks` : ''}${!tree.preview && a.rank ? ` · você tem o rank ${ROMAN[a.rank - 1]}` : ''}</div>
+    ${parent ? `<div class="req ${parentOwned || tree.preview ? '' : 'missing'}">${tree.preview ? '↑' : parentOwned ? '✓' : '✗'} Requer: ${selLink(parent)}</div>`
       : '<div class="req">◆ Início da árvore</div>'}
-    ${children.length ? `<div class="req">↓ Libera: ${children.map(c => `<a href="#" data-sel="${c.id}">${esc(c.name)}</a>`).join(', ')}</div>` : ''}
+    ${children.length ? `<div class="req">↓ Libera: ${children.map(selLink).join(', ')}</div>` : ''}
     <div class="rank-block">
-      <b>${a.rank ? `Rank ${a.rank} (atual)` : 'Rank 1'}</b> · nível ${shown.minLevel} · ${rankLine(shown)}
-      <ul>${shown.details.map(d => `<li>${esc(d)}</li>`).join('')}</ul>
+      <b>${r > 1 ? `Rank ${ROMAN[r - 1]}` : 'Rank I'}</b> · nível ${spec.minLevel} · ${spec.cost} pt · ${rankLine(spec)}
+      <ul>${spec.details.map(d => `<li>${esc(d)}</li>`).join('')}</ul>
     </div>
-    ${nextRank ? `<div class="rank-block"><b>Próximo: rank ${nextRank.rank}</b> · nível ${nextRank.minLevel} · ${rankLine(nextRank)}
-      <ul>${nextRank.details.map(d => `<li>${esc(d)}</li>`).join('')}</ul></div>` : ''}
-    ${tree.preview && a.ranks.length > 1 ? `<div class="rank-block muted" style="font-size:13px">Evolui até o rank ${a.ranks.length}:
-      ${a.ranks.slice(1).map(r => `rank ${r.rank} no nível ${r.minLevel} (${r.cost} pt)`).join(' · ')}</div>` : ''}
+    ${prev ? `<div class="rank-block muted" style="font-size:13px"><b>Antes (rank ${ROMAN[r - 2]})</b> · ${rankLine(prev)}
+      <ul>${prev.details.map(d => `<li>${esc(d)}</li>`).join('')}</ul></div>` : ''}
     ${action}`;
 
   el.querySelectorAll('[data-sel]').forEach(l => l.onclick = e => {
     e.preventDefault();
-    document.querySelector(`.node[data-id="${l.dataset.sel}"]`)?.click();
+    document.querySelector(`.node[data-key="${CSS.escape(l.dataset.sel)}"]`)?.click();
   });
 
   const buy = document.getElementById('buy');
@@ -370,12 +395,14 @@ function renderDetail(a, tree) {
     buy.disabled = true;
     try {
       const res = await api('/api/arvore/comprar', { method: 'POST', body: JSON.stringify({ id: a.id }) });
-      const freed = res.rank === 1 ? res.tree.abilities.filter(x => x.after === a.id).map(x => x.name) : [];
-      toast(res.rank === 1
-        ? `📖 Você aprendeu ${a.name}!${freed.length ? ` Liberou: ${freed.join(', ')}.` : ''}`
-        : `⬆️ ${a.name} subiu para o rank ${res.rank}!`, 'ok');
+      const freed = [
+        ...(res.rank === 1 ? res.tree.abilities.filter(x => x.after === a.id).map(x => x.name) : []),
+        ...(res.rank < a.ranks.length ? [`Rank ${ROMAN[res.rank]}`] : []),
+      ];
+      toast(`${res.rank === 1 ? `📖 Você aprendeu ${a.name}!` : `⬆️ ${a.name} subiu para o rank ${ROMAN[res.rank - 1]}!`}${freed.length ? ` Liberou: ${freed.join(', ')}.` : ''}`, 'ok');
       me = await api('/api/me');
-      justBought = a.id;
+      justBought = nodeKey(a.id, res.rank);
+      selectedId = justBought;
       renderTree(res.tree);
     } catch (err) {
       toast(err.message, 'error');
