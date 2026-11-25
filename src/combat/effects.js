@@ -48,6 +48,16 @@ const EFFECTS = {
   },
   // Cópia: enquanto ativo, quem usou pode lançar as magias copiadas (ver battle.copiedOf). Quando acaba, a cópia se desfaz.
   magia_copiada: { name: 'Magia Copiada', emoji: '📋', kind: 'buff' },
+  // Sangue: os golpes de sangue marcam o alvo; só quem tem a marca pode virar Marionete
+  marca_de_sangue: { name: 'Marca de Sangue', emoji: '🔴', kind: 'debuff' },
+  // Preso nos crucifixos do Andaime: sem se mover e sem esquivar
+  crucificado: { name: 'Crucificado', emoji: '✝️', kind: 'debuff', mods: { noMove: true, noDodge: true } },
+  // Controlado pelo próprio sangue: dor intensa (dano por turno) e sem conseguir reagir
+  marionete: { name: 'Marionete de Sangue', emoji: '🪢', kind: 'debuff', dot: 3, mods: { noReact: true } },
+  // Besta Vermelha: sangue denso que segura golpes fortes; muita água a dilui
+  besta_vermelha: { name: 'Besta Vermelha', emoji: '👹', kind: 'buff', mods: { damageResist: 0.3 }, endsOnElement: 'agua' },
+  // Transfusão do Casulo de Sangue: o alvo curado sai fortalecido
+  transfusao: { name: 'Transfusão', emoji: '💉', kind: 'buff', mods: { damageBonus: 4 } },
   // O cenário do sonho se ergue para proteger quem o manipula
   cenario_onirico: { name: 'Cenário Onírico', emoji: '🏔️', kind: 'buff', mods: { damageResist: 0.25 } },
   instinto_selvagem: {

@@ -27,6 +27,8 @@ function details(a) {
   if (a.splash) out.push(`Respingo: ${Math.round(a.splash.share * 100)}% do dano a até ${a.splash.radius} casa(s) do alvo`);
   if (a.ignoreBlock) out.push('Ignora Bloqueio');
   if (a.cutsThrough) out.push('Funciona até contra golpes que ignoram Bloqueio');
+  if (a.lifesteal) out.push(`Recupera ${Math.round(a.lifesteal * 100)}% do dano causado em vida`);
+  if (a.requiresTargetEffect) out.push(`Só em alvos com ${getEffect(a.requiresTargetEffect)?.name}`);
   if (a.dodgePenalty) out.push(`-${Math.round(a.dodgePenalty * 100)}% de esquiva do alvo`);
   if (a.onlyVsMagic) out.push('Só contra magia');
   if (a.reflect) out.push(`Devolve ${Math.round(a.reflect * 100)}% do dano`);

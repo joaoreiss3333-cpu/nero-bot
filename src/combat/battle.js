@@ -251,23 +251,23 @@ function freeCellsNear(battle, from, except) {
 
 // Invoca clones de `owner` nas casas livres mais próximas. Invocar de novo troca os clones antigos pelos novos.
 function summonClones(battle, owner, ability) {
-  const { count, duration, damage, share } = ability.summon;
+  const { count, duration, damage, share, label } = ability.summon;
   battle.summons = battle.summons.filter(s => s.ownerId !== owner.id);
   const cells = freeCellsNear(battle, owner.pos, null).filter(c => !samePos(c, owner.pos)).slice(0, count);
   for (const pos of cells) {
     battle.summons.push({
-      ownerId: owner.id, name: `Clone de ${owner.name}`, pos, damage, turns: duration,
+      ownerId: owner.id, name: `${label ?? 'Clone'} de ${owner.name}`, pos, damage, turns: duration,
       bonus: Math.round((owner.attrs[ability.attribute] ?? 0) * (C.DAMAGE_PER_POINT[ability.attribute] ?? 0) * abilityScale(ability) * share),
     });
   }
-  return [`👥 ${owner.name} fez ${cells.length} figura(s) brotarem do chão. Elas atacam sozinhas por ${duration} turno(s) seus.`];
+  return [ability.summon.text?.(owner, cells.length, duration) ?? `👥 ${owner.name} fez ${cells.length} figura(s) brotarem do chão. Elas atacam sozinhas por ${duration} turno(s) seus.`];
 }
 
 // Efeitos de posição e invocação de uma ação bônus (o teleporte já foi planejado por planBonus)
 function applyBonus(battle, me, ability, dest, foe) {
   const lines = [];
   if (ability.teleport === 'self') { me.pos = dest; lines.push(ability.teleportText?.(me) ?? `🌀 ${me.name} atravessou um portal e reapareceu em outro ponto do mapa.`); }
-  if (ability.teleport === 'enemy') { foe.pos = dest; lines.push(`⬛ ${foe.name} foi engolido pela escuridão e levado para outro ponto do mapa.`); }
+  if (ability.teleport === 'enemy') { foe.pos = dest; lines.push(ability.teleportText?.(me, foe) ?? `⬛ ${foe.name} foi engolido pela escuridão e levado para outro ponto do mapa.`); }
   if (ability.summon) lines.push(...summonClones(battle, me, ability));
   if (ability.push) lines.push(...pushAway(battle, me, foe, ability.push));
   return lines;
@@ -398,6 +398,11 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
 
   defender.hp = Math.max(0, defender.hp - damage);
   log += `\n❤️ ${defender.name} sofreu **${damage}** de dano.`;
+  // Roubo de vida (`lifesteal`): quem ataca recupera uma parte do dano que causou
+  if (attack.lifesteal && damage > 0) {
+    const healed = Math.min(attacker.maxHp - attacker.hp, Math.round(damage * attack.lifesteal));
+    if (healed > 0) { attacker.hp += healed; log += `\n🩸 ${attacker.name} drenou o sangue do golpe e recuperou **${healed}** de vida.`; }
+  }
   if (reaction) {
     const cost = spend(defender, reaction);
     log += `\n${resourceOf(reaction) === 'mana' ? '🔷' : '⚡'} ${defender.name} gastou ${cost} de ${resourceLabel(reaction)}.`;

@@ -334,8 +334,13 @@ function renderTree(tree) {
     </div>`;
 
   justBought = null;
-  // Em tela estreita a árvore rola para o lado: começa centralizada na raiz
+  // Árvore larga: diminui para caber na caixa (até 65%); se precisar diminuir mais (celular), rola para o lado,
+  // começando centralizada na raiz
   const wrap = $app.querySelector('.tree-wrap');
+  const treeEl = wrap.querySelector('.tree');
+  const room = wrap.clientWidth - 48; // padding lateral da caixa
+  const fit = room / width;
+  treeEl.style.zoom = fit < 1 && fit >= 0.65 ? fit : '';
   wrap.scrollLeft = (wrap.scrollWidth - wrap.clientWidth) / 2;
   $app.querySelectorAll('.node').forEach(el => el.onclick = () => {
     selectedId = el.dataset.key;

@@ -531,6 +531,93 @@ const abilities = {
       { minLevel: 34, damage: [20, 28], applies: [{ effect: 'sangramento', turns: 3, stacks: 2, power: 3 }] },
     ],
   },
+
+  // ---- Grimório do Sangue (ÉPICO) ----
+  // Sangue moldado em armas e criaturas. Os golpes de sangue deixam a Marca de Sangue no alvo, e a Marionete só controla
+  // quem está marcado. A Foice rouba vida (`lifesteal`), a Besta protege quem a usa (muita água a dissolve), o Rebanho
+  // invoca feras soltas e o Casulo cura o aliado mais ferido. Escala de atributo da raridade (1,4x).
+  // Árvore: Foice -> { Andaime -> Marionete }, { Besta Vermelha -> Rebanho }, { Casulo de Sangue }.
+  // Foice gigante de sangue: corpo a corpo, forte, rouba vida e marca o alvo
+  foice_de_sangue_vital: {
+    id: 'foice_de_sangue_vital', name: 'Foice de Sangue Vital', description: 'Molda uma grande quantidade de sangue numa foice gigante empunhada com a mão. Golpe corpo a corpo forte que drena parte do dano em vida e deixa a Marca de Sangue no alvo.', actionText: 'Foice de Sangue Vital', gif: 'sangue_foice_de_sangue_vital.gif', grimoire: 'sangue', magic: true,
+    type: 'attack', range: 1, damage: [11, 16], attribute: 'magiaOfensiva', manaCost: 22, lifesteal: 0.25,
+    applies: [{ effect: 'marca_de_sangue', turns: 3 }],
+    minLevel: 6, // raiz da árvore do Sangue
+    // Rank II: mais dano. Rank III: mais dano e drena mais vida.
+    ranks: [
+      { minLevel: 16, damage: [14, 20] },
+      { minLevel: 28, damage: [18, 25], lifesteal: 0.35 },
+    ],
+  },
+  // Sangue cobre o chão e crucifixos prendem os inimigos ao redor (sem dano): imóveis, sem esquiva e marcados
+  andaime_de_sangue_fresco: {
+    id: 'andaime_de_sangue_fresco', name: 'Andaime de Sangue Fresco', description: 'Libera uma grande quantidade de sangue que cobre o chão, e crucifixos surgem prendendo pelos pulsos e pelo estômago quem estiver por perto. Os inimigos ao redor ficam Crucificados (sem se mover nem esquivar) e com a Marca de Sangue.', actionText: 'Andaime de Sangue Fresco', gif: 'sangue_andaime_de_sangue_fresco.gif', grimoire: 'sangue', magic: true,
+    type: 'bonus', manaCost: 45, cooldown: 5, area: { radius: 3 },
+    applies: [{ effect: 'crucificado', turns: 2, to: 'enemy' }, { effect: 'marca_de_sangue', turns: 3, to: 'enemy' }],
+    minLevel: 14, after: 'foice_de_sangue_vital',
+    // Rank II: o sangue se espalha mais e os crucifixos prendem por mais tempo
+    ranks: [
+      { minLevel: 26, area: { radius: 4 }, applies: [{ effect: 'crucificado', turns: 3, to: 'enemy' }, { effect: 'marca_de_sangue', turns: 4, to: 'enemy' }] },
+    ],
+  },
+  // Controla quem tem a Marca de Sangue pelo próprio sangue: leva o alvo para onde quiser (use `direcao` e `casas`),
+  // ele sente dor a cada turno e não consegue reagir
+  fluxo_sanguineo_da_marionete: {
+    id: 'fluxo_sanguineo_da_marionete', name: 'Fluxo Sanguíneo da Marionete', description: 'Controla pelo sangue alguém que já foi atingido pela sua magia: o alvo sente dor intensa e seus olhos ficam brancos. Só funciona em quem tem a Marca de Sangue: você o move pelo mapa, e ele sofre dano a cada turno e não consegue reagir.', actionText: 'Fluxo Sanguíneo da Marionete', gif: 'sangue_fluxo_sanguineo_da_marionete.gif', grimoire: 'sangue', magic: true,
+    type: 'bonus', manaCost: 40, cooldown: 4, targetRange: 5, teleport: 'enemy', destRange: 3,
+    requiresTargetEffect: 'marca_de_sangue',
+    applies: [{ effect: 'marionete', turns: 2, to: 'enemy' }],
+    teleportText: (me, foe) => `🪢 ${me.name} controlou o sangue de ${foe.name} e o arrastou como uma marionete.`,
+    minLevel: 18, after: 'andaime_de_sangue_fresco',
+    canUse(battle, user, foe) {
+      return fx.hasEffect(foe, 'marca_de_sangue') ? null : `${foe.name} não tem a **Marca de Sangue**: acerte-o antes com uma magia de sangue.`;
+    },
+  },
+  // Criatura de sangue presa ao usuário: golpe de perto que rasga defesas, e o sangue denso protege quem a usa
+  besta_vermelha: {
+    id: 'besta_vermelha', name: 'Besta Vermelha', description: 'Molda o sangue numa grande criatura sem olhos, presa a você por fios de sangue. Suas garras dilaceram defesas (ignora o Bloqueio) e marcam o alvo, e o sangue denso protege você, que recebe menos dano por alguns turnos; muita água a dissolve.', actionText: 'Besta Vermelha', gif: 'sangue_besta_vermelha.gif', grimoire: 'sangue', magic: true,
+    type: 'attack', range: 2, damage: [16, 23], attribute: 'magiaOfensiva', manaCost: 50, cooldown: 3, ignoreBlock: true,
+    applies: [{ effect: 'marca_de_sangue', turns: 3 }, { effect: 'besta_vermelha', turns: 2, to: 'self' }],
+    minLevel: 22, after: 'foice_de_sangue_vital',
+    // Rank II: garras mais fortes e a besta protege por mais tempo
+    ranks: [
+      { minLevel: 34, damage: [21, 29], applies: [{ effect: 'marca_de_sangue', turns: 3 }, { effect: 'besta_vermelha', turns: 3, to: 'self' }] },
+    ],
+  },
+  // Várias feras de sangue menores e soltas: aparecem no mapa e atacam sozinhas no fim do seu turno
+  rebanho_de_feras_vermelhas: {
+    id: 'rebanho_de_feras_vermelhas', name: 'Rebanho de Feras Vermelhas', description: 'Molda o sangue em várias Bestas Vermelhas menores, de corpo inteiro e soltas de você. Elas aparecem no mapa e atacam os inimigos sozinhas por alguns turnos.', actionText: 'Rebanho de Feras Vermelhas', gif: 'sangue_rebanho_de_feras_vermelhas.gif', grimoire: 'sangue', magic: true,
+    type: 'bonus', manaCost: 60, cooldown: 5, attribute: 'magiaOfensiva',
+    summon: {
+      count: 3, duration: 3, damage: [3, 5], share: 0.25, label: 'Fera Vermelha',
+      text: (owner, n, turns) => `👹 ${owner.name} moldou ${n} Fera(s) Vermelha(s) de sangue. Elas atacam sozinhas por ${turns} turno(s) seus.`,
+    },
+    minLevel: 30, after: 'besta_vermelha',
+  },
+  // Veias de sangue envolvem o aliado mais ferido por perto (ou você): curam, quebram as maldições (debuffs) e o fortalecem
+  casulo_de_sangue: {
+    id: 'casulo_de_sangue', name: 'Casulo de Sangue Quebra-Maldição', description: 'Veias de sangue saem do seu dedo e envolvem o alvo num orbe escuro que cura seus ferimentos. Cura o aliado mais ferido por perto (ou você), remove os efeitos negativos dele e o fortalece com a Transfusão.', actionText: 'Casulo de Sangue Quebra-Maldição', gif: 'sangue_casulo_de_sangue.gif', grimoire: 'sangue', magic: true,
+    type: 'bonus', manaCost: 45, cooldown: 4, radius: 2, heal: [12, 18], attribute: 'magiaSuplementar',
+    minLevel: 16, after: 'foice_de_sangue_vital',
+    // Rank II: cura mais e recarrega mais rápido
+    ranks: [
+      { minLevel: 28, heal: [18, 26], cooldown: 3 },
+    ],
+    use(battle, user) {
+      const scale = this.attributeScale ?? C.RARITY_SCALE[getGrimoire(this.grimoire)?.rarity] ?? 1;
+      const bonus = Math.round((user.attrs[this.attribute] ?? 0) * (C.DAMAGE_PER_POINT[this.attribute] ?? 0) * scale);
+      const near = battle.players.filter(p => p.hp > 0 && (p === user
+        || (p.team === user.team && p.pos && user.pos && distance(p.pos, user.pos) <= this.radius)));
+      const target = near.sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0]; // o mais ferido
+      const healed = Math.max(0, Math.min(target.maxHp - target.hp, this.heal[0] + Math.floor(Math.random() * (this.heal[1] - this.heal[0] + 1)) + bonus));
+      target.hp += healed;
+      const cleared = fx.clearDebuffs(target);
+      const lines = [`🩸 ${user.name} envolveu ${target === user ? 'a si mesmo' : target.name} num **Casulo de Sangue**: ❤️ +${healed} de vida.`];
+      if (cleared.length) lines.push(`✨ A maldição se quebrou: removeu ${cleared.join(', ')}.`);
+      lines.push(fx.applyEffect(target, 'transfusao', { turns: 2 }));
+      return lines.join(NL);
+    },
+  },
 };
 
 const TYPE_LABEL = { attack: 'Ataque', bonus: 'Ação bônus', reaction: 'Reação' };
