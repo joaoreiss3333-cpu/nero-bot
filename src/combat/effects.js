@@ -60,6 +60,8 @@ const EFFECTS = {
   transfusao: { name: 'Transfusão', emoji: '💉', kind: 'buff', mods: { damageBonus: 4 } },
   // Pintura: preso no poço de tinta em forma de mola da Primavera da Restrição
   mola_de_tinta: { name: 'Mola de Tinta', emoji: '🎨', kind: 'debuff', mods: { noMove: true, dodgeDelta: -0.25 } },
+  // Perfume da Barreira de Espinhos e Rosas: os sentidos confusos fazem errar golpes
+  perfume_de_rosas: { name: 'Perfume de Rosas', emoji: '🌹', kind: 'debuff', mods: { missChance: 0.2 } },
   // O cenário do sonho se ergue para proteger quem o manipula
   cenario_onirico: { name: 'Cenário Onírico', emoji: '🏔️', kind: 'buff', mods: { damageResist: 0.25 } },
   instinto_selvagem: {

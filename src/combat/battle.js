@@ -394,6 +394,14 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
       const absorbed = Math.min(damage, rand(reaction.absorb) + Math.round((defender.attrs[reaction.attribute] ?? 0) * (C.DEFENSE_PER_POINT[reaction.attribute] ?? 0) * abilityScale(reaction)));
       damage -= absorbed;
       log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}** e absorveu ${absorbed} de dano.`;
+      // Barreira com espinhos (`thorns`): quem atacou se fere nela (nunca morre disso) e sofre os efeitos da barreira
+      if (reaction.thorns) {
+        const hurt = rand(reaction.thorns);
+        attacker.hp = Math.max(1, attacker.hp - hurt);
+        log += `\n🌹 Os espinhos feriram ${attacker.name} (**${hurt}** de dano).`;
+        const lines = fx.applyAbilityEffects(reaction, defender, attacker);
+        if (lines.length) log += `\n${lines.join('\n')}`;
+      }
     }
   }
 

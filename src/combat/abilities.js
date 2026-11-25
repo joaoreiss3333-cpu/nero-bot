@@ -686,6 +686,83 @@ const abilities = {
     applies: [{ effect: 'atordoado', turns: 1, chance: 0.25 }],
     minLevel: 26, after: 'primavera_da_restricao',
   },
+
+  // ---- Grimório da Roseira (ÉPICO) ----
+  // Rosas selvagens e espinhos: lança perfurante, vinhas que perseguem e prendem, um jardim em área que fica mais forte
+  // contra inimigos amaldiçoados e uma barreira de espinhos com perfume que confunde. Escala de atributo da raridade (1,4x).
+  // Árvore: Lança Escarlate -> { Roseiral Caçador -> Paraíso de Rosa Azul }, { Barreira de Espinhos e Rosas }.
+  // Lança gigante de rosas torcidas, arremessada de longe: os espinhos fazem sangrar
+  lanca_de_fios_escarlate: {
+    id: 'lanca_de_fios_escarlate', name: 'Lança de Batalha Elegante de Fios Escarlate', description: 'Torce várias mechas de rosas selvagens na forma de uma lança gigante, com uma grande rosa na ponta do eixo, e a arremessa com a mão. Atinge de longe e os espinhos fazem o alvo sangrar.', actionText: 'Lança de Batalha Elegante de Fios Escarlate', gif: 'roseira_lanca_de_fios_escarlate.gif', grimoire: 'roseira', magic: true,
+    type: 'attack', range: 4, damage: [10, 15], attribute: 'magiaOfensiva', manaCost: 24,
+    applies: [{ effect: 'sangramento', turns: 2, stacks: 1, power: 2 }],
+    minLevel: 6, // raiz da árvore da Roseira
+    // Rank II: mais dano. Rank III: mais dano e os espinhos abrem um sangramento mais fundo.
+    ranks: [
+      { minLevel: 16, damage: [13, 18] },
+      { minLevel: 28, damage: [16, 22], applies: [{ effect: 'sangramento', turns: 3, stacks: 2, power: 2 }] },
+    ],
+  },
+  // Cabo de espada com vinhas no lugar da lâmina: perseguem o alvo (difícil de esquivar), prendem e viram uma árvore de espinhos
+  roseiral_cacador: {
+    id: 'roseiral_cacador', name: 'Roseiral Caçador de Cadáveres', description: 'Puxa do grimório o cabo de uma espada com vinhas espinhosas no lugar da lâmina. Elas perseguem o alvo mesmo que ele fuja e, ao capturá-lo, se erguem numa árvore de espinhos. Difícil de esquivar, prende o alvo no lugar e o faz sangrar.', actionText: 'Roseiral Caçador de Cadáveres', gif: 'roseira_roseiral_cacador.gif', grimoire: 'roseira', magic: true,
+    type: 'attack', range: 4, damage: [12, 17], attribute: 'magiaOfensiva', manaCost: 36, cooldown: 2, dodgePenalty: 0.25,
+    applies: [{ effect: 'enraizado', turns: 1 }, { effect: 'sangramento', turns: 2, stacks: 1, power: 2 }],
+    minLevel: 12, after: 'lanca_de_fios_escarlate',
+    // Rank II: mais dano e prende por mais tempo. Rank III: várias árvores de uma vez (atinge quem está perto do alvo).
+    ranks: [
+      { minLevel: 22, damage: [15, 21], applies: [{ effect: 'enraizado', turns: 2 }, { effect: 'sangramento', turns: 2, stacks: 1, power: 2 }] },
+      { minLevel: 34, damage: [18, 25], splash: { radius: 2, share: 0.5 } },
+    ],
+  },
+  // Jardim de rosas azuis em área: as vinhas prendem quem estiver perto e ficam mais fortes contra alvos amaldiçoados
+  paraiso_de_rosa_azul: {
+    id: 'paraiso_de_rosa_azul', name: 'Paraíso de Rosa Azul', description: 'Cria dois círculos mágicos no chão que geram roseiras azuis, cobrindo tudo ao redor e capturando os inimigos que tocam as vinhas. Contra alvos amaldiçoados (com algum efeito negativo), as vinhas ficam mais fortes e absorvem o poder da maldição.', actionText: 'Paraíso de Rosa Azul', gif: 'roseira_paraiso_de_rosa_azul.gif', grimoire: 'roseira', magic: true,
+    type: 'bonus', manaCost: 50, cooldown: 4, area: { radius: 3 }, damage: [10, 14], attribute: 'magiaOfensiva',
+    cursedBonus: 1.5, cursedDrain: 8,
+    applies: [{ effect: 'enraizado', turns: 2, to: 'enemy' }],
+    minLevel: 24, after: 'roseiral_cacador',
+    // Rank II: o jardim cobre mais chão e as vinhas batem mais forte
+    ranks: [
+      { minLevel: 36, area: { radius: 4 }, damage: [13, 18] },
+    ],
+    // Dano em todos os inimigos da área (antes de prendê-los). Amaldiçoado = já tem algum debuff:
+    // leva mais dano e a Roseira absorve parte da mana dele.
+    use(battle, user) {
+      const scale = this.attributeScale ?? C.RARITY_SCALE[getGrimoire(this.grimoire)?.rarity] ?? 1;
+      const bonus = Math.round((user.attrs[this.attribute] ?? 0) * (C.DAMAGE_PER_POINT[this.attribute] ?? 0) * scale) + fx.getMods(user).damageBonus;
+      const lines = [`🌹 ${user.name} abriu o **Paraíso de Rosa Azul**: roseiras azuis cobrem o chão ao redor.`];
+      const foes = battle.players.filter(p => p.hp > 0 && p.team !== user.team && p.pos && user.pos && distance(p.pos, user.pos) <= this.area.radius);
+      for (const foe of foes) {
+        const cursed = Object.keys(foe.effects ?? {}).some(id => fx.getEffect(id)?.kind === 'debuff');
+        const raw = this.damage[0] + Math.floor(Math.random() * (this.damage[1] - this.damage[0] + 1)) + bonus;
+        const resist = Math.min(0.9, fx.getMods(foe).damageResist + fx.getMods(foe).magicResist);
+        const dmg = Math.max(1, Math.round(raw * (cursed ? this.cursedBonus : 1) * (1 - resist)));
+        foe.hp = Math.max(0, foe.hp - dmg);
+        lines.push(`🥀 As vinhas atingiram ${foe.name} (**${dmg}** de dano).`);
+        if (cursed) {
+          const drained = Math.min(foe.mana, this.cursedDrain);
+          foe.mana -= drained;
+          user.mana = Math.min(user.maxMana, user.mana + drained);
+          lines.push(`💙 ${foe.name} está amaldiçoado: as vinhas ficaram mais fortes e absorveram ${drained} de mana da maldição.`);
+        }
+        lines.push(...fx.onHit(foe));
+      }
+      return lines.join(NL);
+    },
+  },
+  // Barreira de roseiras: absorve o golpe, os espinhos ferem quem atacou e o perfume atrapalha os sentidos dele
+  barreira_de_espinhos: {
+    id: 'barreira_de_espinhos', name: 'Barreira de Espinhos e Rosas', description: 'Ergue uma barreira de roseiras que protege você e fere com espinhos quem a toca. As rosas soltam um perfume que inibe os sentidos do atacante. Reação que absorve parte do golpe, devolve dano de espinhos e deixa o atacante com Perfume de Rosas.', actionText: 'Barreira de Espinhos e Rosas', gif: 'roseira_barreira_de_espinhos.gif', grimoire: 'roseira',
+    type: 'reaction', kind: 'block', absorb: [4, 7], attribute: 'magiaDefensiva', manaCost: 26, emoji: '🌹',
+    thorns: [3, 5],
+    applies: [{ effect: 'perfume_de_rosas', turns: 2 }],
+    minLevel: 10, after: 'lanca_de_fios_escarlate',
+    // Rank II: barreira mais grossa, espinhos maiores e as vinhas podem atar o atacante
+    ranks: [
+      { minLevel: 24, absorb: [7, 11], thorns: [5, 8], applies: [{ effect: 'perfume_de_rosas', turns: 2 }, { effect: 'enraizado', turns: 1, chance: 0.35 }] },
+    ],
+  },
 };
 
 const TYPE_LABEL = { attack: 'Ataque', bonus: 'Ação bônus', reaction: 'Reação' };

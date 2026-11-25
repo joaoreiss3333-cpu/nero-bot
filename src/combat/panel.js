@@ -2,7 +2,7 @@ const {
   getBattle, endBattle, currentPlayer, findPlayer, abilitiesOf, abilityOf, ownedIds, winnerTeam, victoryText, collectFallen,
   movePlayer, startActions, resolveAttack, nextTurn, reactionBlock, abilityCost, resourceLabel, resourceOf,
 } = require('./battle');
-const { getMods } = require('./effects');
+const { getMods, hasEffect } = require('./effects');
 const { panelPayload, asEdit } = require('./render');
 const { playAction } = require('./actions');
 const { formatCoord, distance } = require('./grid');
@@ -73,7 +73,7 @@ async function endTurn(battle, me, interaction) {
   // Cegueira: o ataque pode errar o alvo por completo (o defensor nem precisa reagir)
   if (Math.random() < getMods(me).missChance) {
     await interaction.deferUpdate();
-    return passTurn(battle, `🙈 ${me.name} encerrou o turno, mas a **Cegueira** fez **${attack.name}** errar o alvo.`);
+    return passTurn(battle, `🙈 ${me.name} encerrou o turno, mas ${hasEffect(me, 'perfume_de_rosas') && !hasEffect(me, 'cegueira') ? 'o **Perfume de Rosas** confundiu os sentidos e' : 'a **Cegueira**'} fez **${attack.name}** errar o alvo.`);
   }
 
   // Tira os botões do painel do atacante e trava as ações enquanto o golpe é mostrado

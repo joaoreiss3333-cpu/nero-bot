@@ -27,6 +27,8 @@ function details(a) {
   if (a.splash) out.push(`Respingo: ${Math.round(a.splash.share * 100)}% do dano a até ${a.splash.radius} casa(s) do alvo`);
   if (a.ignoreBlock) out.push('Ignora Bloqueio');
   if (a.cutsThrough) out.push('Funciona até contra golpes que ignoram Bloqueio');
+  if (a.thorns) out.push(`Espinhos: ${a.thorns[0]}–${a.thorns[1]} de dano em quem atacar`);
+  if (a.cursedBonus) out.push(`Contra alvos amaldiçoados: +${Math.round((a.cursedBonus - 1) * 100)}% de dano e absorve ${a.cursedDrain} de mana`);
   if (a.lifesteal) out.push(`Recupera ${Math.round(a.lifesteal * 100)}% do dano causado em vida`);
   if (a.requiresTargetEffect) out.push(`Só em alvos com ${getEffect(a.requiresTargetEffect)?.name}`);
   if (a.dodgePenalty) out.push(`-${Math.round(a.dodgePenalty * 100)}% de esquiva do alvo`);
