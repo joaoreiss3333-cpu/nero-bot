@@ -58,6 +58,8 @@ const EFFECTS = {
   besta_vermelha: { name: 'Besta Vermelha', emoji: '👹', kind: 'buff', mods: { damageResist: 0.3 }, endsOnElement: 'agua' },
   // Transfusão do Casulo de Sangue: o alvo curado sai fortalecido
   transfusao: { name: 'Transfusão', emoji: '💉', kind: 'buff', mods: { damageBonus: 4 } },
+  // Pintura: preso no poço de tinta em forma de mola da Primavera da Restrição
+  mola_de_tinta: { name: 'Mola de Tinta', emoji: '🎨', kind: 'debuff', mods: { noMove: true, dodgeDelta: -0.25 } },
   // O cenário do sonho se ergue para proteger quem o manipula
   cenario_onirico: { name: 'Cenário Onírico', emoji: '🏔️', kind: 'buff', mods: { damageResist: 0.25 } },
   instinto_selvagem: {

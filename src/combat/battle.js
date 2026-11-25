@@ -385,7 +385,8 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
       const back = Math.round(damage * reaction.reflect);
       damage = 0;
       attacker.hp = Math.max(1, attacker.hp - back);
-      log += `\n${reaction.emoji} ${defender.name} abriu um portal e devolveu a magia: ${attacker.name} sofreu **${back}** de dano!`;
+      const how = reaction.grimoire === 'espaco' ? 'abriu um portal e devolveu a magia' : `usou **${reaction.name}** e a magia voltou contra quem a lançou`;
+      log += `\n${reaction.emoji} ${defender.name} ${how}: ${attacker.name} sofreu **${back}** de dano!`;
     } else if (reaction.kind === 'block' && attack.ignoreBlock && !reaction.cutsThrough) { // `cutsThrough` (Foice Defensiva) parte até golpes que ignoram Bloqueio
       log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}**, mas **${attack.name}** ${attack.grimoire === 'espaco' ? 'apaga tudo que toca' : 'atravessa a defesa'}: nada foi absorvido.`;
     } else if (reaction.kind === 'block') {

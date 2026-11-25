@@ -618,6 +618,74 @@ const abilities = {
       return lines.join(NL);
     },
   },
+
+  // ---- Grimório da Pintura (ÉPICO) ----
+  // Pincel e paleta: cada pincelada vira uma figura com um papel diferente (queimar, devolver magia, prender, explodir em
+  // área, efeitos elementais ao acaso, soco que atordoa). Escala de atributo da raridade (1,4x).
+  // Árvore: Deux Tempêtes -> { Vouivre -> Lindworm }, { Primavera da Restrição -> Gigante Souterrain }, { Brincadeira de Deus }.
+  // Dois tornados, de fogo e de água: queima o alvo; a água dilui a Besta Vermelha (elemento `agua`)
+  deux_tempetes: {
+    id: 'deux_tempetes', name: 'Deux Tempêtes de Fogo e Gelo', description: 'Com uma pincelada, cria dois tornados, um de fogo e outro de água, feitos para combater feitiços de gelo e de fogo. Atinge de média distância e deixa o alvo com Queimadura; a água dissolve criaturas de sangue.', actionText: 'Deux Tempêtes de Fogo e Gelo', gif: 'pintura_deux_tempetes.gif', grimoire: 'pintura', magic: true, element: 'agua',
+    type: 'attack', range: 3, damage: [10, 15], attribute: 'magiaOfensiva', manaCost: 24,
+    applies: [{ effect: 'queimadura', turns: 2, power: 2 }],
+    minLevel: 6, // raiz da árvore da Pintura
+    // Rank II: mais dano. Rank III: mais dano e o fogo queima mais forte e por mais tempo.
+    ranks: [
+      { minLevel: 16, damage: [13, 18] },
+      { minLevel: 28, damage: [16, 22], applies: [{ effect: 'queimadura', turns: 3, power: 3 }] },
+    ],
+  },
+  // Figura barbuda pintada: a magia inimiga contorna a figura e volta para quem a lançou (só contra magia; nunca mata)
+  brincadeira_de_deus: {
+    id: 'brincadeira_de_deus', name: 'Brincadeira de Deus', description: 'Com uma pincelada, cria uma grande figura barbuda: o feitiço disparado contra você se curva ao redor dela e volta para quem o lançou. Reação contra magia que devolve parte do dano ao atacante.', actionText: 'Brincadeira de Deus', gif: 'pintura_brincadeira_de_deus.gif', grimoire: 'pintura',
+    type: 'reaction', kind: 'reflect', reflect: 0.4, onlyVsMagic: true, manaCost: 40, emoji: '🧔',
+    minLevel: 12, after: 'deux_tempetes',
+    // Rank II: a figura devolve mais da magia
+    ranks: [
+      { minLevel: 26, reflect: 0.55 },
+    ],
+  },
+  // A vouivre pintada solta uma explosão mágica na direção apontada: atinge também quem está perto do alvo
+  vouivre_fantasma: {
+    id: 'vouivre_fantasma', name: 'Urro Vívido do Dragão Vouivre Fantasma', description: 'Pinta uma vouivre, com cabeça e tronco de mulher, asas de morcego e cauda escamosa, que solta uma explosão mágica na direção do pincel. Atinge o alvo e também quem está perto dele.', actionText: 'Urro Vívido do Dragão Vouivre Fantasma', gif: 'pintura_vouivre_fantasma.gif', grimoire: 'pintura', magic: true,
+    type: 'attack', range: 4, damage: [14, 20], attribute: 'magiaOfensiva', manaCost: 40, cooldown: 2,
+    splash: { radius: 1, share: 0.5 },
+    minLevel: 16, after: 'deux_tempetes',
+    // Rank II: explosão maior e mais forte
+    ranks: [
+      { minLevel: 32, damage: [18, 25], splash: { radius: 2, share: 0.5 } },
+    ],
+  },
+  // Serpente de quatro cabeças: cada cabeça tem uma chance de aplicar um elemento (fogo, gelo, vento, veneno)
+  lindworm_de_quatro_cabecas: {
+    id: 'lindworm_de_quatro_cabecas', name: 'Lindworm de Quatro Cabeças', description: 'Pinta uma grande serpente de quatro cabeças, cada uma soltando uma explosão de um elemento diferente. Cada cabeça tem uma chance de deixar o alvo com Queimadura, Lentidão, Sufocamento ou Envenenado.', actionText: 'Lindworm de Quatro Cabeças', gif: 'pintura_lindworm_de_quatro_cabecas.gif', grimoire: 'pintura', magic: true,
+    type: 'attack', range: 4, damage: [12, 17], attribute: 'magiaOfensiva', manaCost: 46, cooldown: 3,
+    applies: [
+      { effect: 'queimadura', turns: 2, power: 2, chance: 0.4 }, // cabeça de fogo
+      { effect: 'lentidao', turns: 2, chance: 0.4 }, // cabeça de gelo
+      { effect: 'sufocamento', turns: 2, chance: 0.4 }, // cabeça de vento
+      { effect: 'envenenado', turns: 3, power: 2, chance: 0.4 }, // cabeça de veneno
+    ],
+    minLevel: 24, after: 'vouivre_fantasma',
+  },
+  // Poço de tinta em forma de mola: prende o alvo (sem se mover e mais fácil de acertar), sem dano
+  primavera_da_restricao: {
+    id: 'primavera_da_restricao', name: 'Primavera da Restrição', description: 'Manipula a tinta da paleta para prender o alvo num poço em forma de mola. Ele não consegue se mover e fica mais fácil de acertar por alguns turnos.', actionText: 'Primavera da Restrição', gif: 'pintura_primavera_da_restricao.gif', grimoire: 'pintura', magic: true,
+    type: 'bonus', manaCost: 30, cooldown: 4, targetRange: 4,
+    applies: [{ effect: 'mola_de_tinta', turns: 2, to: 'enemy' }],
+    minLevel: 14, after: 'deux_tempetes',
+    // Rank II: alcança mais longe e prende por mais tempo
+    ranks: [
+      { minLevel: 26, targetRange: 5, applies: [{ effect: 'mola_de_tinta', turns: 3, to: 'enemy' }] },
+    ],
+  },
+  // Gigante pintado meio saído do chão dá um soco de longe: muito forte e pode atordoar
+  gigante_souterrain: {
+    id: 'gigante_souterrain', name: 'Braço Forte do Gigante Souterrain', description: 'Pinta um gigante meio saído do chão, que dá um soco no alvo com um punho incrivelmente denso. Alcance longo, dano alto e uma chance de deixar o alvo Atordoado.', actionText: 'Braço Forte do Gigante Souterrain', gif: 'pintura_gigante_souterrain.gif', grimoire: 'pintura', magic: true,
+    type: 'attack', range: 6, damage: [18, 25], attribute: 'magiaOfensiva', manaCost: 52, cooldown: 3,
+    applies: [{ effect: 'atordoado', turns: 1, chance: 0.25 }],
+    minLevel: 26, after: 'primavera_da_restricao',
+  },
 };
 
 const TYPE_LABEL = { attack: 'Ataque', bonus: 'Ação bônus', reaction: 'Reação' };
