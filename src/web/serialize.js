@@ -26,6 +26,7 @@ function details(a) {
   if (a.radius) out.push(`Raio de ${a.radius} casas`);
   if (a.splash) out.push(`Respingo: ${Math.round(a.splash.share * 100)}% do dano a até ${a.splash.radius} casa(s) do alvo`);
   if (a.ignoreBlock) out.push('Ignora Bloqueio');
+  if (a.cutsThrough) out.push('Funciona até contra golpes que ignoram Bloqueio');
   if (a.dodgePenalty) out.push(`-${Math.round(a.dodgePenalty * 100)}% de esquiva do alvo`);
   if (a.onlyVsMagic) out.push('Só contra magia');
   if (a.reflect) out.push(`Devolve ${Math.round(a.reflect * 100)}% do dano`);

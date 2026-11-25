@@ -386,8 +386,8 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
       damage = 0;
       attacker.hp = Math.max(1, attacker.hp - back);
       log += `\n${reaction.emoji} ${defender.name} abriu um portal e devolveu a magia: ${attacker.name} sofreu **${back}** de dano!`;
-    } else if (reaction.kind === 'block' && attack.ignoreBlock) {
-      log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}**, mas **${attack.name}** apaga tudo que toca: nada foi absorvido.`;
+    } else if (reaction.kind === 'block' && attack.ignoreBlock && !reaction.cutsThrough) { // `cutsThrough` (Foice Defensiva) parte até golpes que ignoram Bloqueio
+      log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}**, mas **${attack.name}** ${attack.grimoire === 'espaco' ? 'apaga tudo que toca' : 'atravessa a defesa'}: nada foi absorvido.`;
     } else if (reaction.kind === 'block') {
       // Defesa escala como um ataque: valor sorteado + atributo × multiplicador (Bloqueio usa Resistência; defesas mágicas, Magia Defensiva)
       const absorbed = Math.min(damage, rand(reaction.absorb) + Math.round((defender.attrs[reaction.attribute] ?? 0) * (C.DEFENSE_PER_POINT[reaction.attribute] ?? 0) * abilityScale(reaction)));

@@ -481,6 +481,56 @@ const abilities = {
       return `📋 ${user.name} tocou o grimório de ${foe.name} e copiou **${a.name}**${rank > 1 ? ` (rank ${rank})` : ''} por ${this.copy.turns} turno(s).${dropped} Use pelo /habilidade.`;
     },
   },
+
+  // ---- Grimório do Corte (ÉPICO) ----
+  // Lâminas de mana nos antebraços: cortes que fazem sangrar (Sangramento acumula e ignora defesas) e uma defesa que parte
+  // até golpes que ignoram Bloqueio (`cutsThrough`). Escala de atributo da raridade (1,4x). Todas têm ranks: são só 4 magias.
+  // Árvore: Foice da Morte -> { Corte da Insanidade -> Foice Giratória da Morte }, { Foice Defensiva }.
+  // Corte poderoso disparado da lâmina do antebraço: média distância e faz sangrar
+  foice_da_morte: {
+    id: 'foice_da_morte', name: 'Foice da Morte', description: 'Com a lâmina de mana no antebraço, dispara um corte poderoso, forte o bastante para partir rocha. Atinge de média distância e faz o alvo sangrar.', actionText: 'Foice da Morte', gif: 'corte_foice_da_morte.gif', grimoire: 'corte', magic: true,
+    type: 'attack', range: 3, damage: [10, 15], attribute: 'magiaOfensiva', manaCost: 24,
+    applies: [{ effect: 'sangramento', turns: 2, stacks: 1, power: 2 }],
+    minLevel: 6, // raiz da árvore do Corte
+    // Rank II: mais dano. Rank III: mais dano e o corte abre um sangramento mais fundo.
+    ranks: [
+      { minLevel: 16, damage: [13, 18] },
+      { minLevel: 28, damage: [16, 22], applies: [{ effect: 'sangramento', turns: 3, stacks: 2, power: 2 }] },
+    ],
+  },
+  // Enxurrada caótica de cortes voadores: difícil de esquivar, pega quem está colado no alvo e faz sangrar muito
+  corte_da_insanidade: {
+    id: 'corte_da_insanidade', name: 'Foice da Morte: Corte da Insanidade', description: 'As lâminas dos antebraços soltam uma enxurrada caótica de cortes voadores. Difícil de esquivar, também atinge quem está colado no alvo e abre vários sangramentos.', actionText: 'Foice da Morte: Corte da Insanidade', gif: 'corte_corte_da_insanidade.gif', grimoire: 'corte', magic: true,
+    type: 'attack', range: 3, damage: [8, 12], attribute: 'magiaOfensiva', manaCost: 36, cooldown: 2, dodgePenalty: 0.3,
+    splash: { radius: 1, share: 0.5 }, applies: [{ effect: 'sangramento', turns: 3, stacks: 2, power: 2 }],
+    minLevel: 14, after: 'foice_da_morte',
+    // Rank II: mais dano e mais sangramento
+    ranks: [
+      { minLevel: 30, damage: [11, 16], applies: [{ effect: 'sangramento', turns: 3, stacks: 3, power: 2 }] },
+    ],
+  },
+  // Cortes precisos contra o golpe que chega: bloqueia e parte até golpes que ignoram Bloqueio (magia espacial, Corte Dimensional...)
+  foice_defensiva: {
+    id: 'foice_defensiva', name: 'Foice Defensiva', description: 'Cortes precisos contra o ataque que se aproxima, tentando parti-lo antes que atinja o corpo. Reação que absorve parte do golpe e funciona até contra ataques que atravessam o Bloqueio, como magias espaciais.', actionText: 'Foice Defensiva', gif: 'corte_foice_defensiva.gif', grimoire: 'corte',
+    type: 'reaction', kind: 'block', absorb: [4, 7], attribute: 'magiaDefensiva', manaCost: 24, cutsThrough: true, emoji: '🗡️',
+    minLevel: 10, after: 'foice_da_morte',
+    // Rank II e III: cortes mais precisos, absorvem mais
+    ranks: [
+      { minLevel: 22, absorb: [7, 11] },
+      { minLevel: 34, absorb: [10, 15], manaCost: 28 },
+    ],
+  },
+  // Disco de foice girando: alcance longo e atravessa defesas (ignora Bloqueio)
+  foice_giratoria_da_morte: {
+    id: 'foice_giratoria_da_morte', name: 'Foice Giratória da Morte', description: 'Uma enorme lâmina circular em forma de foice gira em alta velocidade e avança como um disco cortante. Alcance longo, atravessa o Bloqueio e faz o alvo sangrar.', actionText: 'Foice Giratória da Morte', gif: 'corte_foice_giratoria_da_morte.gif', grimoire: 'corte', magic: true,
+    type: 'attack', range: 5, damage: [15, 22], attribute: 'magiaOfensiva', manaCost: 46, cooldown: 3, ignoreBlock: true, dodgePenalty: 0.15,
+    applies: [{ effect: 'sangramento', turns: 2, stacks: 1, power: 3 }],
+    minLevel: 20, after: 'corte_da_insanidade',
+    // Rank II: disco maior, mais dano e sangramento mais forte
+    ranks: [
+      { minLevel: 34, damage: [20, 28], applies: [{ effect: 'sangramento', turns: 3, stacks: 2, power: 3 }] },
+    ],
+  },
 };
 
 const TYPE_LABEL = { attack: 'Ataque', bonus: 'Ação bônus', reaction: 'Reação' };
