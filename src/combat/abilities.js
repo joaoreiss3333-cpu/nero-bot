@@ -410,6 +410,77 @@ const abilities = {
       { minLevel: 34, damage: [21, 29], splash: { radius: 2, share: 0.6 } },
     ],
   },
+
+  // ---- Grimório da Cópia (ÉPICO) ----
+  // Uma magia só, que vira as magias do inimigo: tocando o grimório dele, quem usa ESCOLHE (opção `copiar` do /habilidade)
+  // uma magia de grimório que o inimigo aprendeu e pode lançá-la (ataque, bônus ou reação) enquanto durar o efeito
+  // Magia Copiada, com os próprios atributos.
+  // Limites: só de inimigos e com alcance de toque; só copia magias cujo nível mínimo você já tem; a escala de atributo da
+  // cópia nunca passa a de um épico (ver battle.abilityOf); não copia magias que dependem de outro efeito (ex: Impulso da Morte).
+  // Cada uso copia UMA magia: os ranks aumentam quantas cópias você guarda ao mesmo tempo (`slots`; a mais antiga sai
+  // quando enche), por quantos turnos e, no III, a cópia vem no rank do inimigo (até o rank que o seu nível permite).
+  // Os ranks são caros (`cost`), porque a árvore tem uma magia só.
+  magia_de_copia: {
+    id: 'magia_de_copia', name: 'Magia de Cópia', description: 'Ao tocar o grimório de outro mago, copia o atributo mágico dele e reproduz seus feitiços. Você escolhe uma magia que o inimigo aprendeu (de ataque, defesa ou suporte) e pode usá-la por alguns turnos, com os seus atributos, desde que já tenha o nível dela.', actionText: 'Magia de Cópia', gif: 'copia_magia_de_copia.gif', grimoire: 'copia', magic: true,
+    type: 'bonus', manaCost: 30, cooldown: 5, targetRange: 1,
+    copy: { slots: 1, turns: 3, keepRank: false },
+    minLevel: 6, cost: 2, // raiz (e única magia) da árvore da Cópia
+    // Rank II: alcança 2 casas, guarda 2 cópias por 4 turnos. Rank III: guarda 3 cópias por 5 turnos, no rank do inimigo.
+    ranks: [
+      { minLevel: 20, cost: 4, targetRange: 2, copy: { slots: 2, turns: 4, keepRank: false } },
+      { minLevel: 36, cost: 6, copy: { slots: 3, turns: 5, keepRank: true } },
+    ],
+    // Magias do inimigo que entram na lista: de grimório, aprendidas por ele, que não dependem de outro efeito e que você não tem
+    copyable(user, foe) {
+      return foe.abilities.map(id => abilities[id])
+        .filter(a => a?.grimoire && !a.requiresEffect && !a.copy && !user.abilities.includes(a.id));
+    },
+    // Por que não dá para copiar essa magia (texto) ou null
+    copyBlocker(user, a) {
+      return (a.minLevel ?? 1) > user.level ? `você precisa do nível ${a.minLevel} para copiar **${a.name}** (está no ${user.level})` : null;
+    },
+    // Rank da cópia: 1, ou (no rank III da Cópia) o rank do inimigo, até o maior rank cujo nível você já tem
+    copyRank(user, foe, a) {
+      if (!this.copy.keepRank) return 1;
+      let rank = 1;
+      for (let r = 2; r <= (foe.ranks?.[a.id] ?? 1); r++) if ((a.ranks?.[r - 2]?.minLevel ?? 1) <= user.level) rank = r;
+      return rank;
+    },
+    // A magia escolhida (opção `copiar`); sem escolha, só vale se houver exatamente uma possível
+    pick(user, foe, copyId) {
+      const list = this.copyable(user, foe);
+      if (!list.length) return { error: `${foe.name} não tem nenhuma magia de grimório que dê para copiar.` };
+      if (!copyId) {
+        const allowed = list.filter(a => !this.copyBlocker(user, a));
+        if (allowed.length === 1) return { ability: allowed[0] };
+        if (!allowed.length) return { error: `Você ainda não tem nível para copiar nenhuma magia de ${foe.name}.` };
+        return { error: `Escolha qual magia copiar na opção \`copiar\`. De ${foe.name} dá para copiar: ${allowed.map(a => `**${a.name}**`).join(', ')}.` };
+      }
+      const ability = list.find(a => a.id === copyId);
+      if (!ability) return { error: `${foe.name} não tem essa magia para copiar.` };
+      const blocker = this.copyBlocker(user, ability);
+      return blocker ? { error: `Não dá: ${blocker}.` } : { ability };
+    },
+    canUse(battle, user, foe, { copyId } = {}) {
+      return this.pick(user, foe, copyId).error ?? null;
+    },
+    use(battle, user, foe, { copyId } = {}) {
+      const { ability: a } = this.pick(user, foe, copyId);
+      if (!fx.hasEffect(user, 'magia_copiada')) user.copied = {}; // as cópias antigas já tinham se desfeito
+      const copies = user.copied ??= {};
+      delete copies[a.id];
+      copies[a.id] = { rank: this.copyRank(user, foe, a) };
+      let dropped = '';
+      while (Object.keys(copies).length > this.copy.slots) {
+        const oldest = Object.keys(copies)[0];
+        delete copies[oldest];
+        dropped = ` A cópia de **${abilities[oldest].name}** se desfez para dar lugar.`;
+      }
+      fx.applyEffect(user, 'magia_copiada', { turns: this.copy.turns });
+      const rank = copies[a.id].rank;
+      return `📋 ${user.name} tocou o grimório de ${foe.name} e copiou **${a.name}**${rank > 1 ? ` (rank ${rank})` : ''} por ${this.copy.turns} turno(s).${dropped} Use pelo /habilidade.`;
+    },
+  },
 };
 
 const TYPE_LABEL = { attack: 'Ataque', bonus: 'Ação bônus', reaction: 'Reação' };

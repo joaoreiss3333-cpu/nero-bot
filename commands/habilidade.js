@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { getBattle, currentPlayer, enemiesOf, needsTarget, findPlayer, abilitiesOf, abilityOf, planBonus, applyBonus, abilityCost, resourceLabel, resourceOf, canAfford, spend } = require('../src/combat/battle');
+const { getBattle, currentPlayer, enemiesOf, needsTarget, findPlayer, abilitiesOf, abilityOf, ownedIds, planBonus, applyBonus, abilityCost, resourceLabel, resourceOf, canAfford, spend } = require('../src/combat/battle');
 const { getMods, applyAbilityEffects, hasEffect, removeEffect, getEffect } = require('../src/combat/effects');
 const { panelPayload, asEdit } = require('../src/combat/render');
 const { playAction } = require('../src/combat/actions');
@@ -8,6 +8,26 @@ const { getKit, getRanks } = require('../src/combat/characters');
 const { distance } = require('../src/combat/grid');
 
 const fail = (interaction, content) => interaction.reply({ content, ephemeral: true });
+
+// Opções do autocomplete `copiar`: as magias que dá para copiar do inimigo marcado em `alvo` (ou de todos os inimigos,
+// se ainda não marcou). As que pedem um nível maior que o seu aparecem com cadeado.
+function copyChoices(interaction, battle, me) {
+  const copia = me && me.abilities.includes('magia_de_copia') && abilityOf(me, 'magia_de_copia');
+  if (!copia) return [];
+  const focused = interaction.options.getFocused().toLowerCase();
+  const alvo = interaction.options.get('alvo')?.value;
+  const foes = enemiesOf(battle, me).filter(e => !alvo || e.id === alvo);
+  const choices = [];
+  for (const foe of foes) {
+    for (const a of copia.copyable(me, foe)) {
+      if (!a.name.toLowerCase().includes(focused)) continue;
+      const blocker = copia.copyBlocker(me, a);
+      const label = `${blocker ? '🔒 ' : ''}${a.name}${foes.length > 1 ? ` (de ${foe.name})` : ''}${blocker ? ` · precisa do nível ${a.minLevel}` : ''}`;
+      choices.push({ name: label.slice(0, 100), value: a.id });
+    }
+  }
+  return choices.slice(0, 25);
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -34,20 +54,26 @@ module.exports = {
       .setName('casas')
       .setDescription('Só para habilidades de teleporte: quantas casas')
       .setMinValue(1)
-      .setMaxValue(10)),
+      .setMaxValue(10))
+    .addStringOption(o => o
+      .setName('copiar')
+      .setDescription('Só para a Magia de Cópia: qual magia do inimigo copiar')
+      .setAutocomplete(true)),
 
-  // Lista as habilidades de ataque/bônus do personagem do jogador
+  // Lista as habilidades de ataque/bônus do personagem do jogador (ou, na opção `copiar`, as magias do inimigo)
   async autocomplete(interaction) {
     const battle = getBattle(interaction.channelId);
     const me = battle && findPlayer(battle, interaction.user.id);
-    const ids = me ? me.abilities : getKit(interaction.user.id);
+    if (interaction.options.getFocused(true).name === 'copiar') return interaction.respond(copyChoices(interaction, battle, me));
+    const ids = me ? ownedIds(me) : getKit(interaction.user.id); // na batalha, inclui as magias copiadas
     const focused = interaction.options.getFocused().toLowerCase();
 
     const holder = me ?? { ranks: getRanks(interaction.user.id) };
     const choices = ids
       .map(id => abilityOf(holder, id))
       .filter(a => a && a.type !== 'reaction' && a.name.toLowerCase().includes(focused))
-      .map(a => ({ name: `${a.name}${a.rank > 1 ? ` (rank ${a.rank})` : ''} (${TYPE_LABEL[a.type]} · ${a.manaCost ?? a.energyCost} ${a.manaCost !== undefined ? 'mana' : 'energia'}${a.cooldown ? ` · recarga ${a.cooldown}` : ''})`, value: a.id }));
+      .map(a => ({ name: `${a.name}${a.rank > 1 ? ` (rank ${a.rank})` : ''} (${TYPE_LABEL[a.type]} · ${a.manaCost ?? a.energyCost} ${a.manaCost !== undefined ? 'mana' : 'energia'}${a.cooldown ? ` · recarga ${a.cooldown}` : ''})`, value: a.id }))
+      .map(c => (holder.copied?.[c.value] && !holder.abilities?.includes(c.value) ? { ...c, name: `📋 ${c.name}`.slice(0, 100) } : c));
     await interaction.respond(choices.slice(0, 25));
   },
 
@@ -124,12 +150,16 @@ module.exports = {
     // Ação bônus em área (`area`): atinge todos os inimigos dentro do raio, a partir de quem usou
     const inArea = ability.area ? enemiesOf(battle, me).filter(e => distance(me.pos, e.pos) <= ability.area.radius) : null;
     if (ability.area && !inArea.length) return fail(interaction, `Nenhum inimigo dentro da área de **${ability.name}** (${ability.area.radius} casas).`);
+    // Checagem própria da habilidade antes de gastar mana (ex: a Cópia precisa de uma magia para copiar)
+    const opts = { copyId: interaction.options.getString('copiar') };
+    const blocked = ability.canUse?.(battle, me, foe, opts);
+    if (blocked) return fail(interaction, blocked);
     battle.turn.bonusUsed = true;
     if (ability.cooldown) me.cooldowns[ability.id] = ability.cooldown;
     spend(me, ability);
     // Ação bônus: usa a função própria da habilidade (use) e/ou aplica os efeitos dela (applies) em quem usou
     const lines = [];
-    if (ability.use) lines.push(ability.use(battle, me));
+    if (ability.use) lines.push(ability.use(battle, me, foe, opts));
     lines.push(...applyBonus(battle, me, ability, plan.dest, foe));
     if (inArea) for (const e of inArea) lines.push(...applyAbilityEffects(ability, me, e, { defaultTo: 'self' }));
     else lines.push(...applyAbilityEffects(ability, me, foe, { defaultTo: 'self' }));

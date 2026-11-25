@@ -133,10 +133,25 @@ function collectFallen(battle) {
 
 // Habilidades do jogador de um tipo ('attack' | 'bonus' | 'reaction')
 // A habilidade `id` no rank do jogador (undefined se não existir)
-const abilityOf = (player, id) => resolveAbility(getAbility(id), player.ranks?.[id] ?? 1);
+// Magias copiadas pela Magia de Cópia: valem só enquanto o efeito Magia Copiada estiver ativo
+const copiedOf = player => (fx.hasEffect(player, 'magia_copiada') ? player.copied ?? {} : {});
+
+// Ids de tudo que o jogador pode usar agora: o kit dele + as magias copiadas
+const ownedIds = player => [...player.abilities, ...Object.keys(copiedOf(player)).filter(id => !player.abilities.includes(id))];
+
+// A habilidade no rank do jogador. Uma magia copiada usa o rank da cópia e nunca escala acima de um grimório épico
+// (copiar um mítico rende menos que o original).
+function abilityOf(player, id) {
+  const copy = copiedOf(player)[id];
+  if (copy && !player.abilities.includes(id)) {
+    const base = getAbility(id);
+    return base && { ...resolveAbility(base, copy.rank), attributeScale: Math.min(abilityScale(base), C.RARITY_SCALE.epico), copied: true };
+  }
+  return resolveAbility(getAbility(id), player.ranks?.[id] ?? 1);
+}
 
 const abilitiesOf = (player, type) =>
-  player.abilities.map(id => abilityOf(player, id)).filter(a => a && a.type === type);
+  ownedIds(player).map(id => abilityOf(player, id)).filter(a => a && a.type === type);
 
 // Magias gastam mana (manaCost); o resto gasta energia (energyCost, que efeitos como Sufocamento encarecem)
 const resourceOf = ability => (ability.manaCost !== undefined ? 'mana' : 'energy');
@@ -436,6 +451,6 @@ function nextTurn(battle) {
 }
 
 module.exports = {
-  createBattle, getBattle, inAnyBattle, endBattle, currentPlayer, enemiesOf, alliesOf, isAlive, winnerTeam, victoryText, collectFallen, needsTarget, findPlayer, abilitiesOf, abilityOf, abilityCost, resourceOf, resourceLabel, canAfford, spend, reactionBlock, clampMoves,
+  createBattle, getBattle, inAnyBattle, endBattle, currentPlayer, enemiesOf, alliesOf, isAlive, winnerTeam, victoryText, collectFallen, needsTarget, findPlayer, abilitiesOf, abilityOf, ownedIds, abilityCost, resourceOf, resourceLabel, canAfford, spend, reactionBlock, clampMoves,
   planBonus, applyBonus, isOccupied, placePlayer, allPlaced, checkStep, movePlayer, startActions, resolveAttack, nextTurn,
 };

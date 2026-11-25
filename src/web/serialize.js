@@ -39,6 +39,13 @@ function details(a) {
   if (a.manaRefund) out.push(`Recupera ${a.manaRefund} de mana`);
   if (a.requiresEffect) out.push(`Exige o efeito ${getEffect(a.requiresEffect)?.name} ativo`);
   if (a.keepsAsleep) out.push('Não acorda quem está dormindo');
+  if (a.copy) {
+    out.push(`Copia 1 magia à sua escolha que o inimigo aprendeu`);
+    out.push(`Guarda até ${a.copy.slots} cópia(s) ao mesmo tempo, por ${a.copy.turns} turnos`);
+    out.push('Só copia magias cujo nível mínimo você já tem');
+    out.push(a.copy.keepRank ? 'A cópia vem no rank do inimigo (até o que o seu nível permite)' : 'A cópia vem no rank 1');
+    out.push('Cópias escalam no máximo como um grimório épico');
+  }
   if (a.chance) out.push(`${Math.round(a.chance * 100)}% de chance`);
   for (const e of a.applies ?? []) {
     const fx = getEffect(e.effect);

@@ -46,6 +46,8 @@ const EFFECTS = {
     name: 'Preso no Sonho', emoji: '💭', kind: 'debuff', vulnerable: { sonho: 1.25 },
     eachTurn: { effect: 'sonolento', turns: 2 },
   },
+  // Cópia: enquanto ativo, quem usou pode lançar as magias copiadas (ver battle.copiedOf). Quando acaba, a cópia se desfaz.
+  magia_copiada: { name: 'Magia Copiada', emoji: '📋', kind: 'buff' },
   // O cenário do sonho se ergue para proteger quem o manipula
   cenario_onirico: { name: 'Cenário Onírico', emoji: '🏔️', kind: 'buff', mods: { damageResist: 0.25 } },
   instinto_selvagem: {

@@ -159,7 +159,7 @@ async function pageGrimoires(id) {
         <div class="grid">${list.map(x => `
           <div class="card grim-card ${x.abilities.length ? '' : 'empty'} ${me?.grimoire?.id === x.id ? 'mine' : ''}" data-id="${x.abilities.length ? x.id : ''}">
             <h3>${esc(x.name)}</h3>
-            <span class="muted">${x.abilities.length ? `🌳 ${x.abilities.length} magias` : 'Em breve'}</span>
+            <span class="muted">${x.abilities.length ? `🌳 ${x.abilities.length} magia${x.abilities.length === 1 ? "" : "s"}` : 'Em breve'}</span>
             ${me?.grimoire?.id === x.id ? '<span class="tag mine-tag">Seu grimório</span>' : ''}
           </div>`).join('')}</div>`;
     }).join('')}`;
@@ -314,7 +314,7 @@ function renderTree(tree) {
       <div>
         <h1 style="margin:0">Grimório <span class="rar-${g.rarity}">${esc(g.name)}</span></h1>
         <span class="muted"><span class="tag rar-${g.rarity}">${esc(g.rarityName)}</span>
-          · ${tree.abilities.length} magias${owned ? ` · ${learnedCount} aprendida(s) · você está no nível ${tree.level}` : ''}</span>
+          · ${tree.abilities.length} magia${tree.abilities.length === 1 ? "" : "s"}${owned ? ` · ${learnedCount} aprendida(s) · você está no nível ${tree.level}` : ''}</span>
       </div>
       ${owned ? `<span class="points-pill">✦ ${tree.skillPoints} ponto(s) de habilidade</span>` : ''}
     </div>
