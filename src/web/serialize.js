@@ -31,7 +31,9 @@ function details(a) {
   if (a.cursedBonus) out.push(`Contra alvos amaldiçoados: +${Math.round((a.cursedBonus - 1) * 100)}% de dano e absorve ${a.cursedDrain} de mana`);
   if (a.lifesteal) out.push(`Recupera ${Math.round(a.lifesteal * 100)}% do dano causado em vida`);
   if (a.requiresTargetEffect) out.push(`Só em alvos com ${getEffect(a.requiresTargetEffect)?.name}`);
-  if (a.dodgePenalty) out.push(`-${Math.round(a.dodgePenalty * 100)}% de esquiva do alvo`);
+  if (a.dodgePenalty >= 1) out.push('Impossível de esquivar');
+  else if (a.dodgePenalty) out.push(`-${Math.round(a.dodgePenalty * 100)}% de esquiva do alvo`);
+  if (a.piercesDarkness) out.push('A Magia de Escuridão não consegue absorver (ignora a Lua Negra e as defesas das Trevas)');
   if (a.onlyVsMagic) out.push('Só contra magia');
   if (a.reflect) out.push(`Devolve ${Math.round(a.reflect * 100)}% do dano`);
   if (a.drainMana) out.push(`Drena ${a.drainMana} de mana`);

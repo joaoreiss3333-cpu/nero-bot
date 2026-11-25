@@ -40,6 +40,21 @@ const { getGrimoire } = require('./grimoires');
 const { distance } = require('./grid');
 const NL = '\n';
 
+// Inimigos vivos de `user` a até `radius` casas dele (magias de área lançadas por ação bônus)
+const foesInArea = (battle, user, radius) => battle.players.filter(p => p.hp > 0 && p.team !== user.team && p.pos && user.pos && distance(p.pos, user.pos) <= radius);
+
+// Dano de uma magia de ação bônus (sem reação): valor sorteado + atributo × escala da raridade + bônus de efeitos,
+// vezes `mult`, menos as resistências do alvo. Já tira a vida do alvo e retorna o dano causado.
+function hitWithMagic(ability, user, foe, mult = 1) {
+  const scale = ability.attributeScale ?? C.RARITY_SCALE[getGrimoire(ability.grimoire)?.rarity] ?? 1;
+  const bonus = Math.round((user.attrs[ability.attribute] ?? 0) * (C.DAMAGE_PER_POINT[ability.attribute] ?? 0) * scale) + fx.getMods(user).damageBonus;
+  const raw = ability.damage[0] + Math.floor(Math.random() * (ability.damage[1] - ability.damage[0] + 1)) + bonus;
+  const resist = Math.min(0.9, fx.getMods(foe).damageResist + fx.getMods(foe).magicResist);
+  const dmg = Math.max(1, Math.round(raw * mult * (1 - resist)));
+  foe.hp = Math.max(0, foe.hp - dmg);
+  return dmg;
+}
+
 const abilities = {
   soco: { id: 'soco', name: 'Soco', description: 'Um golpe físico simples, corpo a corpo. Gasta energia, não mana.', actionText: 'um Soco', gif: 'soco.gif', type: 'attack', range: 1, damage: [2, 4], attribute: 'forca', energyCost: 10 },
 
@@ -729,16 +744,10 @@ const abilities = {
     // Dano em todos os inimigos da área (antes de prendê-los). Amaldiçoado = já tem algum debuff:
     // leva mais dano e a Roseira absorve parte da mana dele.
     use(battle, user) {
-      const scale = this.attributeScale ?? C.RARITY_SCALE[getGrimoire(this.grimoire)?.rarity] ?? 1;
-      const bonus = Math.round((user.attrs[this.attribute] ?? 0) * (C.DAMAGE_PER_POINT[this.attribute] ?? 0) * scale) + fx.getMods(user).damageBonus;
       const lines = [`🌹 ${user.name} abriu o **Paraíso de Rosa Azul**: roseiras azuis cobrem o chão ao redor.`];
-      const foes = battle.players.filter(p => p.hp > 0 && p.team !== user.team && p.pos && user.pos && distance(p.pos, user.pos) <= this.area.radius);
-      for (const foe of foes) {
+      for (const foe of foesInArea(battle, user, this.area.radius)) {
         const cursed = Object.keys(foe.effects ?? {}).some(id => fx.getEffect(id)?.kind === 'debuff');
-        const raw = this.damage[0] + Math.floor(Math.random() * (this.damage[1] - this.damage[0] + 1)) + bonus;
-        const resist = Math.min(0.9, fx.getMods(foe).damageResist + fx.getMods(foe).magicResist);
-        const dmg = Math.max(1, Math.round(raw * (cursed ? this.cursedBonus : 1) * (1 - resist)));
-        foe.hp = Math.max(0, foe.hp - dmg);
+        const dmg = hitWithMagic(this, user, foe, cursed ? this.cursedBonus : 1);
         lines.push(`🥀 As vinhas atingiram ${foe.name} (**${dmg}** de dano).`);
         if (cursed) {
           const drained = Math.min(foe.mana, this.cursedDrain);
@@ -762,6 +771,86 @@ const abilities = {
     ranks: [
       { minLevel: 24, absorb: [7, 11], thorns: [5, 8], applies: [{ effect: 'perfume_de_rosas', turns: 2 }, { effect: 'enraizado', turns: 1, chance: 0.35 }] },
     ],
+  },
+
+  // ---- Grimório da Luz (LENDÁRIO) ----
+  // Velocidade da luz: golpes difíceis de esquivar, feixes em área, cura e um avatar gigante. O Raio do Castigo Divino
+  // é impossível de esquivar e a Escuridão não consegue absorvê-lo. Escala de atributo da raridade (1,7x).
+  // Árvore: Espada de Luz -> { Chicote -> Luz de Avior -> Raio do Castigo Divino }, { Flash Cortador -> Flechas do Julgamento },
+  //         { Partículas de Cura -> Monarca Absoluto }.
+  // Fragmentos de luz lançados em alta velocidade: rápidos demais para esquivar com facilidade
+  espada_de_luz_do_julgamento: {
+    id: 'espada_de_luz_do_julgamento', name: 'Espada de Luz do Julgamento', description: 'Cria vários fragmentos de luz ao redor, quatro menores passando por um maior, e os lança em alta velocidade no alvo. Atinge de longe e, por ser veloz como a luz, é mais difícil de esquivar.', actionText: 'Espada de Luz do Julgamento', gif: 'luz_espada_de_luz_do_julgamento.gif', grimoire: 'luz', magic: true,
+    type: 'attack', range: 4, damage: [10, 15], attribute: 'magiaOfensiva', manaCost: 24, dodgePenalty: 0.15,
+    minLevel: 6, // raiz da árvore da Luz
+    // Rank II: mais fragmentos, mais dano
+    ranks: [
+      { minLevel: 18, damage: [13, 19] },
+    ],
+  },
+  // Chicote longo de movimentos imprevisíveis: muito difícil de esquivar
+  chicote_de_luz_do_julgamento: {
+    id: 'chicote_de_luz_do_julgamento', name: 'Chicote de Luz do Julgamento', description: 'Manifesta um longo chicote de luz que se estende da mão, com movimentos imprevisíveis ao ser balançado, forte e veloz o bastante para destruir o teto de uma caverna. Alcance médio e muito difícil de esquivar.', actionText: 'Chicote de Luz do Julgamento', gif: 'luz_chicote_de_luz_do_julgamento.gif', grimoire: 'luz', magic: true,
+    type: 'attack', range: 3, damage: [12, 17], attribute: 'magiaOfensiva', manaCost: 30, dodgePenalty: 0.3,
+    minLevel: 10, after: 'espada_de_luz_do_julgamento',
+    // Rank II: o chicote bate mais forte
+    ranks: [
+      { minLevel: 24, damage: [15, 21] },
+    ],
+  },
+  // Orbes ao redor disparam feixes finos: atinge o alvo e quem está perto dele
+  flash_cortador_dos_ceus: {
+    id: 'flash_cortador_dos_ceus', name: 'Flash Cortador dos Céus', description: 'Cria vários orbes de luz ao redor, que disparam finos feixes de luz. Alcance longo, e os feixes também acertam quem está perto do alvo.', actionText: 'Flash Cortador dos Céus', gif: 'luz_flash_cortador_dos_ceus.gif', grimoire: 'luz', magic: true,
+    type: 'attack', range: 5, damage: [11, 16], attribute: 'magiaOfensiva', manaCost: 36, cooldown: 2, splash: { radius: 1, share: 0.4 },
+    minLevel: 14, after: 'espada_de_luz_do_julgamento',
+  },
+  // Grãos de luz envolvem o ferimento e o curam
+  particulas_de_cura_de_luz: {
+    id: 'particulas_de_cura_de_luz', name: 'Partículas de Cura de Luz', description: 'Gera uma esfera de luz ao redor da parte ferida do corpo; pequenos grãos de luz envolvem a lesão e a curam. Ação bônus que recupera a sua vida.', actionText: 'Partículas de Cura de Luz', gif: 'luz_particulas_de_cura_de_luz.gif', grimoire: 'luz', magic: true,
+    type: 'bonus', manaCost: 35, cooldown: 3, heal: [12, 18], attribute: 'magiaSuplementar',
+    minLevel: 10, after: 'espada_de_luz_do_julgamento',
+    // Rank II: cura mais e recarrega mais rápido
+    ranks: [
+      { minLevel: 26, heal: [18, 26], cooldown: 2 },
+    ],
+    use(battle, user) {
+      const scale = this.attributeScale ?? C.RARITY_SCALE[getGrimoire(this.grimoire)?.rarity] ?? 1;
+      const bonus = Math.round((user.attrs[this.attribute] ?? 0) * (C.DAMAGE_PER_POINT[this.attribute] ?? 0) * scale);
+      const healed = Math.max(0, Math.min(user.maxHp - user.hp, this.heal[0] + Math.floor(Math.random() * (this.heal[1] - this.heal[0] + 1)) + bonus));
+      user.hp += healed;
+      return `✨ Grãos de luz envolveram os ferimentos de ${user.name}: ❤️ +${healed} de vida.`;
+    },
+  },
+  // Esfera de poder que se aplana em lâminas de luz e cai sobre todos os inimigos ao redor
+  flechas_do_julgamento: {
+    id: 'flechas_do_julgamento', name: 'Flechas do Julgamento', description: 'Libera o poder mágico numa esfera que se expande, se aplana e vira inúmeras lâminas de luz, que caem sozinhas sobre os alvos. Ação bônus que atinge todos os inimigos ao seu redor.', actionText: 'Flechas do Julgamento', gif: 'luz_flechas_do_julgamento.gif', grimoire: 'luz', magic: true,
+    type: 'bonus', manaCost: 50, cooldown: 4, area: { radius: 4 }, damage: [9, 13], attribute: 'magiaOfensiva',
+    minLevel: 20, after: 'flash_cortador_dos_ceus',
+    use(battle, user) {
+      const lines = [`🗡️ A esfera de luz de ${user.name} se abriu em inúmeras lâminas, que caíram sobre os inimigos.`];
+      for (const foe of foesInArea(battle, user, this.area.radius)) {
+        lines.push(`✨ ${foe.name} foi atingido pelas lâminas (**${hitWithMagic(this, user, foe)}** de dano).`, ...fx.onHit(foe));
+      }
+      return lines.join(NL);
+    },
+  },
+  // Luz concentrada lançada com o braço: explosão forte o bastante para parar um tornado (empurra o alvo)
+  luz_de_avior: {
+    id: 'luz_de_avior', name: 'Luz de Avior', description: 'Cerca-se de luz e, estendendo o braço, lança a luz concentrada no alvo. A explosão é forte o bastante para parar um tornado: dano alto e empurra o alvo para trás.', actionText: 'Luz de Avior', gif: 'luz_luz_de_avior.gif', grimoire: 'luz', magic: true,
+    type: 'attack', range: 4, damage: [17, 24], attribute: 'magiaOfensiva', manaCost: 46, cooldown: 3, push: 2,
+    minLevel: 22, after: 'chicote_de_luz_do_julgamento',
+  },
+  // Avatar gigante de luz: por alguns turnos você bate mais forte e sofre menos dano (lento: recarga longa)
+  monarca_absoluto: {
+    id: 'monarca_absoluto', name: 'Monarca Absoluto do Brilho Sagrado', description: 'Emite luz do corpo e projeta uma imagem gigante de si mesmo. Por alguns turnos você causa mais dano e sofre menos; é lento para a Magia de Luz, então demora a recarregar.', actionText: 'Monarca Absoluto do Brilho Sagrado', gif: 'luz_monarca_absoluto.gif', grimoire: 'luz', magic: true,
+    type: 'bonus', manaCost: 60, cooldown: 6, applies: [{ effect: 'monarca_absoluto', turns: 3 }],
+    minLevel: 26, after: 'particulas_de_cura_de_luz',
+  },
+  // Coluna de luz enorme: alcance muito amplo, impossível de esquivar e a Escuridão não consegue absorvê-la
+  raio_do_castigo_divino: {
+    id: 'raio_do_castigo_divino', name: 'Raio do Castigo Divino', description: 'Concentra a luz numa esfera entre as mãos até ela crescer e a libera numa enorme coluna de luz contra o oponente. Alcance muito amplo, rápido demais para esquivar, e a dispersão de energia é tão grande que a Magia de Escuridão não consegue absorvê-la.', actionText: 'Raio do Castigo Divino', gif: 'luz_raio_do_castigo_divino.gif', grimoire: 'luz', magic: true,
+    type: 'attack', range: 7, damage: [22, 30], attribute: 'magiaOfensiva', manaCost: 65, cooldown: 4, dodgePenalty: 1, piercesDarkness: true,
+    minLevel: 34, after: 'luz_de_avior',
   },
 };
 

@@ -348,15 +348,20 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
   if (crit) raw *= C.CRIT_MULTIPLIER;
   const vuln = fx.vulnerability(defender, attack.element);
   const dm = fx.getMods(defender);
-  const resist = Math.min(0.9, dm.damageResist + (attack.magic ? dm.magicResist : 0)); // Lua Negra (só magia) e Abrigo Dracaena (tudo)
+  // `piercesDarkness` (Raio do Castigo Divino): a Escuridão não absorve o golpe (ignora a Lua Negra e as defesas das Trevas)
+  const darkFails = attack.piercesDarkness && dm.magicResist > 0;
+  const resist = Math.min(0.9, dm.damageResist + (attack.magic && !attack.piercesDarkness ? dm.magicResist : 0)); // Lua Negra (só magia) e Abrigo Dracaena (tudo)
   let damage = Math.max(1, Math.round(raw * vuln * (1 - resist)));
   let log = `${attacker.name} usou **${attack.name}** em ${defender.name} (${damage} de dano).`;
   if (crit) log += `\n💥 **Golpe crítico!**`;
+  if (darkFails) log += `\n☀️ A dispersão de luz é grande demais: a escuridão de ${defender.name} não consegue absorvê-la.`;
   if (resist > 0) log += `\n🛡️ As proteções de ${defender.name} reduziram o dano em ${Math.round(resist * 100)}%.`;
   if (vuln > 1) log += `\n💧 ${defender.name} está vulnerável a esse elemento (dano x${+vuln.toFixed(2)}).`;
 
   if (reaction) {
-    if (attack.cutsSpace && reaction.grimoire === 'espaco' && ['capture', 'reflect'].includes(reaction.kind)) {
+    if (attack.piercesDarkness && reaction.grimoire === 'trevas') {
+      log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}**, mas a escuridão não consegue absorver **${attack.name}**: a luz passou direto.`;
+    } else if (attack.cutsSpace && reaction.grimoire === 'espaco' && ['capture', 'reflect'].includes(reaction.kind)) {
       log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}**, mas **${attack.name}** corta a magia espacial ao meio: a defesa falhou.`;
     } else if (reaction.kind === 'dodge') {
       const chance = Math.max(0, Math.min(
@@ -434,6 +439,7 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
     if (battle && attack.displace && displaceFar(battle, defender, attacker.pos, attack.displace)) {
       lines.push(`🌀 ${defender.name} foi atingido e teletransportado para outro ponto do mapa!`);
     }
+    if (battle && attack.push) lines.push(...pushAway(battle, attacker, defender, attack.push)); // explosão que joga o alvo para trás (Luz de Avior)
     if (lines.length) log += `\n${lines.join('\n')}`;
   }
   return { damage, log, defeated: defender.hp === 0 };
