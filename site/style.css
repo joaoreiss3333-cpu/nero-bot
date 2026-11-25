@@ -166,6 +166,7 @@ th { color: var(--muted); font-weight: 600; }
 .detail img { width: 100%; border-radius: 10px; background: var(--bg-2); aspect-ratio: 16/9; object-fit: cover; margin-bottom: 12px; }
 .detail ul { padding-left: 18px; margin: 8px 0 12px; }
 .detail .rank-block { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 10px; }
+.detail .desc { white-space: pre-line; margin: 10px 0 8px; font-size: 14px; line-height: 1.55; color: var(--text); border-left: 3px solid var(--accent); padding-left: 10px; }
 .detail .req { font-size: 13px; margin-top: 4px; color: var(--muted); }
 .detail .req.missing { color: var(--bad); }
 .detail .buy { width: 100%; justify-content: center; margin-top: 8px; }

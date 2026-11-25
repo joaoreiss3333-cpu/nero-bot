@@ -48,6 +48,7 @@ function publicAbility(a) {
   return {
     id: a.id,
     name: a.name,
+    description: a.description ?? null,
     type: a.type,
     typeLabel: TYPE_LABEL[a.type],
     gif: gifUrl(a.gif),

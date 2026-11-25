@@ -374,6 +374,7 @@ function renderDetail(n, tree) {
     ${a.gif ? `<img src="${esc(a.gif)}" alt="">` : ''}
     <h3>${esc(a.name)}${r > 1 ? ` <span class="rank-tag">Rank ${ROMAN[r - 1]}</span>` : ''}</h3>
     <div class="muted" style="font-size:13px">${esc(a.typeLabel)}${r > 1 ? ' · melhoria' : ''}${a.ranks.length > 1 ? ` · ${a.ranks.length} ranks` : ''}${!tree.preview && a.rank ? ` · você tem o rank ${ROMAN[a.rank - 1]}` : ''}</div>
+    ${a.description ? `<p class="desc">${esc(a.description)}</p>` : ''}
     ${parent ? `<div class="req ${parentOwned || tree.preview ? '' : 'missing'}">${tree.preview ? '↑' : parentOwned ? '✓' : '✗'} Requer: ${selLink(parent)}</div>`
       : '<div class="req">◆ Início da árvore</div>'}
     ${children.length ? `<div class="req">↓ Libera: ${children.map(selLink).join(', ')}</div>` : ''}
