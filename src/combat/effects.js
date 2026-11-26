@@ -72,6 +72,8 @@ const EFFECTS = {
     name: 'Fitas do Sono', emoji: '🎀', kind: 'debuff', holdsSleep: true, mods: { noMove: true, dodgeDelta: -0.2 },
     eachTurn: { effect: 'sonolento', turns: 2 },
   },
+  // Laços de Ovelha: amarrado por cordas de algodão e suspenso no ar, sem se mover nem esquivar
+  lacos_de_ovelha: { name: 'Laços de Ovelha', emoji: '🧶', kind: 'debuff', mods: { noMove: true, noDodge: true } },
   // Anéis da Vigília: a esfera rosa de anéis segura os ataques que vêm de fora
   aneis_da_vigilia: { name: 'Anéis da Vigília', emoji: '💗', kind: 'buff', mods: { damageResist: 0.35 } },
   // O cenário do sonho se ergue para proteger quem o manipula

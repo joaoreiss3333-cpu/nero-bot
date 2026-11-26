@@ -40,6 +40,8 @@ const { getGrimoire } = require('./grimoires');
 const { distance } = require('./grid');
 const NL = '\n';
 
+// `user` e os aliados vivos a até `radius` casas dele (curas em grupo)
+const alliesNear = (battle, user, radius) => battle.players.filter(p => p.hp > 0 && (p === user || (p.team === user.team && p.pos && user.pos && distance(p.pos, user.pos) <= radius)));
 // Inimigos vivos de `user` a até `radius` casas dele (magias de área lançadas por ação bônus)
 const foesInArea = (battle, user, radius) => battle.players.filter(p => p.hp > 0 && p.team !== user.team && p.pos && user.pos && distance(p.pos, user.pos) <= radius);
 
@@ -968,6 +970,96 @@ const abilities = {
     use(battle, user, foe) {
       return [`⭐ ${user.name} prendeu ${foe.name} na **Estrela de Prata da Execução**: as barras dispararam lanças de prata (**${hitWithMagic(this, user, foe)}** de dano).`, ...fx.onHit(foe)].join(NL);
     },
+  },
+
+  // ---- Grimório do Algodão (RARO) ----
+  // Ovelhas de algodão: cordas que prendem, ovelhas cozinheiras que curam vida e mana, uma almofada que lança o golpe de volta
+  // e um carneiro gigante invocado (ocupa 2×2 casas) que arremessa o alvo para longe. Escala de atributo da raridade (1,15x).
+  // Árvore: Laços de Ovelha -> { Almofada Macia de Ovelha }, { Ovelha Cozinheira -> Mestre Cozinheiro }, { Ovelha Dorminhoca }.
+  // Cordas de algodão prendem o alvo ao ambiente: suspenso no ar, sem se mover e sem esquivar
+  lacos_de_ovelha: {
+    id: 'lacos_de_ovelha', name: 'Laços de Ovelha', description: 'Cria várias cordas de algodão que envolvem o alvo e se prendem ao ambiente ao redor, deixando-o suspenso no ar. Causa pouco dano, mas o alvo fica sem se mover e sem esquivar.', actionText: 'Laços de Ovelha', gif: 'algodao_lacos_de_ovelha.gif', grimoire: 'algodao', magic: true,
+    type: 'attack', range: 3, damage: [6, 10], attribute: 'magiaOfensiva', manaCost: 22, cooldown: 2,
+    applies: [{ effect: 'lacos_de_ovelha', turns: 1 }],
+    minLevel: 4, // raiz da árvore do Algodão
+    // Rank II: mais cordas, mais dano e o alvo fica preso por mais um turno
+    ranks: [
+      { minLevel: 16, damage: [9, 13], applies: [{ effect: 'lacos_de_ovelha', turns: 2 }] },
+    ],
+  },
+  // Um carneiro grande de algodão segura o golpe na barriga e lança de volta em alta velocidade
+  almofada_macia_de_ovelha: {
+    id: 'almofada_macia_de_ovelha', name: 'Almofada Macia de Ovelha', description: 'Cria um grande carneiro de algodão que segura o golpe na barriga, puxa o estômago para trás e lança o que recebeu de volta em alta velocidade. Reação de defesa que absorve dano e fere quem atacou.', actionText: 'Almofada Macia de Ovelha', gif: 'algodao_almofada_macia_de_ovelha.gif', grimoire: 'algodao', magic: true,
+    type: 'reaction', kind: 'block', absorb: [4, 7], attribute: 'magiaDefensiva', manaCost: 22, thorns: [3, 6], emoji: '🐑',
+    thornsText: (attacker, hurt) => `🐑 A almofada de algodão lançou o golpe de volta em ${attacker.name} (**${hurt}** de dano).`,
+    minLevel: 8, after: 'lacos_de_ovelha',
+    // Rank II: segura e devolve mais
+    ranks: [
+      { minLevel: 22, absorb: [6, 10], thorns: [5, 8] },
+    ],
+  },
+  // Uma semente vira tufo de algodão e depois uma ovelha de chef: a comida cura você e os aliados por perto
+  ovelha_cozinheira: {
+    id: 'ovelha_cozinheira', name: 'Ovelha Cozinheira', description: 'Uma pequena semente cresce até virar um tufo de algodão e depois ovelhas de chapéu de chef, que soltam pó do corpo e obedecem aos seus comandos, quase sempre para cozinhar. Ação bônus: a comida cura a sua vida e a dos aliados por perto.', actionText: 'Ovelha Cozinheira', gif: 'algodao_ovelha_cozinheira.gif', grimoire: 'algodao', magic: true,
+    type: 'bonus', manaCost: 30, cooldown: 3, radius: 2, heal: [8, 12], attribute: 'magiaSuplementar',
+    minLevel: 10, after: 'lacos_de_ovelha',
+    // Rank II: mais ovelhas, mais comida
+    ranks: [
+      { minLevel: 24, heal: [12, 18] },
+    ],
+    use(battle, user) {
+      const scale = this.attributeScale ?? C.RARITY_SCALE[getGrimoire(this.grimoire)?.rarity] ?? 1;
+      const bonus = Math.round((user.attrs[this.attribute] ?? 0) * (C.DAMAGE_PER_POINT[this.attribute] ?? 0) * scale);
+      const lines = [`🐑 As Ovelhas Cozinheiras de ${user.name} prepararam um banquete.`];
+      for (const p of alliesNear(battle, user, this.radius)) {
+        const healed = Math.max(0, Math.min(p.maxHp - p.hp, this.heal[0] + Math.floor(Math.random() * (this.heal[1] - this.heal[0] + 1)) + bonus));
+        p.hp += healed;
+        lines.push(`🍲 ${p.name} comeu: ❤️ +${healed} de vida.`);
+      }
+      return lines.join(NL);
+    },
+  },
+  // A ovelha de bigode e lenço no pescoço: a comida dela devolve o poder mágico de quem come
+  mestre_cozinheiro: {
+    id: 'mestre_cozinheiro', name: 'Ovelha Cozinheira: Mestre Cozinheiro', description: 'Manifesta uma Ovelha Cozinheira de bigode e lenço no pescoço, capaz de preparar comida que restaura o poder mágico. Ação bônus: a comida recupera a sua mana e a dos aliados por perto.', actionText: 'Ovelha Cozinheira: Mestre Cozinheiro', gif: 'algodao_mestre_cozinheiro.gif', grimoire: 'algodao', magic: true,
+    type: 'bonus', manaCost: 10, cooldown: 4, radius: 2, restoreMana: [25, 35], attribute: 'magiaSuplementar',
+    minLevel: 20, after: 'ovelha_cozinheira',
+    // Rank II: pratos mais fortes e recarga menor
+    ranks: [
+      { minLevel: 32, restoreMana: [35, 45], cooldown: 3 },
+    ],
+    use(battle, user) {
+      const scale = this.attributeScale ?? C.RARITY_SCALE[getGrimoire(this.grimoire)?.rarity] ?? 1;
+      const bonus = Math.round((user.attrs[this.attribute] ?? 0) * (C.DAMAGE_PER_POINT[this.attribute] ?? 0) * scale);
+      const lines = [`👨‍🍳 O Mestre Cozinheiro de ${user.name} serviu um prato cheio de mana.`];
+      for (const p of alliesNear(battle, user, this.radius)) {
+        const got = Math.max(0, Math.min(p.maxMana - p.mana, this.restoreMana[0] + Math.floor(Math.random() * (this.restoreMana[1] - this.restoreMana[0] + 1)) + bonus));
+        p.mana += got;
+        lines.push(`🍽️ ${p.name} comeu: 🔷 +${got} de mana.`);
+      }
+      return lines.join(NL);
+    },
+  },
+  // Carneiro gigante de algodão invocado no mapa (2×2 casas): persegue o inimigo e, como um aríete, o arremessa longe
+  ovelha_dorminhoca: {
+    id: 'ovelha_dorminhoca', name: 'Ataque da Ovelha Dorminhoca', description: 'Gera uma grande quantidade de algodão e a molda num carneiro gigante com chifres, que funciona como um aríete de curto alcance. Ação bônus que invoca o carneiro no mapa (ocupa 2×2 casas): ele persegue o inimigo, e o impacto o arremessa para longe.', actionText: 'Ataque da Ovelha Dorminhoca', gif: 'algodao_ovelha_dorminhoca.gif', grimoire: 'algodao', magic: true,
+    type: 'bonus', manaCost: 50, cooldown: 5, attribute: 'magiaOfensiva',
+    summon: {
+      count: 1, size: 2, duration: 3, damage: [8, 12], share: 0.5, push: 3, label: 'Ovelha Dorminhoca', look: 'ovelha', emoji: '🐏',
+      text: (owner, n, turns) => (n
+        ? `🐏 ${owner.name} moldou uma **Ovelha Dorminhoca** gigante de algodão. Ela investe sozinha contra os inimigos por ${turns} turno(s) seus.`
+        : `🐏 O algodão de ${owner.name} não encontrou espaço livre para formar a Ovelha Dorminhoca.`),
+    },
+    minLevel: 18, after: 'lacos_de_ovelha',
+    // Rank II: o carneiro bate mais forte e fica mais tempo
+    ranks: [
+      { minLevel: 30, summon: {
+        count: 1, size: 2, duration: 4, damage: [11, 16], share: 0.5, push: 4, label: 'Ovelha Dorminhoca', look: 'ovelha', emoji: '🐏',
+        text: (owner, n, turns) => (n
+          ? `🐏 ${owner.name} moldou uma **Ovelha Dorminhoca** gigante de algodão. Ela investe sozinha contra os inimigos por ${turns} turno(s) seus.`
+          : `🐏 O algodão de ${owner.name} não encontrou espaço livre para formar a Ovelha Dorminhoca.`),
+      } },
+    ],
   },
 };
 

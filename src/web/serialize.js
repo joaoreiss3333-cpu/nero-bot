@@ -44,7 +44,13 @@ function details(a) {
   if (a.blink) out.push(`Se esquivar, reaparece até ${a.blink} casas longe do atacante`);
   if (a.displace) out.push(`Joga o alvo para ${a.displace}+ casas de distância`);
   if (a.push) out.push(`Empurra o alvo ${a.push} casas`);
-  if (a.summon) out.push(`Invoca ${a.summon.count} clones por ${a.summon.duration} turnos`);
+  if (a.summon) {
+    const s = a.summon;
+    out.push(`Invoca ${s.label ? `${s.count}× ${s.label}` : `${s.count} clones`} por ${s.duration} turnos`);
+    if (s.size > 1) out.push(`Ocupa ${s.size}×${s.size} casas no mapa`);
+    if (s.push) out.push(`O impacto arremessa o alvo ${s.push} casas`);
+  }
+  if (a.restoreMana) out.push(`Recupera ${a.restoreMana[0]}–${a.restoreMana[1]} de mana`);
   if (a.healCap) out.push(`Volta até ${Math.round(a.healCap * 100)}% da vida`);
   if (a.manaRefund) out.push(`Recupera ${a.manaRefund} de mana`);
   if (a.requiresEffect) out.push(`Exige o efeito ${getEffect(a.requiresEffect)?.name} ativo`);

@@ -209,12 +209,24 @@ function checkStep(battle, player, dir) {
   return { dest };
 }
 
-// A casa tem um jogador ou um clone? `except` é quem está perguntando (não conta contra si mesmo)
+// Casas que uma invocação ocupa: `size` N = um quadrado N×N a partir de `pos` (canto de cima à esquerda). Clones têm tamanho 1.
+function footprint(summon) {
+  const n = summon.size ?? 1;
+  const cells = [];
+  for (let dc = 0; dc < n; dc++) for (let dr = 0; dr < n; dr++) cells.push({ col: summon.pos.col + dc, row: summon.pos.row + dr });
+  return cells;
+}
+// Menor distância entre as casas de uma invocação e uma posição (uma invocação grande alcança pelo lado mais próximo)
+const summonDistance = (summon, pos) => Math.min(...footprint(summon).map(c => distance(c, pos)));
+
+// A casa tem um jogador ou uma invocação? `except` é quem está perguntando (não conta contra si mesmo)
 const isOccupied = (battle, pos, except) =>
   battle.players.some(p => p !== except && p.hp > 0 && p.pos && samePos(p.pos, pos))
-  || (battle.summons ?? []).some(s => s !== except && samePos(s.pos, pos));
+  || (battle.summons ?? []).some(s => s !== except && footprint(s).some(c => samePos(c, pos)));
 
 const inBounds = (battle, { col, row }) => col >= 0 && col < battle.cols && row >= 0 && row < battle.rows;
+// Uma invocação de tamanho `size` cabe com o canto em `pos`? (dentro do mapa e sem ninguém nas casas, fora ela mesma)
+const fits = (battle, pos, size, self) => footprint({ pos, size }).every(c => inBounds(battle, c) && !isOccupied(battle, c, self));
 
 // Planeja o teleporte de uma ação bônus (`teleport: 'self' | 'enemy'`): o destino é N casas numa direção (o mapa não mostra
 // coordenadas no combate). Retorna { dest } (ou {} se a habilidade não teleporta) ou { error }.
@@ -252,12 +264,18 @@ function freeCellsNear(battle, from, except) {
 
 // Invoca clones de `owner` nas casas livres mais próximas. Invocar de novo troca os clones antigos pelos novos.
 function summonClones(battle, owner, ability) {
-  const { count, duration, damage, share, label } = ability.summon;
+  const { count, duration, damage, share, label, size = 1, push, look, emoji } = ability.summon;
   battle.summons = battle.summons.filter(s => s.ownerId !== owner.id);
-  const cells = freeCellsNear(battle, owner.pos, null).filter(c => !samePos(c, owner.pos)).slice(0, count);
+  // Cantos livres mais perto do dono onde a invocação inteira cabe, sem uma encostar na outra
+  const cells = [];
+  for (const c of freeCellsNear(battle, owner.pos, null)) {
+    if (cells.length >= count) break;
+    const fp = footprint({ pos: c, size });
+    if (fits(battle, c, size, null) && !cells.some(q => footprint({ pos: q, size }).some(a => fp.some(b => samePos(a, b))))) cells.push(c);
+  }
   for (const pos of cells) {
     battle.summons.push({
-      ownerId: owner.id, name: `${label ?? 'Clone'} de ${owner.name}`, pos, damage, turns: duration,
+      ownerId: owner.id, name: `${label ?? 'Clone'} de ${owner.name}`, pos, damage, turns: duration, size, push, look, emoji,
       bonus: Math.round((owner.attrs[ability.attribute] ?? 0) * (C.DAMAGE_PER_POINT[ability.attribute] ?? 0) * abilityScale(ability) * share),
     });
   }
@@ -295,25 +313,32 @@ function runSummons(battle, owner) {
   const lines = [];
   for (const s of battle.summons.filter(x => x.ownerId === owner.id)) {
     // Cada clone persegue o inimigo vivo mais próximo
-    const foe = enemiesOf(battle, owner).sort((a, b) => distance(a.pos, s.pos) - distance(b.pos, s.pos))[0];
+    const foe = enemiesOf(battle, owner).sort((a, b) => summonDistance(s, a.pos) - summonDistance(s, b.pos))[0];
     if (!foe) break;
-    for (let i = 0; i < C.MOVES_PER_TURN && distance(s.pos, foe.pos) > 1; i++) {
+    const size = s.size ?? 1;
+    for (let i = 0; i < C.MOVES_PER_TURN && summonDistance(s, foe.pos) > 1; i++) {
       const steps = Object.values(DIRECTIONS)
         .map(({ dc, dr }) => ({ col: s.pos.col + dc, row: s.pos.row + dr }))
-        .filter(p => inBounds(battle, p) && !isOccupied(battle, p, s))
-        .sort((a, b) => distance(a, foe.pos) - distance(b, foe.pos));
-      if (!steps.length || distance(steps[0], foe.pos) >= distance(s.pos, foe.pos)) break;
+        .filter(p => fits(battle, p, size, s))
+        .sort((a, b) => summonDistance({ pos: a, size }, foe.pos) - summonDistance({ pos: b, size }, foe.pos));
+      if (!steps.length || summonDistance({ pos: steps[0], size }, foe.pos) >= summonDistance(s, foe.pos)) break;
       s.pos = steps[0];
     }
-    if (distance(s.pos, foe.pos) <= 1) {
+    if (summonDistance(s, foe.pos) <= 1) {
       const dmg = Math.max(1, rand(s.damage) + s.bonus);
       foe.hp = Math.max(0, foe.hp - dmg);
-      lines.push(`🗡️ ${s.name} atacou ${foe.name} (**${dmg}** de dano).`, ...fx.onHit(foe));
+      lines.push(`${s.emoji ?? '🗡️'} ${s.name} atacou ${foe.name} (**${dmg}** de dano).`, ...fx.onHit(foe));
+      // `push` (Ovelha Dorminhoca): o impacto arremessa o alvo para longe, a partir da casa da invocação mais perto dele
+      if (s.push && foe.hp > 0) {
+        const from = footprint(s).sort((a, b) => distance(a, foe.pos) - distance(b, foe.pos))[0];
+        lines.push(...pushAway(battle, { pos: from }, foe, s.push));
+      }
     }
     s.turns -= 1;
   }
   const expired = battle.summons.filter(s => s.ownerId === owner.id && s.turns <= 0);
-  if (expired.length) lines.push(`👥 ${expired.length} clone(s) de ${owner.name} se desfizeram.`);
+  if (expired.length === 1 && expired[0].look === 'ovelha') lines.push(`🐏 A ${expired[0].name} se desfez em algodão.`);
+  else if (expired.length) lines.push(`👥 ${expired.length} clone(s) de ${owner.name} se desfizeram.`);
   battle.summons = battle.summons.filter(s => !(s.ownerId === owner.id && s.turns <= 0));
   return { lines };
 }
@@ -417,7 +442,7 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
       if (reaction.thorns) {
         const hurt = rand(reaction.thorns);
         attacker.hp = Math.max(1, attacker.hp - hurt);
-        log += `\n🌹 Os espinhos feriram ${attacker.name} (**${hurt}** de dano).`;
+        log += `\n${reaction.thornsText?.(attacker, hurt) ?? `🌹 Os espinhos feriram ${attacker.name} (**${hurt}** de dano).`}`;
         const lines = fx.applyAbilityEffects(reaction, defender, attacker);
         if (lines.length) log += `\n${lines.join('\n')}`;
       }
@@ -486,5 +511,5 @@ function nextTurn(battle) {
 
 module.exports = {
   createBattle, getBattle, inAnyBattle, endBattle, currentPlayer, enemiesOf, alliesOf, isAlive, winnerTeam, victoryText, collectFallen, needsTarget, findPlayer, abilitiesOf, abilityOf, ownedIds, abilityCost, resourceOf, resourceLabel, canAfford, spend, reactionBlock, clampMoves,
-  planBonus, applyBonus, isOccupied, placePlayer, allPlaced, checkStep, movePlayer, startActions, resolveAttack, nextTurn,
+  planBonus, applyBonus, isOccupied, footprint, placePlayer, allPlaced, checkStep, movePlayer, startActions, resolveAttack, nextTurn,
 };

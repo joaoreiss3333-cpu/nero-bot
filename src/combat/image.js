@@ -152,8 +152,59 @@ function drawToken(ctx, L, player, index, active) {
   ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.stroke();
 }
 
+// Carneiro de algodão (Ovelha Dorminhoca): ocupa as N×N casas da invocação. Lã em tufos, cara escura e chifres enrolados,
+// com o anel tracejado na cor do time do dono
+function drawSheep(ctx, L, summon, index) {
+  const n = summon.size ?? 1;
+  const x = summon.pos.col * L.cellW + (L.cellW * n) / 2;
+  const y = summon.pos.row * L.cellH + (L.cellH * n) / 2;
+  const R = Math.min(L.cellH, L.cellW) * n * 0.44;
+  const color = PLAYER_COLORS[index % PLAYER_COLORS.length];
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(x + 3, y + R * 0.8, R * 0.95, R * 0.28, 0, 0, Math.PI * 2); ctx.fill();
+
+  // Lã: um anel de tufos em volta de um miolo, tudo branco-creme
+  ctx.fillStyle = '#f4efe6';
+  ctx.strokeStyle = '#cfc6b6';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    ctx.beginPath(); ctx.arc(x + Math.cos(a) * R * 0.7, y + Math.sin(a) * R * 0.62, R * 0.3, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  ctx.beginPath(); ctx.ellipse(x, y, R * 0.78, R * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+
+  // Cara e chifres
+  const hy = y - R * 0.05;
+  ctx.fillStyle = '#4a3b33';
+  ctx.beginPath(); ctx.ellipse(x, hy, R * 0.28, R * 0.36, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#d9b77a';
+  ctx.lineWidth = Math.max(3, R * 0.09);
+  for (const side of [-1, 1]) { // o mesmo chifre enrolado, espelhado de cada lado da cara
+    ctx.save();
+    ctx.translate(x, hy);
+    ctx.scale(side, 1);
+    ctx.beginPath(); ctx.arc(R * 0.36, -R * 0.12, R * 0.16, Math.PI * 1.1, Math.PI * 2.6); ctx.stroke();
+    ctx.restore();
+  }
+  // Olhos fechados (dorminhoca)
+  ctx.strokeStyle = '#f4efe6';
+  ctx.lineWidth = Math.max(2, R * 0.04);
+  for (const side of [-1, 1]) {
+    ctx.beginPath(); ctx.arc(x + side * R * 0.11, hy - R * 0.02, R * 0.06, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+  }
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.setLineDash([6, 5]);
+  ctx.beginPath(); ctx.arc(x, y, R * 1.02, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+
 // Clone invocado: o mesmo rosto do dono, escurecido e com anel tracejado na cor dele, para parecer outra figura no mapa
 function drawSummon(ctx, L, summon, owner, index) {
+  if (summon.look === 'ovelha') return drawSheep(ctx, L, summon, index);
   const { x, y } = cellCenter(L, summon.pos);
   const R = Math.min(L.cellH, L.cellW) * 0.38;
   const color = PLAYER_COLORS[index % PLAYER_COLORS.length];
