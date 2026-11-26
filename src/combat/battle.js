@@ -444,7 +444,7 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
     } else if (reaction.kind === 'dodge') {
       const chance = Math.max(0, Math.min(
         C.DODGE_CHANCE_CAP,
-        reaction.chance + defender.attrs.destreza * C.DODGE_CHANCE_PER_DEXTERITY + fx.getMods(defender).dodgeDelta - (attack.dodgePenalty ?? 0), // golpes que cercam ou perseguem o alvo (dodgePenalty) são mais difíceis de esquivar
+        reaction.chance + defender.attrs.destreza * C.DODGE_CHANCE_PER_DEXTERITY + fx.getMods(defender).dodgeDelta - (reaction.ignoresSpeed ? 0 : attack.dodgePenalty ?? 0), // golpes que cercam ou perseguem o alvo (dodgePenalty) são mais difíceis de esquivar; `ignoresSpeed` (Deslocamento Atemporal) não liga para isso
       ));
       if (Math.random() < chance) {
         damage = 0;

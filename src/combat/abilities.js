@@ -80,11 +80,44 @@ const abilities = {
   bloqueio: { id: 'bloqueio', name: 'Bloqueio', description: 'Reação: segura o golpe e absorve parte do dano. A Resistência aumenta o quanto você absorve.', type: 'reaction', kind: 'block', absorb: [1, 2], attribute: 'resistencia', energyCost: 10, emoji: '🛡️' }, // absorve um valor sorteado (1-2) + Resistência × 0,5
 
   // ---- Grimório do Tempo ----
-  // Grimório MÍTICO: a magia de ataque mais forte do servidor. Dano bem acima do Soco e prende o alvo em Estase Temporal (imóvel e sem reação, ainda pode atacar)
+  // Grimório MÍTICO. Começa com magias mais fracas (Esferas, Raio Refletor, Deslocamento) antes das três fortes.
+  // Árvore: Esferas do Tempo -> { Deslocamento Atemporal }, { Raio Refletor do Tempo -> Chrono Stasis -> Chrono Stasis Grigora
+  //         -> Chrono Anastasis }.
+  // Muitas esferas pequenas de longe: atravessam paredes e algumas defesas (ignora o Bloqueio), dano baixo e barato
+  esferas_do_tempo: {
+    id: 'esferas_do_tempo', name: 'Esferas do Tempo', description: 'Lança pequenas esferas em grande quantidade, capazes de atravessar estruturas, paredes e alguns poderes. Ataque de longo alcance, barato e que ignora o Bloqueio.', actionText: 'Esferas do Tempo', gif: 'tempo_esferas_do_tempo.gif', grimoire: 'tempo', magic: true,
+    type: 'attack', range: 5, damage: [6, 9], attribute: 'magiaOfensiva', manaCost: 16, ignoreBlock: true,
+    minLevel: 2, // raiz da árvore do Tempo
+    // Rank II: mais esferas
+    ranks: [
+      { minLevel: 12, damage: [9, 13] },
+    ],
+  },
+  // Esquiva que acompanha golpes velozes: a velocidade do ataque (dodgePenalty) não atrapalha
+  deslocamento_atemporal: {
+    id: 'deslocamento_atemporal', name: 'Deslocamento Atemporal', description: 'Desloca-se rapidamente diante de ataques de alta velocidade. Reação de esquiva que não perde chance contra golpes rápidos ou difíceis de esquivar.', actionText: 'Deslocamento Atemporal', gif: 'tempo_deslocamento_atemporal.gif', grimoire: 'tempo', magic: true,
+    type: 'reaction', kind: 'dodge', chance: 0.5, ignoresSpeed: true, manaCost: 18, emoji: '⏱️',
+    minLevel: 3, after: 'esferas_do_tempo',
+    // Rank II: esquiva mais fácil
+    ranks: [
+      { minLevel: 14, chance: 0.6 },
+    ],
+  },
+  // Feixe de luz rebatido por Chrono Stasis até acertar: muito difícil de esquivar
+  raio_refletor_do_tempo: {
+    id: 'raio_refletor_do_tempo', name: 'Raio Refletor do Tempo', description: 'Solta um feixe de luz e cria Chrono Stasis pelo caminho para refletir o feixe de volta na direção do alvo até acertar. Ataque de longo alcance muito difícil de esquivar.', actionText: 'Raio Refletor do Tempo', gif: 'tempo_raio_refletor_do_tempo.gif', grimoire: 'tempo', magic: true,
+    type: 'attack', range: 5, damage: [8, 12], attribute: 'magiaOfensiva', manaCost: 24, dodgePenalty: 0.35,
+    minLevel: 4, after: 'esferas_do_tempo',
+    // Rank II: feixe mais forte
+    ranks: [
+      { minLevel: 13, damage: [11, 16] },
+    ],
+  },
+  // A magia de ataque mais forte do servidor. Dano bem acima do Soco e prende o alvo em Estase Temporal (imóvel e sem reação, ainda pode atacar)
   chrono_stasis: {
     id: 'chrono_stasis', name: 'Chrono Stasis', description: 'Prende o alvo numa esfera com um anel de algarismos romanos, onde ele revive o mesmo instante em loop. Causa dano e deixa o alvo em Estase Temporal: não se move nem reage, mas ainda pode atacar.', actionText: 'Chrono Stasis', gif: 'chrono_stasis.gif', grimoire: 'tempo', magic: true,
     type: 'attack', range: 3, damage: [12, 18], attribute: 'magiaOfensiva', manaCost: 40,
-    minLevel: 6, applies: [{ effect: 'estase', turns: 2 }], cooldown: 3, // raiz da árvore do Tempo
+    minLevel: 6, after: 'raio_refletor_do_tempo', applies: [{ effect: 'estase', turns: 2 }], cooldown: 3,
     // A Estase (imóvel + sem reação) é o que a faz forte, então o dano sobe pouco por rank e o controle é limitado por recarga:
     // 2 turnos de Estase dão no máximo UM golpe livre; nunca dá para encadear uma Estase na outra.
     ranks: [

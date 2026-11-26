@@ -35,6 +35,7 @@ function details(a) {
   if (a.requiresTargetEffect) out.push(`Só em alvos com ${getEffect(a.requiresTargetEffect)?.name}`);
   if (a.dodgePenalty >= 1) out.push('Impossível de esquivar');
   else if (a.dodgePenalty) out.push(`-${Math.round(a.dodgePenalty * 100)}% de esquiva do alvo`);
+  if (a.ignoresSpeed) out.push('A velocidade do golpe não reduz a chance de esquiva');
   if (a.piercesDarkness) out.push('A Magia de Escuridão não consegue absorver (ignora a Lua Negra e as defesas das Trevas)');
   if (a.onlyVsMagic) out.push('Só contra magia');
   if (a.reflect) out.push(`Devolve ${Math.round(a.reflect * 100)}% do dano`);
