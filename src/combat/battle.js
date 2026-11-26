@@ -428,7 +428,7 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
   const dm = fx.getMods(defender);
   // `piercesDarkness` (Raio do Castigo Divino): a Escuridão não absorve o golpe (ignora a Lua Negra e as defesas das Trevas)
   const darkFails = attack.piercesDarkness && dm.magicResist > 0;
-  const resist = Math.min(0.9, dm.damageResist + (attack.magic && !attack.piercesDarkness ? dm.magicResist : 0)); // Lua Negra (só magia) e Abrigo Dracaena (tudo)
+  const resist = Math.min(0.9, dm.damageResist + (attack.magic && !attack.piercesDarkness ? dm.magicResist : 0)); // Lua Negra (só magia) e escudos como os Anéis da Vigília (tudo)
   let damage = Math.max(1, Math.round(raw * vuln * (1 - resist)));
   let log = `${attacker.name} usou **${attack.name}** em ${defender.name} (${damage} de dano).`;
   if (crit) log += `\n💥 **Golpe crítico!**`;
@@ -529,6 +529,13 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
       lines.push(`🌀 ${defender.name} foi atingido e teletransportado para outro ponto do mapa!`);
     }
     if (battle && attack.push) lines.push(...pushAway(battle, attacker, defender, attack.push)); // explosão que joga o alvo para trás (Luz de Avior)
+    // `drainMana` num ataque (Semente de Mistilteinn): o alvo perde mana e quem atacou absorve o que foi sugado
+    if (attack.drainMana) {
+      const lost = Math.min(defender.mana, attack.drainMana);
+      defender.mana -= lost;
+      attacker.mana = Math.min(attacker.maxMana, attacker.mana + lost);
+      if (lost) lines.push(`🔷 ${attacker.name} sugou **${lost}** de mana de ${defender.name}.`);
+    }
     if (lines.length) log += `\n${lines.join('\n')}`;
   }
   return { damage, log, defeated: defender.hp === 0 };

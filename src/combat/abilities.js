@@ -259,32 +259,36 @@ const abilities = {
   },
 
   // ---- Grimório da Árvore do Mundo (LENDÁRIO) ----
-  // Controle de área e suporte: prende, cura e protege o time. Escala de atributo da raridade (1,7x).
-  // Ranks na Semente, no Florescer, na Grande Árvore e na Formação: a árvore tem poucas magias, então elas evoluem.
-  // Árvore: Semente -> { Descida da Árvore Mágica, Florescer da Yggdrasil, Grande Árvore Mistilteinn -> Formação Dracaena }.
+  // Raízes e árvores mágicas: a semente fura defesas e suga mana, raízes esmagam e atacam em área, a Grande Árvore drena a
+  // mana de todos ao redor e prende, a Yggdrasil cura o time e o freixo de Torineko bloqueia feitiços. Escala da raridade (1,7x).
+  // Árvore: Semente -> { Proteção de Torineko }, { Florescer da Yggdrasil }, { Descida da Árvore Mágica },
+  //         { Formação Dracaena -> Grande Árvore Mistilteinn }.
   // Enraizado impede de se mover (ainda pode atacar e reagir).
-  // Lança uma semente que vira madeira ao redor do alvo e o prende
+  // Semente atirada de perto: fura as defesas (ignora o Bloqueio), vira uma árvore que engole o alvo e suga a mana dele
   semente_de_mistilteinn: {
-    id: 'semente_de_mistilteinn', name: 'Semente de Mistilteinn', description: 'Lança uma semente mágica que vira uma estrutura de madeira em volta do alvo. Causa dano e o enraíza, impedindo que ele se mova.', actionText: 'Semente de Mistilteinn', gif: 'arvore_semente_de_mistilteinn.gif', grimoire: 'arvore_do_mundo', magic: true, element: 'planta',
-    type: 'attack', range: 4, damage: [7, 11], attribute: 'magiaOfensiva', manaCost: 28, cooldown: 3,
+    id: 'semente_de_mistilteinn', name: 'Semente de Mistilteinn', description: 'Atira da mão uma semente mágica que fura as defesas do inimigo e, segundos depois, vira uma árvore que o engole e suga a mana dele para a Grande Árvore Mistilteinn. Curto alcance: ignora o Bloqueio, enraíza o alvo e rouba a mana dele.', actionText: 'Semente de Mistilteinn', gif: 'arvore_semente_de_mistilteinn.gif', grimoire: 'arvore_do_mundo', magic: true, element: 'planta',
+    type: 'attack', range: 2, damage: [8, 12], attribute: 'magiaOfensiva', manaCost: 26, cooldown: 3, ignoreBlock: true, drainMana: 15,
     applies: [{ effect: 'enraizado', turns: 2 }],
     minLevel: 8, // raiz da árvore
-    // Rank II: mais dano. Rank III: a madeira prende por mais tempo.
+    // Rank II: mais dano e suga mais. Rank III: a árvore prende por mais tempo.
     ranks: [
-      { minLevel: 16, damage: [10, 15] },
-      { minLevel: 28, damage: [13, 19], applies: [{ effect: 'enraizado', turns: 3 }] },
+      { minLevel: 18, damage: [11, 16], drainMana: 25 },
+      { minLevel: 30, damage: [14, 20], drainMana: 35, applies: [{ effect: 'enraizado', turns: 3 }] },
     ],
   },
-  // Estacas de madeira em alta velocidade: o alvo reage normalmente e quem está perto dele leva 60% do dano
-  descida_da_arvore_magica: {
-    id: 'descida_da_arvore_magica', name: 'Descida da Árvore Mágica', description: 'Invoca uma árvore gigante acima do campo, que dispara estacas de madeira em alta velocidade. Atinge de longe e também quem estiver perto do alvo.', actionText: 'Descida da Árvore Mágica', gif: 'arvore_descida_da_arvore_magica.gif', grimoire: 'arvore_do_mundo', magic: true, element: 'planta',
-    type: 'attack', range: 5, damage: [11, 16], attribute: 'magiaOfensiva', manaCost: 45, cooldown: 3, dodgePenalty: 0.1,
-    splash: { radius: 2, share: 0.6 },
-    minLevel: 18, after: 'semente_de_mistilteinn',
+  // Freixo gigante: os galhos contornam e bloqueiam o feitiço (só contra magia, absorve muito)
+  protecao_magica_de_torineko: {
+    id: 'protecao_magica_de_torineko', name: 'Proteção Mágica de Torineko', description: 'Cria um freixo gigante e direciona os galhos para contornar e bloquear feitiços. Reação contra magia que absorve boa parte do dano.', actionText: 'Proteção Mágica de Torineko', gif: 'arvore_protecao_magica_de_torineko.gif', grimoire: 'arvore_do_mundo', magic: true,
+    type: 'reaction', kind: 'block', absorb: [7, 11], attribute: 'magiaDefensiva', onlyVsMagic: true, manaCost: 30, emoji: '🌳',
+    minLevel: 12, after: 'semente_de_mistilteinn',
+    // Rank II: galhos mais grossos
+    ranks: [
+      { minLevel: 26, absorb: [10, 15] },
+    ],
   },
   // Cura você e os aliados a até `radius` casas (valor sorteado + Magia Suplementar). Sem aliados por perto, cura só você.
   florescer_da_yggdrasil: {
-    id: 'florescer_da_yggdrasil', name: 'Florescer da Yggdrasil', description: 'Uma árvore mágica se espalha e seus galhos envolvem os aliados feridos para restaurá-los. Cura você e os aliados por perto.', actionText: 'Florescer da Yggdrasil', gif: 'arvore_florescer_da_yggdrasil.gif', grimoire: 'arvore_do_mundo', magic: true,
+    id: 'florescer_da_yggdrasil', name: 'Florescer da Yggdrasil', description: 'Brota uma árvore maciça que se espalha pela área e envolve os feridos com os galhos, levantando-os e curando lesões de todo tipo. Ação bônus que cura você e os aliados por perto.', actionText: 'Florescer da Yggdrasil', gif: 'arvore_florescer_da_yggdrasil.gif', grimoire: 'arvore_do_mundo', magic: true,
     type: 'bonus', manaCost: 55, cooldown: 4, radius: 4, heal: [10, 16], attribute: 'magiaSuplementar',
     minLevel: 16, after: 'semente_de_mistilteinn',
     // Rank II: cura mais. Rank III: cura ainda mais e recarrega mais rápido.
@@ -299,39 +303,65 @@ const abilities = {
         || (p.team === user.team && p.pos && user.pos && distance(p.pos, user.pos) <= this.radius)));
       let text = `🌳 ${user.name} usou **Florescer da Yggdrasil**: os galhos curam ${affected.length > 1 ? 'o time' : 'quem os invocou'}.`;
       for (const p of affected) {
-        const healed = Math.max(0, Math.min(p.maxHp - p.hp,this.heal[0] + Math.floor(Math.random() * (this.heal[1] - this.heal[0] + 1)) + bonus));
+        const healed = Math.max(0, Math.min(p.maxHp - p.hp, this.heal[0] + Math.floor(Math.random() * (this.heal[1] - this.heal[0] + 1)) + bonus));
         p.hp += healed;
         text += `${NL}${p.name}: ❤️ +${healed} de vida.`;
       }
       return text;
     },
   },
-  // Raízes gigantes prendem todos os inimigos a até 4 casas (sem dano)
-  grande_arvore_mistilteinn: {
-    id: 'grande_arvore_mistilteinn', name: 'Grande Árvore Mistilteinn', description: 'Libera uma enorme quantidade de mana: raízes gigantes tomam o campo e uma árvore colossal cresce. Enraíza todos os inimigos ao seu redor.', actionText: 'Grande Árvore Mistilteinn', gif: 'arvore_grande_arvore_mistilteinn.gif', grimoire: 'arvore_do_mundo', magic: true,
-    type: 'bonus', usesAttack: true, manaCost: 50, cooldown: 5, area: { radius: 4 }, applies: [{ effect: 'enraizado', turns: 2, to: 'enemy' }],
-    minLevel: 24, after: 'semente_de_mistilteinn',
-    // Rank II: as raízes cobrem uma área maior e prendem por mais tempo
+  // Raízes gigantes descem das nuvens e atacam todos os inimigos ao redor
+  descida_da_arvore_magica: {
+    id: 'descida_da_arvore_magica', name: 'Descida da Árvore Mágica', description: 'Emite um brilho esverdeado enquanto o céu se fecha em nuvens negras e ventanias; das nuvens descem as raízes de uma árvore gigante, que atacam os alvos e depois recuam. Atinge todos os inimigos ao seu redor.', actionText: 'Descida da Árvore Mágica', gif: 'arvore_descida_da_arvore_magica.gif', grimoire: 'arvore_do_mundo', magic: true, element: 'planta',
+    type: 'bonus', usesAttack: true, manaCost: 48, cooldown: 4, area: { radius: 4 }, damage: [12, 17], attribute: 'magiaOfensiva',
+    minLevel: 20, after: 'semente_de_mistilteinn',
+    // Rank II: raízes mais fortes
     ranks: [
-      { minLevel: 36, area: { radius: 5 }, applies: [{ effect: 'enraizado', turns: 3, to: 'enemy' }] },
-    ],
-  },
-  // Estrutura de madeira: prende os inimigos num raio de 3 casas e protege você e os aliados (-30% de dano por 2 turnos)
-  formacao_dracaena: {
-    id: 'formacao_dracaena', name: 'Formação Dracaena', description: 'Raízes emergem do solo e formam uma estrutura gigante de madeira. Enraíza os inimigos próximos e protege você e os aliados, que recebem menos dano.', actionText: 'Formação Dracaena', gif: 'arvore_formacao_dracaena.gif', grimoire: 'arvore_do_mundo', magic: true,
-    type: 'bonus', manaCost: 70, cooldown: 5, radius: 3,
-    minLevel: 34, after: 'grande_arvore_mistilteinn',
-    // Rank II: a estrutura cobre um raio maior e sai mais vezes
-    ranks: [
-      { minLevel: 44, radius: 4, cooldown: 4 },
+      { minLevel: 34, damage: [16, 22] },
     ],
     use(battle, user) {
-      const near = p => p.hp > 0 && p.pos && user.pos && distance(p.pos, user.pos) <= this.radius;
-      const allies = battle.players.filter(p => p === user || (p.team === user.team && near(p)));
-      const foes = battle.players.filter(p => p.team !== user.team && near(p));
-      const lines = [`🌳 ${user.name} usou **Formação Dracaena**: a madeira protege o time e prende quem está por perto.`];
-      for (const p of allies) lines.push(fx.applyEffect(p, 'abrigo_dracaena', { turns: 2 }));
-      for (const p of foes) lines.push(fx.applyEffect(p, 'enraizado', { turns: 2 }));
+      const lines = [`🌩️ O céu se fechou em nuvens negras e as raízes da **Árvore Mágica** desceram sobre os inimigos de ${user.name}.`];
+      for (const foe of foesInArea(battle, user, this.area.radius)) {
+        lines.push(`🌿 As raízes atingiram ${foe.name} (**${hitWithMagic(this, user, foe)}** de dano).`, ...fx.onHit(foe, this.element));
+      }
+      lines.push(...hitSummonsInArea(this, battle, user, this.area.radius));
+      return lines.join(NL);
+    },
+  },
+  // Raízes grandes envolvem um alvo colado e o apertam e torcem: dano alto e prende
+  formacao_dracaena: {
+    id: 'formacao_dracaena', name: 'Formação Dracaena', description: 'Toca a mão no chão e invoca várias raízes grandes que envolvem o alvo, apertando e torcendo até ele quebrar. Curto alcance: dano alto e o alvo fica enraizado.', actionText: 'Formação Dracaena', gif: 'arvore_formacao_dracaena.gif', grimoire: 'arvore_do_mundo', magic: true, element: 'planta',
+    type: 'attack', range: 2, damage: [17, 24], attribute: 'magiaOfensiva', manaCost: 44, cooldown: 3,
+    applies: [{ effect: 'enraizado', turns: 1 }],
+    minLevel: 22, after: 'semente_de_mistilteinn',
+    // Rank II: aperta mais forte e prende por mais tempo
+    ranks: [
+      { minLevel: 36, damage: [22, 30], applies: [{ effect: 'enraizado', turns: 2 }] },
+    ],
+  },
+  // Raízes numa área ampla absorvem a mana de todos os inimigos dentro dela; com essa mana nasce a Grande Árvore, que os prende
+  grande_arvore_mistilteinn: {
+    id: 'grande_arvore_mistilteinn', name: 'Grande Árvore Mistilteinn', description: 'Espalha raízes por uma área ampla que absorvem a mana de todos dentro dela; com essa mana, cria uma árvore enorme, capaz de engolir uma cidade, que captura os inimigos. Longo alcance: rouba mana e enraíza todos os inimigos ao seu redor.', actionText: 'Grande Árvore Mistilteinn', gif: 'arvore_grande_arvore_mistilteinn.gif', grimoire: 'arvore_do_mundo', magic: true,
+    type: 'bonus', usesAttack: true, manaCost: 50, cooldown: 5, area: { radius: 5 }, drainArea: 20,
+    applies: [{ effect: 'enraizado', turns: 2, to: 'enemy' }],
+    minLevel: 30, after: 'formacao_dracaena',
+    // Rank II: as raízes sugam mais e prendem por mais tempo
+    ranks: [
+      { minLevel: 42, drainArea: 30, applies: [{ effect: 'enraizado', turns: 3, to: 'enemy' }] },
+    ],
+    // A drenagem acontece aqui; o Enraizado de cada inimigo da área vem do `applies`
+    use(battle, user) {
+      const lines = [`🌳 As raízes de ${user.name} tomaram o campo e absorveram a mana ao redor: nasceu a **Grande Árvore Mistilteinn**.`];
+      let total = 0;
+      for (const foe of foesInArea(battle, user, this.area.radius)) {
+        const lost = Math.min(foe.mana, this.drainArea);
+        foe.mana -= lost;
+        total += lost;
+        lines.push(`🔷 ${foe.name} perdeu **${lost}** de mana para as raízes.`);
+      }
+      const gained = Math.min(user.maxMana - user.mana, total);
+      user.mana += gained;
+      if (gained) lines.push(`💚 ${user.name} absorveu **${gained}** de mana.`);
       return lines.join(NL);
     },
   },

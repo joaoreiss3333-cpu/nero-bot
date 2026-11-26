@@ -38,8 +38,6 @@ const EFFECTS = {
   },
   // Buraco negro ao redor de quem usou: apaga parte da magia que o atinge (e libera o Impulso da Morte)
   lua_negra: { name: 'Lua Negra', emoji: '🌑', kind: 'buff', mods: { magicResist: 0.35 } },
-  // Galhos da Formação Dracaena envolvem e protegem: reduzem todo dano recebido
-  abrigo_dracaena: { name: 'Abrigo Dracaena', emoji: '🌳', kind: 'buff', mods: { damageResist: 0.3 } },
   // Sonhos: quem abriu o Mundo do Glamour (libera as outras magias dos Sonhos)
   mundo_do_glamour: { name: 'Mundo do Glamour', emoji: '🌙', kind: 'buff' },
   // Preso no mundo dos sonhos: fica mais sonolento a cada turno e sofre mais dano das magias dos Sonhos

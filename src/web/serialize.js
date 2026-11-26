@@ -39,6 +39,7 @@ function details(a) {
   if (a.onlyVsMagic) out.push('Só contra magia');
   if (a.reflect) out.push(`Devolve ${Math.round(a.reflect * 100)}% do dano`);
   if (a.drainMana) out.push(`Drena ${a.drainMana} de mana`);
+  if (a.drainArea) out.push(`Rouba ${a.drainArea} de mana de cada inimigo na área`);
   if (a.teleport === 'self') out.push(`Teleporta você até ${a.destRange} casas`);
   if (a.teleport === 'enemy') out.push(`Teleporta o alvo até ${a.destRange} casas`);
   if (a.blink) out.push(a.blinkTo === 'attacker' ? 'Se esquivar, reaparece colado em quem atacou' : `Se esquivar, reaparece até ${a.blink} casas longe do atacante`);
