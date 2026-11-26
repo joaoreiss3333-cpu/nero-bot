@@ -264,7 +264,7 @@ function freeCellsNear(battle, from, except) {
 
 // Invoca clones de `owner` nas casas livres mais próximas. Invocar de novo troca os clones antigos pelos novos.
 function summonClones(battle, owner, ability) {
-  const { count, duration, damage, share, label, size = 1, push, look, emoji } = ability.summon;
+  const { count, duration, damage, share, label, size = 1, push, look, emoji, icon } = ability.summon;
   battle.summons = battle.summons.filter(s => s.ownerId !== owner.id);
   // Cantos livres mais perto do dono onde a invocação inteira cabe, sem uma encostar na outra
   const cells = [];
@@ -275,7 +275,7 @@ function summonClones(battle, owner, ability) {
   }
   for (const pos of cells) {
     battle.summons.push({
-      ownerId: owner.id, name: `${label ?? 'Clone'} de ${owner.name}`, pos, damage, turns: duration, size, push, look, emoji,
+      ownerId: owner.id, name: `${label ?? 'Clone'} de ${owner.name}`, pos, damage, turns: duration, size, push, look, emoji, icon,
       bonus: Math.round((owner.attrs[ability.attribute] ?? 0) * (C.DAMAGE_PER_POINT[ability.attribute] ?? 0) * abilityScale(ability) * share),
     });
   }

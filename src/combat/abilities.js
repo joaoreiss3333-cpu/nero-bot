@@ -185,7 +185,7 @@ const abilities = {
   // se ficarem coladas no inimigo, sem reação possível). Dano baixo cada um: o dano base mais uma fração (22%) do bônus do atributo.
   crevice_men: {
     id: 'crevice_men', name: 'Crevice Men', description: 'Figuras armadas brotam do chão e lutam por você por alguns turnos, andando e atacando os inimigos sozinhas.', gif: 'espaco_crevice_men.gif', grimoire: 'espaco', magic: true,
-    type: 'bonus', usesAttack: true, manaCost: 60, cooldown: 5, attribute: 'magiaOfensiva', summon: { count: 3, duration: 3, damage: [2, 4], share: 0.22 },
+    type: 'bonus', manaCost: 60, cooldown: 5, attribute: 'magiaOfensiva', summon: { count: 3, duration: 3, damage: [2, 4], share: 0.22, label: 'Crevice Man', icon: 'crevice_men.png' },
     minLevel: 38, after: 'unopening_red_room',
   },
 
@@ -640,9 +640,9 @@ const abilities = {
   // Várias feras de sangue menores e soltas: aparecem no mapa e atacam sozinhas no fim do seu turno
   rebanho_de_feras_vermelhas: {
     id: 'rebanho_de_feras_vermelhas', name: 'Rebanho de Feras Vermelhas', description: 'Molda o sangue em várias Bestas Vermelhas menores, de corpo inteiro e soltas de você. Elas aparecem no mapa e atacam os inimigos sozinhas por alguns turnos.', actionText: 'Rebanho de Feras Vermelhas', gif: 'sangue_rebanho_de_feras_vermelhas.gif', grimoire: 'sangue', magic: true,
-    type: 'bonus', usesAttack: true, manaCost: 60, cooldown: 5, attribute: 'magiaOfensiva',
+    type: 'bonus', manaCost: 60, cooldown: 5, attribute: 'magiaOfensiva',
     summon: {
-      count: 3, duration: 3, damage: [3, 5], share: 0.25, label: 'Fera Vermelha',
+      count: 3, duration: 3, damage: [3, 5], share: 0.25, label: 'Fera Vermelha', icon: 'fera_vermelha.png',
       text: (owner, n, turns) => `👹 ${owner.name} moldou ${n} Fera(s) Vermelha(s) de sangue. Elas atacam sozinhas por ${turns} turno(s) seus.`,
     },
     minLevel: 30, after: 'besta_vermelha',
@@ -1044,9 +1044,9 @@ const abilities = {
   // Carneiro gigante de algodão invocado no mapa (2×2 casas): persegue o inimigo e, como um aríete, o arremessa longe
   ovelha_dorminhoca: {
     id: 'ovelha_dorminhoca', name: 'Ataque da Ovelha Dorminhoca', description: 'Gera uma grande quantidade de algodão e a molda num carneiro gigante com chifres, que funciona como um aríete de curto alcance. Ação bônus que invoca o carneiro no mapa (ocupa 2×2 casas): ele persegue o inimigo, e o impacto o arremessa para longe.', actionText: 'Ataque da Ovelha Dorminhoca', gif: 'algodao_ovelha_dorminhoca.gif', grimoire: 'algodao', magic: true,
-    type: 'bonus', usesAttack: true, manaCost: 50, cooldown: 5, attribute: 'magiaOfensiva',
+    type: 'bonus', manaCost: 50, cooldown: 5, attribute: 'magiaOfensiva',
     summon: {
-      count: 1, size: 2, duration: 3, damage: [8, 12], share: 0.5, push: 3, label: 'Ovelha Dorminhoca', look: 'ovelha', emoji: '🐏',
+      count: 1, size: 2, duration: 3, damage: [8, 12], share: 0.5, push: 3, label: 'Ovelha Dorminhoca', look: 'ovelha', icon: 'ovelha_dorminhoca.png', emoji: '🐏',
       text: (owner, n, turns) => (n
         ? `🐏 ${owner.name} moldou uma **Ovelha Dorminhoca** gigante de algodão. Ela investe sozinha contra os inimigos por ${turns} turno(s) seus.`
         : `🐏 O algodão de ${owner.name} não encontrou espaço livre para formar a Ovelha Dorminhoca.`),
@@ -1055,7 +1055,7 @@ const abilities = {
     // Rank II: o carneiro bate mais forte e fica mais tempo
     ranks: [
       { minLevel: 30, summon: {
-        count: 1, size: 2, duration: 4, damage: [11, 16], share: 0.5, push: 4, label: 'Ovelha Dorminhoca', look: 'ovelha', emoji: '🐏',
+        count: 1, size: 2, duration: 4, damage: [11, 16], share: 0.5, push: 4, label: 'Ovelha Dorminhoca', look: 'ovelha', icon: 'ovelha_dorminhoca.png', emoji: '🐏',
         text: (owner, n, turns) => (n
           ? `🐏 ${owner.name} moldou uma **Ovelha Dorminhoca** gigante de algodão. Ela investe sozinha contra os inimigos por ${turns} turno(s) seus.`
           : `🐏 O algodão de ${owner.name} não encontrou espaço livre para formar a Ovelha Dorminhoca.`),
