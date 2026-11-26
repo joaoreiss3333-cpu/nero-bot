@@ -4,10 +4,7 @@ const { samePos, distance, DIRECTIONS } = require('./grid');
 const { getAbility, resolveAbility } = require('./abilities');
 const { getKit, getRanks, getCombatStats } = require('./characters');
 const fx = require('./effects');
-const { getGrimoire } = require('./grimoires');
-
-// Escala do bônus de atributo: `attributeScale` da habilidade, ou a da raridade do grimório dela, ou 1
-const abilityScale = ability => ability.attributeScale ?? C.RARITY_SCALE[getGrimoire(ability.grimoire)?.rarity] ?? 1;
+const { rarityScale: abilityScale, attributeBonus, cloverMult } = require('./clovers');
 
 const battles = new Map(); // channelId -> batalha
 
@@ -40,6 +37,8 @@ function newPlayer(user, team) {
     mana: stats.maxMana,
     energy: stats.maxEnergy,
     pos: null, // definida na fase de posicionamento
+    grimoire: stats.grimoire, // as folhas (trevos) só fortalecem as magias deste grimório (clovers.js)
+    clovers: stats.clovers,
     abilities: getKit(user.id),
     ranks: getRanks(user.id), // id da magia -> rank (ver resolveAbility)
     speed: stats.speed,
@@ -51,9 +50,9 @@ function newPlayer(user, team) {
 
 const rand = ([min, max]) => min + Math.floor(Math.random() * (max - min + 1));
 
-// Dano de um ataque: valor sorteado no intervalo da habilidade + atributo × multiplicador do atributo
+// Dano de um ataque: (valor sorteado no intervalo da habilidade + atributo × multiplicador do atributo) × trevos do grimório
 const attackDamage = (attacker, attack) =>
-  rand(attack.damage) + Math.round((attacker.attrs[attack.attribute] ?? 0) * (C.DAMAGE_PER_POINT[attack.attribute] ?? 0) * abilityScale(attack));
+  Math.round((rand(attack.damage) + attributeBonus(attacker, attack)) * cloverMult(attacker, attack));
 
 // Maior velocidade começa; se empatar, sorteia entre os mais rápidos
 function whoStarts(players) {
@@ -279,7 +278,7 @@ function summonClones(battle, owner, ability) {
     battle.summons.push({
       id: `s${battle.summonSeq = (battle.summonSeq ?? 0) + 1}`, source: ability.id, hp, maxHp: hp, linkedEffect,
       ownerId: owner.id, name: `${label ?? 'Clone'} de ${owner.name}`, pos, damage, size, push, look, emoji, icon,
-      bonus: Math.round((owner.attrs[ability.attribute] ?? 0) * (C.DAMAGE_PER_POINT[ability.attribute] ?? 0) * abilityScale(ability) * share),
+      bonus: Math.round(attributeBonus(owner, ability) * share), mult: cloverMult(owner, ability), // mult: as folhas do grimório do dono
     });
   }
   if (linkedEffect && cells.length) fx.applyEffect(owner, linkedEffect, { turns: Infinity });
@@ -382,7 +381,7 @@ function runSummons(battle, owner) {
       s.pos = steps[0];
     }
     if (summonDistance(s, foe.pos) <= 1) {
-      const dmg = Math.max(1, rand(s.damage) + s.bonus);
+      const dmg = Math.max(1, Math.round((rand(s.damage) + s.bonus) * (s.mult ?? 1)));
       foe.hp = Math.max(0, foe.hp - dmg);
       lines.push(`${s.emoji ?? '🗡️'} ${s.name} atacou ${foe.name} (**${dmg}** de dano).`, ...fx.onHit(foe));
       // `push` (Ovelha Dorminhoca): o impacto arremessa o alvo para longe, a partir da casa da invocação mais perto dele
@@ -489,7 +488,7 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
       // `physicalBonus` (Escudo de Mercúrio): o metal pesado absorve mais contra golpes físicos
       // `magicBonus` (Materialização de Defesa): o objeto imaginado é feito sob medida contra a magia que vem
       const physical = reaction.physicalBonus && !attack.magic ? reaction.physicalBonus : reaction.magicBonus && attack.magic ? reaction.magicBonus : 1;
-      const absorbed = Math.min(damage, Math.round((rand(reaction.absorb) + Math.round((defender.attrs[reaction.attribute] ?? 0) * (C.DEFENSE_PER_POINT[reaction.attribute] ?? 0) * abilityScale(reaction))) * physical));
+      const absorbed = Math.min(damage, Math.round((rand(reaction.absorb) + attributeBonus(defender, reaction, C.DEFENSE_PER_POINT)) * cloverMult(defender, reaction) * physical));
       damage -= absorbed;
       log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}** e absorveu ${absorbed} de dano.`;
       // Barreira com espinhos (`thorns`): quem atacou se fere nela (nunca morre disso) e sofre os efeitos da barreira

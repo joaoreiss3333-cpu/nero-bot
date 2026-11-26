@@ -6,6 +6,7 @@ const { getProfile } = require('./profiles');
 const { renderProfileImage } = require('./profileImage');
 const { xpToNext } = require('./progression');
 const { getGrimoire, RARITIES } = require('./grimoires');
+const { cloversOf } = require('./clovers');
 const fs = require('fs');
 const path = require('path');
 
@@ -42,6 +43,7 @@ async function profileAttachment(user, member) {
     grimoire: await tryLoad(profile.grimoireUrl ?? (grimoire && grimoireImagePath(grimoire.id))),
     grimoireName: grimoire?.name ?? null,
     grimoireRarity: grimoire ? RARITIES[grimoire.rarity].name : null,
+    clovers: grimoire ? cloversOf(profile) : null,
   });
   return new AttachmentBuilder(png, { name: 'perfil.png' });
 }

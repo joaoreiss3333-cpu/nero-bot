@@ -4,6 +4,7 @@
 const { getAbility, abilities } = require('./abilities');
 const { getProfile } = require('./profiles');
 const { maxHp, maxMana, maxEnergy, speed } = require('./progression');
+const { cloversOf } = require('./clovers');
 
 const DEFAULT_KIT = ['soco', 'esquiva', 'bloqueio'];
 
@@ -89,6 +90,8 @@ function getCombatStats(userId) {
     maxMana: maxMana(profile.level),
     maxEnergy: maxEnergy(profile.level),
     speed: speed(profile),
+    grimoire: profile.grimoire ?? null,
+    clovers: cloversOf(profile),
   };
 }
 

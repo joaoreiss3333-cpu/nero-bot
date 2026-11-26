@@ -28,6 +28,7 @@
 //
 //   O bônus do atributo (config.DAMAGE_PER_POINT) é multiplicado pela escala da raridade do grimório (config.RARITY_SCALE);
 //   `attributeScale` na habilidade sobrescreve. Dano base, mana e efeitos também variam por magia (um efeito forte pede dano menor).
+//   Depois, a força inteira (valor sorteado + atributo) das magias do grimório de quem lança é multiplicada pelos trevos dele (clovers.js, config.CLOVER_MULT).
 //   A árvore de habilidades melhora o `damage` base (e talvez a escala).
 //
 // Campos opcionais para o aviso da ação (o embed "X utilizou ..." com o GIF):
@@ -36,8 +37,7 @@
 //                 Sem GIF, o aviso aparece só com o título.
 //   gifDurationMs -> quanto o jogo espera esse GIF rodar (padrão: ACTION_GIF_WAIT_MS)
 const fx = require('./effects');
-const C = require('./config');
-const { getGrimoire } = require('./grimoires');
+const { rollPower } = require('./clovers');
 const { distance } = require('./grid');
 const NL = '\n';
 
@@ -46,11 +46,9 @@ const alliesNear = (battle, user, radius) => battle.players.filter(p => p.hp > 0
 // Inimigos vivos de `user` a até `radius` casas dele (magias de área lançadas por ação bônus)
 const foesInArea = (battle, user, radius) => battle.players.filter(p => p.hp > 0 && p.team !== user.team && p.pos && user.pos && distance(p.pos, user.pos) <= radius);
 
-// Dano bruto de uma magia de ação bônus: valor sorteado + atributo × escala da raridade + bônus de efeitos
+// Dano bruto de uma magia de ação bônus: (valor sorteado + atributo × escala da raridade) × trevos do grimório + bônus de efeitos
 function rollMagic(ability, user) {
-  const scale = ability.attributeScale ?? C.RARITY_SCALE[getGrimoire(ability.grimoire)?.rarity] ?? 1;
-  const bonus = Math.round((user.attrs[ability.attribute] ?? 0) * (C.DAMAGE_PER_POINT[ability.attribute] ?? 0) * scale) + fx.getMods(user).damageBonus;
-  return ability.damage[0] + Math.floor(Math.random() * (ability.damage[1] - ability.damage[0] + 1)) + bonus;
+  return rollPower(user, ability, ability.damage) + fx.getMods(user).damageBonus;
 }
 
 // Dano de uma magia de ação bônus (sem reação): o dano bruto vezes `mult`, menos as resistências do alvo.
@@ -331,13 +329,11 @@ const abilities = {
       { minLevel: 40, heal: [20, 30], cooldown: 3 },
     ],
     use(battle, user) {
-      const scale = this.attributeScale ?? C.RARITY_SCALE[getGrimoire(this.grimoire)?.rarity] ?? 1;
-      const bonus = Math.round((user.attrs[this.attribute] ?? 0) * (C.DAMAGE_PER_POINT[this.attribute] ?? 0) * scale);
       const affected = battle.players.filter(p => p.hp > 0 && (p === user
         || (p.team === user.team && p.pos && user.pos && distance(p.pos, user.pos) <= this.radius)));
       let text = `🌳 ${user.name} usou **Florescer da Yggdrasil**: os galhos curam ${affected.length > 1 ? 'o time' : 'quem os invocou'}.`;
       for (const p of affected) {
-        const healed = Math.max(0, Math.min(p.maxHp - p.hp, this.heal[0] + Math.floor(Math.random() * (this.heal[1] - this.heal[0] + 1)) + bonus));
+        const healed = Math.max(0, Math.min(p.maxHp - p.hp, rollPower(user, this, this.heal)));
         p.hp += healed;
         text += `${NL}${p.name}: ❤️ +${healed} de vida.`;
       }
@@ -736,12 +732,10 @@ const abilities = {
       { minLevel: 28, heal: [18, 26], cooldown: 3 },
     ],
     use(battle, user) {
-      const scale = this.attributeScale ?? C.RARITY_SCALE[getGrimoire(this.grimoire)?.rarity] ?? 1;
-      const bonus = Math.round((user.attrs[this.attribute] ?? 0) * (C.DAMAGE_PER_POINT[this.attribute] ?? 0) * scale);
       const near = battle.players.filter(p => p.hp > 0 && (p === user
         || (p.team === user.team && p.pos && user.pos && distance(p.pos, user.pos) <= this.radius)));
       const target = near.sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0]; // o mais ferido
-      const healed = Math.max(0, Math.min(target.maxHp - target.hp, this.heal[0] + Math.floor(Math.random() * (this.heal[1] - this.heal[0] + 1)) + bonus));
+      const healed = Math.max(0, Math.min(target.maxHp - target.hp, rollPower(user, this, this.heal)));
       target.hp += healed;
       const cleared = fx.clearDebuffs(target);
       const lines = [`🩸 ${user.name} envolveu ${target === user ? 'a si mesmo' : target.name} num **Casulo de Sangue**: ❤️ +${healed} de vida.`];
@@ -942,9 +936,7 @@ const abilities = {
       { minLevel: 26, heal: [18, 26], cooldown: 2 },
     ],
     use(battle, user) {
-      const scale = this.attributeScale ?? C.RARITY_SCALE[getGrimoire(this.grimoire)?.rarity] ?? 1;
-      const bonus = Math.round((user.attrs[this.attribute] ?? 0) * (C.DAMAGE_PER_POINT[this.attribute] ?? 0) * scale);
-      const healed = Math.max(0, Math.min(user.maxHp - user.hp, this.heal[0] + Math.floor(Math.random() * (this.heal[1] - this.heal[0] + 1)) + bonus));
+      const healed = Math.max(0, Math.min(user.maxHp - user.hp, rollPower(user, this, this.heal)));
       user.hp += healed;
       return `✨ Grãos de luz envolveram os ferimentos de ${user.name}: ❤️ +${healed} de vida.`;
     },
@@ -1091,11 +1083,9 @@ const abilities = {
       { minLevel: 24, heal: [12, 18] },
     ],
     use(battle, user) {
-      const scale = this.attributeScale ?? C.RARITY_SCALE[getGrimoire(this.grimoire)?.rarity] ?? 1;
-      const bonus = Math.round((user.attrs[this.attribute] ?? 0) * (C.DAMAGE_PER_POINT[this.attribute] ?? 0) * scale);
       const lines = [`🐑 As Ovelhas Cozinheiras de ${user.name} prepararam um banquete.`];
       for (const p of alliesNear(battle, user, this.radius)) {
-        const healed = Math.max(0, Math.min(p.maxHp - p.hp, this.heal[0] + Math.floor(Math.random() * (this.heal[1] - this.heal[0] + 1)) + bonus));
+        const healed = Math.max(0, Math.min(p.maxHp - p.hp, rollPower(user, this, this.heal)));
         p.hp += healed;
         lines.push(`🍲 ${p.name} comeu: ❤️ +${healed} de vida.`);
       }
@@ -1112,11 +1102,9 @@ const abilities = {
       { minLevel: 32, restoreMana: [35, 45], cooldown: 3 },
     ],
     use(battle, user) {
-      const scale = this.attributeScale ?? C.RARITY_SCALE[getGrimoire(this.grimoire)?.rarity] ?? 1;
-      const bonus = Math.round((user.attrs[this.attribute] ?? 0) * (C.DAMAGE_PER_POINT[this.attribute] ?? 0) * scale);
       const lines = [`👨‍🍳 O Mestre Cozinheiro de ${user.name} serviu um prato cheio de mana.`];
       for (const p of alliesNear(battle, user, this.radius)) {
-        const got = Math.max(0, Math.min(p.maxMana - p.mana, this.restoreMana[0] + Math.floor(Math.random() * (this.restoreMana[1] - this.restoreMana[0] + 1)) + bonus));
+        const got = Math.max(0, Math.min(p.maxMana - p.mana, rollPower(user, this, this.restoreMana)));
         p.mana += got;
         lines.push(`🍽️ ${p.name} comeu: 🔷 +${got} de mana.`);
       }

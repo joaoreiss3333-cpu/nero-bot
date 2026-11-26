@@ -177,7 +177,7 @@ function pagePerfil() {
         ${p.user.avatar ? `<img class="avatar" src="${esc(p.user.avatar)}" alt="">` : '<span class="avatar"></span>'}
         <div style="flex:1;min-width:220px">
           <h1 style="font-size:32px;margin-bottom:4px">${esc(p.user.username)}</h1>
-          <div>Nível <b>${p.level}</b>${p.grimoire ? ` · Grimório <b class="rar-${p.grimoire.rarity}">${esc(p.grimoire.name)}</b> <span class="tag">${esc(p.grimoire.rarityName)}</span>` : ' · <span class="muted">sem grimório</span>'}</div>
+          <div>Nível <b>${p.level}</b>${p.grimoire ? ` · Grimório <b class="rar-${p.grimoire.rarity}">${esc(p.grimoire.name)}</b> <span class="tag">${esc(p.grimoire.rarityName)}</span> <span class="tag" title="As folhas do trevo fortalecem as magias do grimório">🍀 ${p.grimoire.clovers} folhas</span>` : ' · <span class="muted">sem grimório</span>'}</div>
           <div class="bar" style="margin-top:10px"><span style="width:${xpPct}%"></span></div>
           <small class="muted">${p.xpToNext ? `${p.xp} / ${p.xpToNext} XP` : 'Nível máximo'}</small>
         </div>

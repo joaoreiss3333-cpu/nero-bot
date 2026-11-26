@@ -44,6 +44,9 @@ module.exports = {
   // Escala do bônus de atributo por raridade do grimório da habilidade (a habilidade pode sobrescrever com `attributeScale`).
   // Soco e habilidades sem grimório usam 1. O dano base e os efeitos também mudam de magia para magia.
   RARITY_SCALE: { comum: 1, raro: 1.15, epico: 1.4, lendario: 1.7, mitico: 2 },
+  // Trevos do grimório (clovers.js): multiplicam a força INTEIRA das magias do próprio grimório (valor sorteado + atributo).
+  // 4 e 5 folhas têm a mesma força; o de 5 se diferencia pela magia de demônio.
+  CLOVER_MULT: { 3: 1, 4: 1.2, 5: 1.2 },
   DEFENSE_PER_POINT: { resistencia: 0.5, magiaDefensiva: 0.6 },
   DODGE_CHANCE_PER_DEXTERITY: 0.004, // chance extra de esquiva por ponto de Destreza (+0,4%)
   DODGE_CHANCE_CAP: 0.8,

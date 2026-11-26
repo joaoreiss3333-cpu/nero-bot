@@ -1,6 +1,7 @@
 // Transforma as fichas e as magias do bot no JSON que o site mostra (só dados, sem funções).
 const { abilities, resolveAbility, typeLabel } = require('../combat/abilities');
 const { grimoires, getGrimoire, RARITIES } = require('../combat/grimoires');
+const { cloversOf } = require('../combat/clovers');
 const { EFFECTS, getEffect } = require('../combat/effects');
 const { learnCost, learnBlocker, nextStep, rankOf } = require('../combat/characters');
 const { ATTRIBUTES, xpToNext, maxHp, maxMana, maxEnergy, speed } = require('../combat/progression');
@@ -147,7 +148,7 @@ function playerProfile(profile, user) {
     attrs: Object.entries(ATTRIBUTES).map(([id, name]) => ({ id, name, value: profile.attrs[id] ?? 0 })),
     attributeCap: C.ATTRIBUTE_CAP,
     stats: { hp: maxHp(profile.level), mana: maxMana(profile.level), energy: maxEnergy(profile.level), speed: speed(profile) },
-    grimoire: g ? { ...g, rarityName: RARITIES[g.rarity].name } : null,
+    grimoire: g ? { ...g, rarityName: RARITIES[g.rarity].name, clovers: cloversOf(profile) } : null,
     learned: profile.learned.map(id => ({ id, name: abilities[id]?.name, rank: rankOf(profile, id) })).filter(a => a.name),
   };
 }
@@ -169,6 +170,7 @@ function guide() {
     manaSteps: C.MANA_STEPS,
     energySteps: C.ENERGY_STEPS,
     raritiesScale: C.RARITY_SCALE,
+    cloverMult: C.CLOVER_MULT,
     xpTable: [1, 5, 10, 20, 30, 40, 49].map(l => ({ level: l, xp: xpToNext(l) })),
     attributes: Object.values(ATTRIBUTES),
     rarities: Object.entries(RARITIES).map(([id, r]) => ({ id, ...r })),

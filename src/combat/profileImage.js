@@ -28,11 +28,11 @@ function goldGradient(ctx, x0, y0, x1, y1) {
   return g;
 }
 
-// Trevo de cinco folhas (o símbolo do anti-magia) com a ponta de cada folha no centro
-function cloverPath(ctx, cx, cy, r) {
+// Trevo de `leaves` folhas (o de cinco é o símbolo do anti-magia) com a ponta de cada folha no centro
+function cloverPath(ctx, cx, cy, r, leaves = 5) {
   ctx.beginPath();
-  for (let i = 0; i < 5; i++) {
-    const a = (i * 72 - 90) * (Math.PI / 180);
+  for (let i = 0; i < leaves; i++) {
+    const a = (i * (360 / leaves) - 90) * (Math.PI / 180);
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(a + Math.PI / 2);
@@ -46,8 +46,8 @@ function cloverPath(ctx, cx, cy, r) {
   }
 }
 
-function drawClover(ctx, cx, cy, r, { fill, stroke, lineWidth = 1 }) {
-  cloverPath(ctx, cx, cy, r);
+function drawClover(ctx, cx, cy, r, { fill, stroke, lineWidth = 1, leaves = 5 }) {
+  cloverPath(ctx, cx, cy, r, leaves);
   if (fill) { ctx.fillStyle = fill; ctx.fill(); }
   if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lineWidth; ctx.stroke(); }
 }
@@ -164,7 +164,7 @@ function drawPortrait(ctx, img, x, y, w, h) {
   ctx.lineWidth = 1.5; ctx.stroke();
 }
 
-// Grimório: um livro de lado (lombada à esquerda). Com imagem, ela vira a capa; sem imagem, capa de couro lisa (o trevo do grimório virá de um sistema próprio, depois).
+// Grimório: um livro de lado (lombada à esquerda). Com imagem, ela vira a capa; sem imagem, capa de couro lisa.
 function drawGrimoire(ctx, img, x, y, w, h) {
   const spine = 14;
   ctx.save();
@@ -310,7 +310,7 @@ function drawPointsTag(ctx, cx, y, points, singular = 'PONTO', plural = 'PONTOS'
   ctx.letterSpacing = '0px';
 }
 
-// data: { name, age, level, xp, xpNext, points, skillPoints, attrs, portrait, grimoire }  (portrait/grimoire: imagens já carregadas, ou null)
+// data: { name, age, level, xp, xpNext, points, skillPoints, attrs, portrait, grimoire, grimoireName, grimoireRarity, clovers }  (portrait/grimoire: imagens já carregadas, ou null)
 async function renderProfileImage(data) {
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
@@ -338,6 +338,12 @@ async function renderProfileImage(data) {
   if (data.grimoireRarity) {
     ctx.font = `italic 20px ${FONT}`; ctx.fillStyle = MUTED;
     ctx.fillText(data.grimoireRarity, 177, 552);
+    // Trevo do grimório (3, 4 ou 5 folhas) logo depois da raridade; o de 5 folhas é escuro (o grimório do demônio)
+    if (data.clovers) {
+      const cx = 177 + ctx.measureText(data.grimoireRarity).width + 24;
+      const demon = data.clovers === 5;
+      drawClover(ctx, cx, 552, 15, { leaves: data.clovers, fill: demon ? '#1a1024' : goldGradient(ctx, cx - 15, 537, cx + 15, 567), stroke: demon ? GOLD : GOLD_DARK, lineWidth: 1.5 });
+    }
   }
 
   // Cabeçalho: nome, idade e nível

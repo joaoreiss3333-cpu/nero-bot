@@ -40,7 +40,7 @@ function getProfile(userId) {
 }
 
 // Campos da ficha (o personagem em si) e o grimório: o reset de progresso mantém estes
-const KEEP_ON_PROGRESS_RESET = ['name', 'age', 'story', 'portraitUrl', 'grimoire'];
+const KEEP_ON_PROGRESS_RESET = ['name', 'age', 'story', 'portraitUrl', 'grimoire', 'clovers'];
 
 // Reseta o personagem e salva. 'progresso': volta ao nível 1 (XP, atributos, pontos e magias zerados), mantendo a ficha e
 // o grimório. 'tudo': apaga a ficha inteira (o retrato salvo também), como se o jogador nunca tivesse jogado.
