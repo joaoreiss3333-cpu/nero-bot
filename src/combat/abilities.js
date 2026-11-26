@@ -388,8 +388,9 @@ const abilities = {
   },
   // Materializa objetos ou magias sob medida para segurar o golpe: absorve mais contra magia
   materializacao_de_defesa: {
-    id: 'materializacao_de_defesa', name: 'Materialização de Defesa', description: 'Materializa qualquer objeto, ou até outras magias, para se proteger de ataques de diferentes tipos de magia. Reação de defesa que absorve dano, e absorve ainda mais contra magias.', actionText: 'Materialização de Defesa', gif: 'sonhos_materializacao_de_defesa.gif', grimoire: 'sonhos', magic: true,
+    id: 'materializacao_de_defesa', name: 'Materialização de Defesa', description: 'Materializa qualquer objeto, ou até outras magias, para se proteger de ataques de diferentes tipos de magia. Reação de defesa que absorve dano, e absorve ainda mais contra magias. Só funciona com o Mundo do Glamour aberto.', actionText: 'Materialização de Defesa', gif: 'sonhos_materializacao_de_defesa.gif', grimoire: 'sonhos', magic: true,
     type: 'reaction', kind: 'block', absorb: [5, 8], attribute: 'magiaDefensiva', magicBonus: 1.4, manaCost: 28, emoji: '🧸',
+    requiresEffect: 'mundo_do_glamour',
     minLevel: 14, after: 'mundo_do_glamour',
     // Rank II: segura mais
     ranks: [
@@ -398,8 +399,9 @@ const abilities = {
   },
   // Esfera rosa com anéis de letras de sonho: por alguns turnos segura os ataques que vêm de fora
   aneis_da_vigilia: {
-    id: 'aneis_da_vigilia', name: 'Anéis da Vigília', description: 'Materializa ao redor de si uma esfera de luz rosa cercada por anéis com letras de sonho que giram sem parar, e tudo o que você imagina como proteção ganha forma. Ação bônus que reduz bastante o dano recebido por alguns turnos.', actionText: 'Anéis da Vigília', gif: 'sonhos_aneis_da_vigilia.gif', grimoire: 'sonhos', magic: true,
+    id: 'aneis_da_vigilia', name: 'Anéis da Vigília', description: 'Materializa ao redor de si uma esfera de luz rosa cercada por anéis com letras de sonho que giram sem parar, e tudo o que você imagina como proteção ganha forma. Ação bônus que reduz bastante o dano recebido por alguns turnos. Só funciona com o Mundo do Glamour aberto.', actionText: 'Anéis da Vigília', gif: 'sonhos_aneis_da_vigilia.gif', grimoire: 'sonhos', magic: true,
     type: 'bonus', manaCost: 45, cooldown: 5, applies: [{ effect: 'aneis_da_vigilia', turns: 2, to: 'self' }],
+    requiresEffect: 'mundo_do_glamour',
     minLevel: 28, after: 'materializacao_de_defesa',
     // Rank II: a esfera dura mais um turno
     ranks: [

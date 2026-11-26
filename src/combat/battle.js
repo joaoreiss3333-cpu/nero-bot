@@ -174,6 +174,7 @@ function reactionBlock(player, reaction, attack) {
   if (mods.noReact) return 'não consegue reagir';
   if (reaction.onlyVsMagic && attack && !attack.magic) return 'só pode usar isso contra magia';
   if (mods.noDodge && reaction.kind === 'dodge') return 'não consegue esquivar';
+  if (reaction.requiresEffect && !fx.hasEffect(player, reaction.requiresEffect)) return `precisa de ${fx.getEffect(reaction.requiresEffect)?.name} ativo`; // ex: defesas dos Sonhos só dentro do Mundo do Glamour
   if (!canAfford(player, reaction)) return 'sem recurso';
   return null;
 }
