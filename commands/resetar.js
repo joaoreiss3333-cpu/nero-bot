@@ -2,6 +2,7 @@ const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilde
 const { getProfile, resetProfile } = require('../src/combat/profiles');
 const { getGrimoire } = require('../src/combat/grimoires');
 const { inAnyBattle } = require('../src/combat/battle');
+const { treeHint } = require('../src/web/links');
 
 const MODES = {
   progresso: 'volta ao **nível 1** e zera XP, atributos, pontos e magias aprendidas. A ficha (nome, idade, história, retrato) e o grimório continuam',
@@ -23,7 +24,7 @@ async function handleReset(interaction) {
   const who = targetId === requesterId ? 'Seu personagem' : `O personagem de <@${targetId}>`;
   const next = mode === 'tudo'
     ? 'Faça uma ficha nova para começar de novo.'
-    : 'Use `/distribuir` e `/aprender` para montar o personagem de novo.';
+    : `Use \`/distribuir\` para os atributos e compre as magias ${treeHint()}.`;
   return interaction.update({ content: `🔄 ${who} foi resetado: ${MODES[mode]}.\n${next}`, components: [], allowedMentions: { users: [] } });
 }
 

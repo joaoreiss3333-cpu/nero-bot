@@ -58,7 +58,7 @@ function learnBlocker(profile, ability) {
   return null;
 }
 
-// Compra o próximo passo da magia (aprender ou subir de rank), gastando os pontos. Usado pelo /aprender e pelo site.
+// Compra o próximo passo da magia (aprender ou subir de rank), gastando os pontos. Usado pela árvore de habilidades do site.
 // Retorna { error } se não puder, ou { rank, cost } da compra feita. Quem chama precisa salvar a ficha (save()).
 function learn(profile, ability) {
   const blocker = learnBlocker(profile, ability);

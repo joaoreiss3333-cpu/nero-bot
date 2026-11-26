@@ -25,7 +25,7 @@ module.exports = {
   MAX_LEVEL: 50,
   ATTRIBUTE_CAP: 100,             // teto de cada atributo
   STARTING_POINTS: 3,             // pontos para distribuir no nível 1
-  // Pontos de habilidade (compram magias no /aprender): 1 no nível 1 e +1 a cada 2 níveis = 25 no nível 50.
+  // Pontos de habilidade (compram magias na árvore do site): 1 no nível 1 e +1 a cada 2 níveis = 25 no nível 50.
   // Não dá para comprar uma árvore grande inteira: quem tem muitas magias precisa escolher um caminho.
   SKILL_POINTS_START: 1,
   SKILL_POINTS_EVERY: 2,

@@ -83,7 +83,7 @@ async function pageGuide() {
         <li>Crie sua ficha com <code>/ficha</code> no canal de criação de fichas.</li>
         <li>Veja seu personagem com <code>/perfil</code> (ou aqui no site, em <a href="#/perfil">Perfil</a>).</li>
         <li>Distribua seus pontos de atributo com <code>/distribuir</code>.</li>
-        <li>Quando a staff definir o seu grimório, compre magias na <a href="#/arvore">Árvore</a> (ou com <code>/aprender</code>).</li>
+        <li>Quando a staff definir o seu grimório, compre magias na <a href="#/arvore">Árvore</a>.</li>
         <li>Desafie alguém com <code>/batalha desafiar</code>.</li>
       </ol>`],
     ['progressao', 'Progressão', `

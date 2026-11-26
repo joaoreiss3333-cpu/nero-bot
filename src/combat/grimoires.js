@@ -1,6 +1,6 @@
 // Grimórios do servidor e suas raridades. Cada habilidade de um grimório declara `grimoire: '<id>'`
 // em abilities.js, e quem possui o grimório (profile.grimoire) recebe essas habilidades no kit
-// depois de comprá-las com pontos de habilidade (/aprender).
+// depois de comprá-las com pontos de habilidade (na árvore de habilidades do site).
 const RARITIES = {
   comum: { name: 'Comum', chance: '55,7%' },
   raro: { name: 'Raro', chance: '27%' },

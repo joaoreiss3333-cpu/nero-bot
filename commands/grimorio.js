@@ -2,6 +2,7 @@ const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { getProfile, save } = require('../src/combat/profiles');
 const { grimoires, getGrimoire, RARITIES } = require('../src/combat/grimoires');
 const { abilities } = require('../src/combat/abilities');
+const { treeHint } = require('../src/web/links');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -41,7 +42,7 @@ module.exports = {
     save();
     const spells = Object.values(abilities).filter(a => a.grimoire === grimoire.id);
     const list = spells.length
-      ? `Magias: ${spells.map(a => `**${a.name}**`).join(', ')} (compradas com pontos de habilidade no \`/aprender\`).`
+      ? `Magias: ${spells.map(a => `**${a.name}**`).join(', ')} (compradas com pontos de habilidade ${treeHint()}).`
       : 'Esse grimório ainda não tem magias cadastradas.';
     return interaction.reply({
       content: `📖 ${user} agora possui o grimório de **${grimoire.name}** (${RARITIES[grimoire.rarity].name}).\n${list}`,

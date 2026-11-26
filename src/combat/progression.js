@@ -16,8 +16,8 @@ const newProfile = () => ({
   level: 1,
   xp: 0, // XP acumulado dentro do nível atual
   points: C.STARTING_POINTS,
-  skillPoints: C.SKILL_POINTS_START, // pontos de habilidade para comprar magias (/aprender)
-  learned: [], // ids das magias de grimório já aprendidas (/aprender)
+  skillPoints: C.SKILL_POINTS_START, // pontos de habilidade para comprar magias (árvore do site)
+  learned: [], // ids das magias de grimório já aprendidas (árvore do site)
   attrs: Object.fromEntries(Object.keys(ATTRIBUTES).map(k => [k, 0])),
 });
 

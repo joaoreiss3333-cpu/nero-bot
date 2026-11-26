@@ -11,6 +11,7 @@ const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { EMBED_COLOR } = require('./combat/config');
 const { getProfile, save } = require('./combat/profiles');
 const { profileAttachment } = require('./combat/profileView');
+const { treeHint } = require('./web/links');
 
 const PORTRAIT_DIR = path.join(__dirname, '..', 'data', 'portraits');
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -216,7 +217,7 @@ async function handleFicha(interaction) {
 
       const member = interaction.guild?.members.cache.get(ownerId);
       const container = new ContainerBuilder().setAccentColor(EMBED_COLOR)
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent(`# 📜 Ficha ${editing ? 'atualizada' : 'criada'}!\nBem-vindo, **${profile.name}**. Veja seu perfil abaixo; use \`/distribuir\` para gastar seus pontos de atributo e \`/aprender\` para comprar magias com pontos de habilidade.`))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(`# 📜 Ficha ${editing ? 'atualizada' : 'criada'}!\nBem-vindo, **${profile.name}**. Veja seu perfil abaixo; use \`/distribuir\` para gastar seus pontos de atributo e compre magias com pontos de habilidade ${treeHint()}.`))
         .addMediaGalleryComponents(new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL('attachment://perfil.png')));
       return interaction.editReply({
         components: [container], flags: MessageFlags.IsComponentsV2,

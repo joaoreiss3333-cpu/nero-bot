@@ -9,12 +9,12 @@
 // `energyCost` é a energia gasta ao usar a habilidade. Magias usam `manaCost` no lugar (gastam mana, não energia).
 // Ataques causam um dano sorteado em `damage: [mín, máx]` + atributo × multiplicador (config.DAMAGE_PER_POINT);
 // `attribute` diz qual atributo conta. A árvore de habilidades vai melhorar esse intervalo.
-// Magias de grimório precisam ser APRENDIDAS (/aprender) para entrar no kit; é uma árvore:
+// Magias de grimório precisam ser APRENDIDAS (na árvore de habilidades do site) para entrar no kit; é uma árvore:
 //   minLevel -> nível mínimo do jogador para poder aprender
 //   custo    -> comprar gasta PONTOS DE HABILIDADE (não de atributo): raiz = 1 e +1 a cada nível descendo a árvore
 //               (characters.learnCost); `cost: N` sobrescreve. Os atributos só aumentam o dano/defesa das habilidades.
 //   after    -> id da magia que precisa ter sido aprendida antes (a raiz da árvore não tem `after`)
-//   ranks    -> evoluções da magia dentro da árvore (/aprender de novo compra o próximo rank). A habilidade em si é o rank 1;
+//   ranks    -> evoluções da magia dentro da árvore (comprar de novo na árvore sobe para o próximo rank). A habilidade em si é o rank 1;
 //               cada item de `ranks` é o rank 2, 3... com `minLevel` (e `cost`, opcional) próprios e os campos que mudam (damage, manaCost,
 //               cooldown, applies, absorb...). Os campos se acumulam rank a rank (resolveAbility).
 //

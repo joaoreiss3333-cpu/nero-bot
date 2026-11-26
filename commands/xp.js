@@ -2,6 +2,7 @@ const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const C = require('../src/combat/config');
 const { getProfile, save } = require('../src/combat/profiles');
 const { addXp, xpToNext } = require('../src/combat/progression');
+const { treeHint } = require('../src/web/links');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -23,7 +24,7 @@ module.exports = {
     save();
 
     const progress = to >= C.MAX_LEVEL ? 'nível máximo' : `${profile.xp}/${xpToNext(to)} XP para o próximo nível`;
-    const levelUp = to > from ? `\n🎉 Subiu do nível **${from}** para o **${to}** e ganhou **${gainedPoints}** ponto(s) de atributo (\`/distribuir\`)${gainedSkillPoints ? ` e **${gainedSkillPoints}** ponto(s) de habilidade (\`/aprender\`)` : ''}!` : '';
+    const levelUp = to > from ? `\n🎉 Subiu do nível **${from}** para o **${to}** e ganhou **${gainedPoints}** ponto(s) de atributo (\`/distribuir\`)${gainedSkillPoints ? ` e **${gainedSkillPoints}** ponto(s) de habilidade (compre magias ${treeHint()})` : ''}!` : '';
     return interaction.reply({
       content: `✨ ${user} recebeu **${amount} XP** (${progress}).${levelUp}`,
       allowedMentions: { users: [] }, // sem notificar: o convite do desafio é o único que marca alguém

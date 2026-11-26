@@ -360,7 +360,7 @@ async function renderProfileImage(data) {
 
   drawLevelBadge(ctx, 880, 100, data.level);
   drawPointsTag(ctx, 880, 178, data.points ?? 0, 'ATRIBUTO', 'ATRIBUTOS');
-  drawPointsTag(ctx, 700, 142, data.skillPoints ?? 0, 'HABILIDADE', 'HABILIDADES', 184); // pontos para comprar magias (/aprender)
+  drawPointsTag(ctx, 700, 142, data.skillPoints ?? 0, 'HABILIDADE', 'HABILIDADES', 184); // pontos para comprar magias (árvore do site)
   drawXpBar(ctx, 392, 180, 400, data.xp ?? 0, data.xpNext ?? null);
 
   // Atributos
