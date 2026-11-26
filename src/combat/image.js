@@ -274,6 +274,23 @@ function drawMirrorClone(ctx, L, summon, owner, index) {
   ctx.restore();
 }
 
+// Barrinha de vida embaixo da invocação (verde, amarela ou vermelha conforme o que sobrou), da largura das casas dela
+function drawSummonHp(ctx, L, summon) {
+  if (!summon.maxHp) return;
+  const n = summon.size ?? 1;
+  const w = L.cellW * n * 0.7;
+  const h = Math.max(4, L.cellH * 0.08);
+  const x = summon.pos.col * L.cellW + (L.cellW * n - w) / 2;
+  const y = (summon.pos.row + n) * L.cellH - h - 3;
+  const frac = Math.max(0, summon.hp / summon.maxHp);
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.65)';
+  ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
+  ctx.fillStyle = frac > 0.5 ? '#4ccf5a' : frac > 0.25 ? '#e8c23a' : '#e0483e';
+  ctx.fillRect(x, y, w * frac, h);
+  ctx.restore();
+}
+
 // Clone invocado: o mesmo rosto do dono, escurecido e com anel tracejado na cor dele, para parecer outra figura no mapa
 function drawSummon(ctx, L, summon, owner, index, icon) {
   if (icon) return drawIconSummon(ctx, L, summon, icon, index);
@@ -458,6 +475,7 @@ async function renderMapImage(battle) {
     for (const s of battle.summons ?? []) {
       const owner = battle.players.find(p => p.id === s.ownerId);
       drawSummon(ctx, L, s, owner, owner?.team ?? 0, s.icon ? await loadSummonIcon(s.icon) : null);
+      drawSummonHp(ctx, L, s);
     }
     // A cor do anel é a do time (azul/vermelho); quem caiu sai do mapa
     for (const p of battle.players.filter(q => q.hp > 0)) drawToken(ctx, L, p, p.team, !battle.over && p === cur);

@@ -166,7 +166,7 @@ function applyEffect(player, id, { turns = 2, stacks = 1, power } = {}) {
     power: Math.max(current?.power ?? 0, power ?? def.dot ?? 0),
   };
   const s = active[id].stacks;
-  return `${def.emoji} ${player.name} recebeu **${def.name}**${s > 1 ? ` (x${s})` : ''} por ${active[id].turns} turno(s).${extra}`;
+  return `${def.emoji} ${player.name} recebeu **${def.name}**${s > 1 ? ` (x${s})` : ''}${Number.isFinite(active[id].turns) ? ` por ${active[id].turns} turno(s)` : ''}.${extra}`;
 }
 
 // Aplica os efeitos de uma habilidade. `hit` = o golpe acertou (efeitos em quem ataca valem sempre).
@@ -238,7 +238,7 @@ function endOfTurn(player) {
 // Texto curto dos efeitos ativos, para o painel. Ex: "🔥 Queimadura (2t) • 🩸 Sangramento x3 (1t)"
 function describeEffects(player) {
   return Object.entries(effectsOf(player))
-    .map(([id, s]) => `${EFFECTS[id].emoji} ${EFFECTS[id].name}${s.stacks > 1 ? ` x${s.stacks}` : ''} (${s.turns}t)`)
+    .map(([id, s]) => `${EFFECTS[id].emoji} ${EFFECTS[id].name}${s.stacks > 1 ? ` x${s.stacks}` : ''}${Number.isFinite(s.turns) ? ` (${s.turns}t)` : ''}`)
     .join(' • ');
 }
 

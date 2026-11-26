@@ -1,6 +1,6 @@
 const {
   getBattle, endBattle, currentPlayer, findPlayer, abilitiesOf, abilityOf, ownedIds, winnerTeam, victoryText, collectFallen,
-  movePlayer, startActions, resolveAttack, nextTurn, reactionBlock, abilityCost, resourceLabel, resourceOf,
+  movePlayer, startActions, resolveAttack, nextTurn, reactionBlock, abilityCost, resourceLabel, resourceOf, summonDistance, hitSummon,
 } = require('./battle');
 const { getMods, hasEffect } = require('./effects');
 const { panelPayload, asEdit } = require('./render');
@@ -63,6 +63,18 @@ async function finishAttack(battle, reaction) {
 // apareceu quando a habilidade foi usada): aparece o painel com as opções de reação do alvo.
 async function endTurn(battle, me, interaction) {
   const attack = battle.turn.queuedAttack;
+  // Golpe preparado numa invocação: ela não reage, então o golpe é resolvido direto
+  if (attack && String(battle.turn.queuedTargetId).startsWith('summon:')) {
+    const summon = (battle.summons ?? []).find(s => `summon:${s.id}` === battle.turn.queuedTargetId);
+    await interaction.deferUpdate();
+    if (!summon || summonDistance(summon, me.pos) > attack.range) {
+      return passTurn(battle, `⏭️ ${me.name} encerrou o turno. O ataque **${attack.name}** não alcançou o alvo.`);
+    }
+    if (Math.random() < getMods(me).missChance) {
+      return passTurn(battle, `🙈 ${me.name} encerrou o turno, mas **${attack.name}** errou ${summon.name}.`);
+    }
+    return passTurn(battle, `⏭️ ${me.name} encerrou o turno.\n${hitSummon(battle, me, summon, attack)}`);
+  }
   const defender = attack && findPlayer(battle, battle.turn.queuedTargetId);
 
   if (!attack || !defender || defender.hp <= 0 || distance(me.pos, defender.pos) > attack.range) {

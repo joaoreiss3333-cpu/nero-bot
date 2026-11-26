@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { getBattle, currentPlayer, enemiesOf, needsTarget, findPlayer, abilitiesOf, abilityOf, ownedIds, planBonus, applyBonus, abilityCost, resourceLabel, resourceOf, canAfford, spend } = require('../src/combat/battle');
+const { getBattle, currentPlayer, enemiesOf, needsTarget, findPlayer, abilitiesOf, abilityOf, ownedIds, planBonus, applyBonus, enemySummons, summonDistance, abilityCost, resourceLabel, resourceOf, canAfford, spend } = require('../src/combat/battle');
 const { getMods, applyAbilityEffects, hasEffect, removeEffect, getEffect } = require('../src/combat/effects');
 const { panelPayload, asEdit } = require('../src/combat/render');
 const { playAction } = require('../src/combat/actions');
@@ -58,6 +58,10 @@ module.exports = {
     .addStringOption(o => o
       .setName('copiar')
       .setDescription('Só para a Magia de Cópia: qual magia do inimigo copiar')
+      .setAutocomplete(true))
+    .addStringOption(o => o
+      .setName('invocacao')
+      .setDescription('Atacar uma invocação inimiga no lugar de um jogador (só ataques)')
       .setAutocomplete(true)),
 
   // Lista as habilidades de ataque/bônus do personagem do jogador (ou, na opção `copiar`, as magias do inimigo)
@@ -65,6 +69,13 @@ module.exports = {
     const battle = getBattle(interaction.channelId);
     const me = battle && findPlayer(battle, interaction.user.id);
     if (interaction.options.getFocused(true).name === 'copiar') return interaction.respond(copyChoices(interaction, battle, me));
+    if (interaction.options.getFocused(true).name === 'invocacao') {
+      const focused = interaction.options.getFocused().toLowerCase();
+      const choices = (me ? enemySummons(battle, me) : [])
+        .filter(s => s.name.toLowerCase().includes(focused))
+        .map(s => ({ name: `${s.emoji ?? '👥'} ${s.name} (❤️ ${s.hp}/${s.maxHp}, a ${summonDistance(s, me.pos)} casa(s))`.slice(0, 100), value: s.id }));
+      return interaction.respond(choices.slice(0, 25));
+    }
     const ids = me ? ownedIds(me) : getKit(interaction.user.id); // na batalha, inclui as magias copiadas
     const focused = interaction.options.getFocused().toLowerCase();
 
@@ -106,6 +117,29 @@ module.exports = {
     if (mods.noAct) return fail(interaction, 'Você não consegue agir neste turno por causa de um efeito (atordoado, dormindo...).');
     if (mods.oneAction && (battle.turn.attacked || battle.turn.bonusUsed)) {
       return fail(interaction, 'O **Sonolento** só deixa você fazer uma ação por turno.');
+    }
+
+    // Mirar numa invocação inimiga (opção `invocacao`): só ataques; ela não reage e o golpe sai da vida dela no fim do turno
+    const summonId = interaction.options.getString('invocacao');
+    if (summonId) {
+      if (ability.type !== 'attack') return fail(interaction, 'Só habilidades de **Ataque** de alvo único podem mirar numa invocação.');
+      if (battle.turn.attacked) return fail(interaction, 'Você já usou sua ação de ataque neste turno.');
+      const summon = enemySummons(battle, me).find(s => s.id === summonId);
+      if (!summon) return fail(interaction, 'Essa invocação não está mais no mapa. Escolha outra na opção `invocacao`.');
+      const dist = summonDistance(summon, me.pos);
+      if (dist > Math.min(ability.range, mods.visionCap)) {
+        if (dist <= ability.range) return fail(interaction, 'A **Escuridão** limita sua visão: você não enxerga o alvo a essa distância.');
+        return fail(interaction, `Alvo fora de alcance: **${ability.name}** alcança ${ability.range} casa (sem diagonal).`);
+      }
+      battle.turn.attacked = true;
+      battle.turn.queuedAttack = ability;
+      battle.turn.queuedTargetId = `summon:${summon.id}`;
+      if (ability.cooldown) me.cooldowns[ability.id] = ability.cooldown;
+      spend(me, ability);
+      if (ability.consumesEffect) removeEffect(me, ability.consumesEffect);
+      await interaction.reply({ content: `✅ **${ability.name}** preparado em ${summon.name} (-${cost} ${resourceLabel(ability)}). O golpe acontece quando você encerrar o turno.`, ephemeral: true });
+      await playAction(battle.message.channel, me.name, ability, { block: false });
+      return battle.message.edit(asEdit(await panelPayload(battle, `👊 ${me.name} preparou **${ability.name}** contra ${summon.name} (-${cost} ${resourceLabel(ability)}). O golpe acontece ao fim do turno.`)));
     }
 
     // O alvo: o jogador marcado em `alvo` ou, se só restar um inimigo vivo, ele mesmo

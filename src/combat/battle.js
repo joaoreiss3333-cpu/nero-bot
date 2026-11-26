@@ -262,10 +262,12 @@ function freeCellsNear(battle, from, except) {
   return cells.sort((a, b) => distance(a, from) - distance(b, from));
 }
 
-// Invoca clones de `owner` nas casas livres mais próximas. Invocar de novo troca os clones antigos pelos novos.
+// Invoca as criaturas de `owner` nas casas livres mais próximas. Elas têm vida (`hp`) e ficam até serem destruídas.
+// Invocar de novo com a mesma magia troca as antigas pelas novas (vida cheia); as de outras magias continuam.
+// `linkedEffect`: efeito que o dono mantém enquanto alguma dessas criaturas estiver viva (ex: Duplicata Real).
 function summonClones(battle, owner, ability) {
-  const { count, duration, damage, share, label, size = 1, push, look, emoji, icon } = ability.summon;
-  battle.summons = battle.summons.filter(s => s.ownerId !== owner.id);
+  const { count, damage, share, label, size = 1, push, look, emoji, icon, hp, linkedEffect } = ability.summon;
+  battle.summons = battle.summons.filter(s => !(s.ownerId === owner.id && s.source === ability.id));
   // Cantos livres mais perto do dono onde a invocação inteira cabe, sem uma encostar na outra
   const cells = [];
   for (const c of freeCellsNear(battle, owner.pos, null)) {
@@ -275,11 +277,42 @@ function summonClones(battle, owner, ability) {
   }
   for (const pos of cells) {
     battle.summons.push({
-      ownerId: owner.id, name: `${label ?? 'Clone'} de ${owner.name}`, pos, damage, turns: duration, size, push, look, emoji, icon,
+      id: `s${battle.summonSeq = (battle.summonSeq ?? 0) + 1}`, source: ability.id, hp, maxHp: hp, linkedEffect,
+      ownerId: owner.id, name: `${label ?? 'Clone'} de ${owner.name}`, pos, damage, size, push, look, emoji, icon,
       bonus: Math.round((owner.attrs[ability.attribute] ?? 0) * (C.DAMAGE_PER_POINT[ability.attribute] ?? 0) * abilityScale(ability) * share),
     });
   }
-  return [ability.summon.text?.(owner, cells.length, duration) ?? `👥 ${owner.name} fez ${cells.length} figura(s) brotarem do chão. Elas atacam sozinhas por ${duration} turno(s) seus.`];
+  if (linkedEffect && cells.length) fx.applyEffect(owner, linkedEffect, { turns: Infinity });
+  return [ability.summon.text?.(owner, cells.length, hp) ?? `👥 ${owner.name} fez ${cells.length} figura(s) brotarem do chão, com ${hp} de vida cada. Elas atacam sozinhas até serem destruídas.`];
+}
+
+// Tira uma invocação do mapa. Se era a última que mantinha o efeito ligado (linkedEffect) do dono, o efeito acaba junto.
+function destroySummon(battle, summon) {
+  battle.summons = battle.summons.filter(s => s !== summon);
+  const owner = battle.players.find(p => p.id === summon.ownerId);
+  if (owner && summon.linkedEffect && !battle.summons.some(s => s.ownerId === owner.id && s.linkedEffect === summon.linkedEffect)) {
+    fx.removeEffect(owner, summon.linkedEffect);
+  }
+  return summon.look === 'ovelha' ? `🐏 A ${summon.name} foi destruída e se desfez em algodão.` : `💥 ${summon.name} foi destruído.`;
+}
+
+// Invocações inimigas de `player` (as que ele pode atacar)
+const enemySummons = (battle, player) => (battle.summons ?? []).filter(s => battle.players.find(p => p.id === s.ownerId)?.team !== player.team);
+
+// Um ataque acerta uma invocação: ela não reage nem tem resistências; o dano é o do golpe (com crítico) e sai da vida dela
+function hitSummon(battle, attacker, summon, attack) {
+  let raw = attackDamage(attacker, attack) + fx.getMods(attacker).damageBonus;
+  const crit = Math.random() < C.CRIT_CHANCE_BASE + fx.getMods(attacker).critChance;
+  if (crit) raw *= C.CRIT_MULTIPLIER;
+  const damage = Math.max(1, Math.round(raw));
+  summon.hp = Math.max(0, summon.hp - damage);
+  let log = `${attacker.name} usou **${attack.name}** em ${summon.name} (${damage} de dano).`;
+  if (crit) log += `
+💥 **Golpe crítico!**`;
+  log += summon.hp > 0 ? `
+❤️ ${summon.name} ficou com ${summon.hp}/${summon.maxHp} de vida.` : `
+${destroySummon(battle, summon)}`;
+  return log;
 }
 
 // Efeitos de posição e invocação de uma ação bônus (o teleporte já foi planejado por planBonus)
@@ -334,12 +367,7 @@ function runSummons(battle, owner) {
         lines.push(...pushAway(battle, { pos: from }, foe, s.push));
       }
     }
-    s.turns -= 1;
   }
-  const expired = battle.summons.filter(s => s.ownerId === owner.id && s.turns <= 0);
-  if (expired.length === 1 && expired[0].look === 'ovelha') lines.push(`🐏 A ${expired[0].name} se desfez em algodão.`);
-  else if (expired.length) lines.push(`👥 ${expired.length} clone(s) de ${owner.name} se desfizeram.`);
-  battle.summons = battle.summons.filter(s => !(s.ownerId === owner.id && s.turns <= 0));
   return { lines };
 }
 
@@ -513,5 +541,5 @@ function nextTurn(battle) {
 
 module.exports = {
   createBattle, getBattle, inAnyBattle, endBattle, currentPlayer, enemiesOf, alliesOf, isAlive, winnerTeam, victoryText, collectFallen, needsTarget, findPlayer, abilitiesOf, abilityOf, ownedIds, abilityCost, resourceOf, resourceLabel, canAfford, spend, reactionBlock, clampMoves,
-  planBonus, applyBonus, isOccupied, footprint, placePlayer, allPlaced, checkStep, movePlayer, startActions, resolveAttack, nextTurn,
+  planBonus, applyBonus, isOccupied, footprint, summonDistance, enemySummons, hitSummon, placePlayer, allPlaced, checkStep, movePlayer, startActions, resolveAttack, nextTurn,
 };

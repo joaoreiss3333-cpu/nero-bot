@@ -46,7 +46,8 @@ function details(a) {
   if (a.push) out.push(`Empurra o alvo ${a.push} casas`);
   if (a.summon) {
     const s = a.summon;
-    out.push(`Invoca ${s.label ? `${s.count}× ${s.label}` : `${s.count} clones`} por ${s.duration} turnos`);
+    out.push(`Invoca ${s.label ? `${s.count}× ${s.label}` : `${s.count} clones`}, com ${s.hp} de vida cada, até serem destruídas`);
+    if (s.linkedEffect) out.push(`Enquanto existir: ${getEffect(s.linkedEffect)?.emoji} ${getEffect(s.linkedEffect)?.name}`);
     if (s.size > 1) out.push(`Ocupa ${s.size}×${s.size} casas no mapa`);
     if (s.push) out.push(`O impacto arremessa o alvo ${s.push} casas`);
   }

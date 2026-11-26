@@ -184,8 +184,8 @@ const abilities = {
   // Figuras com armas brotam do chão: 3 clones aparecem no mapa e atacam sozinhos no fim do seu turno (andam 2 casas e batem
   // se ficarem coladas no inimigo, sem reação possível). Dano baixo cada um: o dano base mais uma fração (22%) do bônus do atributo.
   crevice_men: {
-    id: 'crevice_men', name: 'Crevice Men', description: 'Figuras armadas brotam do chão e lutam por você por alguns turnos, andando e atacando os inimigos sozinhas.', gif: 'espaco_crevice_men.gif', grimoire: 'espaco', magic: true,
-    type: 'bonus', manaCost: 60, cooldown: 5, attribute: 'magiaOfensiva', summon: { count: 3, duration: 3, damage: [2, 4], share: 0.22, label: 'Crevice Man', icon: 'crevice_men.png' },
+    id: 'crevice_men', name: 'Crevice Men', description: 'Figuras armadas brotam do chão e lutam por você, andando e atacando os inimigos sozinhas até serem destruídas.', gif: 'espaco_crevice_men.gif', grimoire: 'espaco', magic: true,
+    type: 'bonus', manaCost: 60, cooldown: 5, attribute: 'magiaOfensiva', summon: { count: 3, hp: 14, damage: [2, 4], share: 0.22, label: 'Crevice Man', icon: 'crevice_men.png' },
     minLevel: 38, after: 'unopening_red_room',
   },
 
@@ -639,11 +639,11 @@ const abilities = {
   },
   // Várias feras de sangue menores e soltas: aparecem no mapa e atacam sozinhas no fim do seu turno
   rebanho_de_feras_vermelhas: {
-    id: 'rebanho_de_feras_vermelhas', name: 'Rebanho de Feras Vermelhas', description: 'Molda o sangue em várias Bestas Vermelhas menores, de corpo inteiro e soltas de você. Elas aparecem no mapa e atacam os inimigos sozinhas por alguns turnos.', actionText: 'Rebanho de Feras Vermelhas', gif: 'sangue_rebanho_de_feras_vermelhas.gif', grimoire: 'sangue', magic: true,
+    id: 'rebanho_de_feras_vermelhas', name: 'Rebanho de Feras Vermelhas', description: 'Molda o sangue em várias Bestas Vermelhas menores, de corpo inteiro e soltas de você. Elas aparecem no mapa e atacam os inimigos sozinhas até serem destruídas.', actionText: 'Rebanho de Feras Vermelhas', gif: 'sangue_rebanho_de_feras_vermelhas.gif', grimoire: 'sangue', magic: true,
     type: 'bonus', manaCost: 60, cooldown: 5, attribute: 'magiaOfensiva',
     summon: {
-      count: 3, duration: 3, damage: [3, 5], share: 0.25, label: 'Fera Vermelha', icon: 'fera_vermelha.png',
-      text: (owner, n, turns) => `👹 ${owner.name} moldou ${n} Fera(s) Vermelha(s) de sangue. Elas atacam sozinhas por ${turns} turno(s) seus.`,
+      count: 3, hp: 18, damage: [3, 5], share: 0.25, label: 'Fera Vermelha', icon: 'fera_vermelha.png',
+      text: (owner, n, hp) => `👹 ${owner.name} moldou ${n} Fera(s) Vermelha(s) de sangue, com ${hp} de vida cada. Elas atacam sozinhas até serem destruídas.`,
     },
     minLevel: 30, after: 'besta_vermelha',
   },
@@ -1046,18 +1046,18 @@ const abilities = {
     id: 'ovelha_dorminhoca', name: 'Ataque da Ovelha Dorminhoca', description: 'Gera uma grande quantidade de algodão e a molda num carneiro gigante com chifres, que funciona como um aríete de curto alcance. Ação bônus que invoca o carneiro no mapa (ocupa 2×2 casas): ele persegue o inimigo, e o impacto o arremessa para longe.', actionText: 'Ataque da Ovelha Dorminhoca', gif: 'algodao_ovelha_dorminhoca.gif', grimoire: 'algodao', magic: true,
     type: 'bonus', manaCost: 50, cooldown: 5, attribute: 'magiaOfensiva',
     summon: {
-      count: 1, size: 2, duration: 3, damage: [8, 12], share: 0.5, push: 3, label: 'Ovelha Dorminhoca', look: 'ovelha', icon: 'ovelha_dorminhoca.png', emoji: '🐏',
-      text: (owner, n, turns) => (n
-        ? `🐏 ${owner.name} moldou uma **Ovelha Dorminhoca** gigante de algodão. Ela investe sozinha contra os inimigos por ${turns} turno(s) seus.`
+      count: 1, size: 2, hp: 50, damage: [8, 12], share: 0.5, push: 3, label: 'Ovelha Dorminhoca', look: 'ovelha', icon: 'ovelha_dorminhoca.png', emoji: '🐏',
+      text: (owner, n, hp) => (n
+        ? `🐏 ${owner.name} moldou uma **Ovelha Dorminhoca** gigante de algodão, com ${hp} de vida. Ela investe sozinha contra os inimigos até ser destruída.`
         : `🐏 O algodão de ${owner.name} não encontrou espaço livre para formar a Ovelha Dorminhoca.`),
     },
     minLevel: 18, after: 'lacos_de_ovelha',
-    // Rank II: o carneiro bate mais forte e fica mais tempo
+    // Rank II: o carneiro bate mais forte e aguenta mais
     ranks: [
       { minLevel: 30, summon: {
-        count: 1, size: 2, duration: 4, damage: [11, 16], share: 0.5, push: 4, label: 'Ovelha Dorminhoca', look: 'ovelha', icon: 'ovelha_dorminhoca.png', emoji: '🐏',
-        text: (owner, n, turns) => (n
-          ? `🐏 ${owner.name} moldou uma **Ovelha Dorminhoca** gigante de algodão. Ela investe sozinha contra os inimigos por ${turns} turno(s) seus.`
+        count: 1, size: 2, hp: 70, damage: [11, 16], share: 0.5, push: 4, label: 'Ovelha Dorminhoca', look: 'ovelha', icon: 'ovelha_dorminhoca.png', emoji: '🐏',
+        text: (owner, n, hp) => (n
+          ? `🐏 ${owner.name} moldou uma **Ovelha Dorminhoca** gigante de algodão, com ${hp} de vida. Ela investe sozinha contra os inimigos até ser destruída.`
           : `🐏 O algodão de ${owner.name} não encontrou espaço livre para formar a Ovelha Dorminhoca.`),
       } },
     ],
@@ -1132,22 +1132,21 @@ const abilities = {
   },
   // O reflexo sai do espelho: luta sozinho no mapa e repete as suas magias (mais dano); libera o Refrão de Reflexão Dupla
   duplicata_real: {
-    id: 'duplicata_real', name: 'Duplicata Real', description: 'Manifesta um espelho e invoca dele o seu reflexo, com tudo invertido. O clone usa as mesmas magias que você: aparece no mapa e luta sozinho por alguns turnos, seus golpes ficam mais fortes e o Refrão de Reflexão Dupla fica liberado.', actionText: 'Duplicata Real', gif: 'espelho_duplicata_real.gif', grimoire: 'espelho', magic: true,
+    id: 'duplicata_real', name: 'Duplicata Real', description: 'Manifesta um espelho e invoca dele o seu reflexo, com tudo invertido. O clone usa as mesmas magias que você: aparece no mapa e luta sozinho até ser destruído, e enquanto ele existir seus golpes ficam mais fortes e o Refrão de Reflexão Dupla fica liberado.', actionText: 'Duplicata Real', gif: 'espelho_duplicata_real.gif', grimoire: 'espelho', magic: true,
     type: 'bonus', manaCost: 45, cooldown: 5, attribute: 'magiaOfensiva',
-    applies: [{ effect: 'duplicata_real', turns: 3, to: 'self' }],
     summon: {
-      count: 1, duration: 3, damage: [5, 8], share: 0.4, label: 'Reflexo', look: 'espelho', emoji: '🪞',
-      text: (owner, n, turns) => (n
-        ? `🪞 O reflexo de ${owner.name} saiu do espelho. Ele luta sozinho por ${turns} turno(s) seus.`
+      count: 1, hp: 30, damage: [5, 8], share: 0.4, label: 'Reflexo', look: 'espelho', emoji: '🪞', linkedEffect: 'duplicata_real',
+      text: (owner, n, hp) => (n
+        ? `🪞 O reflexo de ${owner.name} saiu do espelho, com ${hp} de vida. Ele luta sozinho até ser destruído.`
         : `🪞 Não havia espaço livre para o reflexo de ${owner.name} sair do espelho.`),
     },
     minLevel: 22, after: 'raio_refletido',
-    // Rank II: o reflexo fica mais tempo
+    // Rank II: o reflexo bate mais forte e aguenta mais
     ranks: [
-      { minLevel: 34, applies: [{ effect: 'duplicata_real', turns: 4, to: 'self' }], summon: {
-        count: 1, duration: 4, damage: [7, 11], share: 0.4, label: 'Reflexo', look: 'espelho', emoji: '🪞',
-        text: (owner, n, turns) => (n
-          ? `🪞 O reflexo de ${owner.name} saiu do espelho. Ele luta sozinho por ${turns} turno(s) seus.`
+      { minLevel: 34, summon: {
+        count: 1, hp: 45, damage: [7, 11], share: 0.4, label: 'Reflexo', look: 'espelho', emoji: '🪞', linkedEffect: 'duplicata_real',
+        text: (owner, n, hp) => (n
+          ? `🪞 O reflexo de ${owner.name} saiu do espelho, com ${hp} de vida. Ele luta sozinho até ser destruído.`
           : `🪞 Não havia espaço livre para o reflexo de ${owner.name} sair do espelho.`),
       } },
     ],
