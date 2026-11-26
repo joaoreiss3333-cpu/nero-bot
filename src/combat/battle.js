@@ -371,6 +371,16 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
       if (Math.random() < chance) {
         damage = 0;
         log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}** e desviou! Nenhum dano.`;
+        // `blink` (Salto Fotônico): reaparece numa casa livre a até `blink` casas, a mais longe possível do atacante
+        if (battle && reaction.blink && defender.pos && !fx.getMods(defender).noMove) {
+          const dest = freeCellsNear(battle, defender.pos, defender)
+            .filter(c => distance(c, defender.pos) <= reaction.blink && attacker.pos)
+            .sort((a, b) => distance(b, attacker.pos) - distance(a, attacker.pos))[0];
+          if (dest && !samePos(dest, defender.pos)) {
+            defender.pos = dest;
+            log += `\n✨ O golpe acertou só o rastro de luz: ${defender.name} reapareceu longe, pronto para revidar.`;
+          }
+        }
       } else {
         log += `\n${reaction.emoji} ${defender.name} tentou **${reaction.name}**, mas falhou.`;
       }

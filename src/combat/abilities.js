@@ -776,7 +776,7 @@ const abilities = {
   // ---- Grimório da Luz (LENDÁRIO) ----
   // Velocidade da luz: golpes difíceis de esquivar, feixes em área, cura e um avatar gigante. O Raio do Castigo Divino
   // é impossível de esquivar e a Escuridão não consegue absorvê-lo. Escala de atributo da raridade (1,7x).
-  // Árvore: Espada de Luz -> { Chicote -> Luz de Avior -> Raio do Castigo Divino }, { Flash Cortador -> Flechas do Julgamento },
+  // Árvore: Espada de Luz -> { Chicote -> Luz de Avior -> Raio do Castigo Divino }, { Flash Cortador -> Flechas do Julgamento }, { Salto Fotônico },
   //         { Partículas de Cura -> Monarca Absoluto }.
   // Fragmentos de luz lançados em alta velocidade: rápidos demais para esquivar com facilidade
   espada_de_luz_do_julgamento: {
@@ -803,6 +803,16 @@ const abilities = {
     id: 'flash_cortador_dos_ceus', name: 'Flash Cortador dos Céus', description: 'Cria vários orbes de luz ao redor, que disparam finos feixes de luz. Alcance longo, e os feixes também acertam quem está perto do alvo.', actionText: 'Flash Cortador dos Céus', gif: 'luz_flash_cortador_dos_ceus.gif', grimoire: 'luz', magic: true,
     type: 'attack', range: 5, damage: [11, 16], attribute: 'magiaOfensiva', manaCost: 36, cooldown: 2, splash: { radius: 1, share: 0.4 },
     minLevel: 14, after: 'espada_de_luz_do_julgamento',
+  },
+  // Vira luz e se teletransporta: esquiva com chance alta e, se der certo, reaparece longe do atacante (`blink` casas)
+  salto_fotonico: {
+    id: 'salto_fotonico', name: 'Salto Fotônico', description: 'Vira luz pura por um instante e se teletransporta na velocidade da luz: o ataque acerta só o rastro de brilho deixado para trás. Reação de esquiva com chance alta; se der certo, você reaparece até 3 casas longe do atacante.', actionText: 'Salto Fotônico', gif: 'luz_salto_fotonico.gif', grimoire: 'luz', magic: true,
+    type: 'reaction', kind: 'dodge', chance: 0.65, blink: 3, manaCost: 28, emoji: '✨',
+    minLevel: 12, after: 'espada_de_luz_do_julgamento',
+    // Rank II: esquiva ainda mais fácil e mais barata
+    ranks: [
+      { minLevel: 28, chance: 0.75, manaCost: 22 },
+    ],
   },
   // Grãos de luz envolvem o ferimento e o curam
   particulas_de_cura_de_luz: {
