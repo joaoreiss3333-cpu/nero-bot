@@ -274,20 +274,30 @@ function drawMirrorClone(ctx, L, summon, owner, index) {
   ctx.restore();
 }
 
-// Barrinha de vida embaixo da invocação (verde, amarela ou vermelha conforme o que sobrou), da largura das casas dela
+// Barra de vida embaixo da invocação (verde, amarela ou vermelha conforme o que sobrou), da largura das casas dela,
+// com a vida atual escrita por cima
 function drawSummonHp(ctx, L, summon) {
   if (!summon.maxHp) return;
   const n = summon.size ?? 1;
-  const w = L.cellW * n * 0.7;
-  const h = Math.max(4, L.cellH * 0.08);
+  const w = L.cellW * n * (n > 1 ? 0.6 : 0.86);
+  const h = Math.max(11, L.cellH * 0.2);
   const x = summon.pos.col * L.cellW + (L.cellW * n - w) / 2;
-  const y = (summon.pos.row + n) * L.cellH - h - 3;
+  const y = (summon.pos.row + n) * L.cellH - h - 2;
   const frac = Math.max(0, summon.hp / summon.maxHp);
   ctx.save();
-  ctx.fillStyle = 'rgba(0,0,0,0.65)';
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
   ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
-  ctx.fillStyle = frac > 0.5 ? '#4ccf5a' : frac > 0.25 ? '#e8c23a' : '#e0483e';
+  ctx.fillStyle = frac > 0.5 ? '#3fae4c' : frac > 0.25 ? '#c9a22c' : '#c43a31';
   ctx.fillRect(x, y, w * frac, h);
+  ctx.font = `bold ${Math.round(h * 0.85)}px ${FONT}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+  ctx.fillStyle = '#fff';
+  const label = n > 1 ? `${summon.hp}/${summon.maxHp}` : `${summon.hp}`; // casa pequena: só a vida atual, para caber
+  ctx.strokeText(label, x + w / 2, y + h / 2 + 1);
+  ctx.fillText(label, x + w / 2, y + h / 2 + 1);
   ctx.restore();
 }
 

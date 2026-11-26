@@ -299,19 +299,43 @@ function destroySummon(battle, summon) {
 // Invocações inimigas de `player` (as que ele pode atacar)
 const enemySummons = (battle, player) => (battle.summons ?? []).filter(s => battle.players.find(p => p.id === s.ownerId)?.team !== player.team);
 
-// Um ataque acerta uma invocação: ela não reage nem tem resistências; o dano é o do golpe (com crítico) e sai da vida dela
+// Tira `damage` da vida de uma invocação atingida de raspão (área ou respingo). Retorna as linhas do log.
+function damageSummon(battle, summon, damage) {
+  summon.hp = Math.max(0, summon.hp - damage);
+  return [`💢 ${summon.name} também foi atingido (**${damage}** de dano).`, summon.hp > 0 ? `❤️ ${summon.name}: ${summon.hp}/${summon.maxHp} de vida.` : destroySummon(battle, summon)];
+}
+
+// Respingo (`splash`) ao redor de `center`: os outros inimigos e as invocações inimigas perto levam `share` do dano bruto.
+// `skip` é o alvo principal (não leva duas vezes).
+function splashAround(battle, attacker, attack, center, raw, skip) {
+  const lines = [];
+  for (const other of enemiesOf(battle, attacker).filter(p => p !== skip && distance(p.pos, center) <= attack.splash.radius)) {
+    const splashDmg = Math.max(1, Math.round(raw * attack.splash.share * (1 - Math.min(0.9, fx.getMods(other).damageResist))));
+    other.hp = Math.max(0, other.hp - splashDmg);
+    lines.push(`💢 ${other.name} também foi atingido (**${splashDmg}** de dano).`, ...fx.onHit(other, attack.element, attack));
+  }
+  for (const s of enemySummons(battle, attacker).filter(x => x !== skip && summonDistance(x, center) <= attack.splash.radius)) {
+    lines.push(...damageSummon(battle, s, Math.max(1, Math.round(raw * attack.splash.share))));
+  }
+  return lines;
+}
+
+// Um ataque acerta uma invocação: ela não reage nem tem resistências; o dano é o do golpe (com crítico) e sai da vida dela.
+// O respingo do golpe pega quem estiver perto dela (a partir da casa dela mais perto do atacante).
 function hitSummon(battle, attacker, summon, attack) {
   let raw = attackDamage(attacker, attack) + fx.getMods(attacker).damageBonus;
   const crit = Math.random() < C.CRIT_CHANCE_BASE + fx.getMods(attacker).critChance;
   if (crit) raw *= C.CRIT_MULTIPLIER;
   const damage = Math.max(1, Math.round(raw));
+  const center = footprint(summon).sort((a, b) => distance(a, attacker.pos) - distance(b, attacker.pos))[0];
   summon.hp = Math.max(0, summon.hp - damage);
   let log = `${attacker.name} usou **${attack.name}** em ${summon.name} (${damage} de dano).`;
-  if (crit) log += `
-💥 **Golpe crítico!**`;
-  log += summon.hp > 0 ? `
-❤️ ${summon.name} ficou com ${summon.hp}/${summon.maxHp} de vida.` : `
-${destroySummon(battle, summon)}`;
+  if (crit) log += `\n💥 **Golpe crítico!**`;
+  log += summon.hp > 0 ? `\n❤️ ${summon.name} ficou com ${summon.hp}/${summon.maxHp} de vida.` : `\n${destroySummon(battle, summon)}`;
+  if (attack.splash) {
+    const lines = splashAround(battle, attacker, attack, center, raw, summon);
+    if (lines.length) log += `\n${lines.join('\n')}`;
+  }
   return log;
 }
 
@@ -491,14 +515,10 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
     log += `\n${resourceOf(reaction) === 'mana' ? '🔷' : '⚡'} ${defender.name} gastou ${cost} de ${resourceLabel(reaction)}.`;
   }
 
-  // Golpe em área (`splash`): os outros inimigos perto do alvo também levam uma parte do dano, sem direito a reação
+  // Golpe em área (`splash`): os outros inimigos e as invocações inimigas perto do alvo também levam uma parte do dano,
+  // sem direito a reação
   if (battle && attack.splash) {
-    const hitLines = [];
-    for (const other of enemiesOf(battle, attacker).filter(p => p !== defender && distance(p.pos, defender.pos) <= attack.splash.radius)) {
-      const splashDmg = Math.max(1, Math.round(raw * attack.splash.share * (1 - Math.min(0.9, fx.getMods(other).damageResist))));
-      other.hp = Math.max(0, other.hp - splashDmg);
-      hitLines.push(`💢 ${other.name} também foi atingido (**${splashDmg}** de dano).`, ...fx.onHit(other, attack.element, attack));
-    }
+    const hitLines = splashAround(battle, attacker, attack, defender.pos, raw, defender);
     if (hitLines.length) log += `\n${hitLines.join('\n')}`;
   }
 
@@ -541,5 +561,5 @@ function nextTurn(battle) {
 
 module.exports = {
   createBattle, getBattle, inAnyBattle, endBattle, currentPlayer, enemiesOf, alliesOf, isAlive, winnerTeam, victoryText, collectFallen, needsTarget, findPlayer, abilitiesOf, abilityOf, ownedIds, abilityCost, resourceOf, resourceLabel, canAfford, spend, reactionBlock, clampMoves,
-  planBonus, applyBonus, isOccupied, footprint, summonDistance, enemySummons, hitSummon, placePlayer, allPlaced, checkStep, movePlayer, startActions, resolveAttack, nextTurn,
+  planBonus, applyBonus, isOccupied, footprint, summonDistance, enemySummons, hitSummon, damageSummon, placePlayer, allPlaced, checkStep, movePlayer, startActions, resolveAttack, nextTurn,
 };

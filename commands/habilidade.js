@@ -184,7 +184,9 @@ module.exports = {
     if (plan.error) return fail(interaction, plan.error);
     // Ação bônus em área (`area`): atinge todos os inimigos dentro do raio, a partir de quem usou
     const inArea = ability.area ? enemiesOf(battle, me).filter(e => distance(me.pos, e.pos) <= ability.area.radius) : null;
-    if (ability.area && !inArea.length) return fail(interaction, `Nenhum inimigo dentro da área de **${ability.name}** (${ability.area.radius} casas).`);
+    // Magias de área com dano também valem só contra invocações inimigas dentro da área
+    const summonsInArea = ability.area && ability.damage ? enemySummons(battle, me).filter(s => summonDistance(s, me.pos) <= ability.area.radius) : [];
+    if (ability.area && !inArea.length && !summonsInArea.length) return fail(interaction, `Nenhum inimigo dentro da área de **${ability.name}** (${ability.area.radius} casas).`);
     // Checagem própria da habilidade antes de gastar mana (ex: a Cópia precisa de uma magia para copiar)
     const opts = { copyId: interaction.options.getString('copiar') };
     const blocked = ability.canUse?.(battle, me, foe, opts);

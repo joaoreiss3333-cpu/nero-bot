@@ -46,16 +46,31 @@ const alliesNear = (battle, user, radius) => battle.players.filter(p => p.hp > 0
 // Inimigos vivos de `user` a até `radius` casas dele (magias de área lançadas por ação bônus)
 const foesInArea = (battle, user, radius) => battle.players.filter(p => p.hp > 0 && p.team !== user.team && p.pos && user.pos && distance(p.pos, user.pos) <= radius);
 
-// Dano de uma magia de ação bônus (sem reação): valor sorteado + atributo × escala da raridade + bônus de efeitos,
-// vezes `mult`, menos as resistências do alvo. Já tira a vida do alvo e retorna o dano causado.
-function hitWithMagic(ability, user, foe, mult = 1) {
+// Dano bruto de uma magia de ação bônus: valor sorteado + atributo × escala da raridade + bônus de efeitos
+function rollMagic(ability, user) {
   const scale = ability.attributeScale ?? C.RARITY_SCALE[getGrimoire(ability.grimoire)?.rarity] ?? 1;
   const bonus = Math.round((user.attrs[ability.attribute] ?? 0) * (C.DAMAGE_PER_POINT[ability.attribute] ?? 0) * scale) + fx.getMods(user).damageBonus;
-  const raw = ability.damage[0] + Math.floor(Math.random() * (ability.damage[1] - ability.damage[0] + 1)) + bonus;
+  return ability.damage[0] + Math.floor(Math.random() * (ability.damage[1] - ability.damage[0] + 1)) + bonus;
+}
+
+// Dano de uma magia de ação bônus (sem reação): o dano bruto vezes `mult`, menos as resistências do alvo.
+// Já tira a vida do alvo e retorna o dano causado.
+function hitWithMagic(ability, user, foe, mult = 1) {
+  const raw = rollMagic(ability, user);
   const resist = Math.min(0.9, fx.getMods(foe).damageResist + fx.getMods(foe).magicResist);
   const dmg = Math.max(1, Math.round(raw * mult * (1 - resist)));
   foe.hp = Math.max(0, foe.hp - dmg);
   return dmg;
+}
+
+// Magia de área: as invocações inimigas a até `radius` casas de `user` (pela casa mais próxima de cada uma) também levam o
+// dano, uma vez cada (invocações não têm resistências nem efeitos). Retorna as linhas do log.
+function hitSummonsInArea(ability, battle, user, radius) {
+  const { enemySummons, summonDistance, damageSummon } = require('./battle'); // aqui dentro: battle.js já depende deste arquivo
+  if (!user.pos) return [];
+  return enemySummons(battle, user)
+    .filter(s => summonDistance(s, user.pos) <= radius)
+    .flatMap(s => damageSummon(battle, s, Math.max(1, Math.round(rollMagic(ability, user)))));
 }
 
 const abilities = {
@@ -795,6 +810,7 @@ const abilities = {
         }
         lines.push(...fx.onHit(foe));
       }
+      lines.push(...hitSummonsInArea(this, battle, user, this.area.radius));
       return lines.join(NL);
     },
   },
@@ -879,6 +895,7 @@ const abilities = {
       for (const foe of foesInArea(battle, user, this.area.radius)) {
         lines.push(`✨ ${foe.name} foi atingido pelas lâminas (**${hitWithMagic(this, user, foe)}** de dano).`, ...fx.onHit(foe));
       }
+      lines.push(...hitSummonsInArea(this, battle, user, this.area.radius));
       return lines.join(NL);
     },
   },
@@ -959,6 +976,7 @@ const abilities = {
       for (const foe of foesInArea(battle, user, this.area.radius)) {
         lines.push(`🪩 ${foe.name} foi atingido pelas gotas (**${hitWithMagic(this, user, foe)}** de dano).`, ...fx.onHit(foe));
       }
+      lines.push(...hitSummonsInArea(this, battle, user, this.area.radius));
       return lines.join(NL);
     },
   },
@@ -1161,6 +1179,7 @@ const abilities = {
       for (const foe of foesInArea(battle, user, this.area.radius)) {
         lines.push(`✨ ${foe.name} foi atingido pela luz refletida (**${hitWithMagic(this, user, foe)}** de dano).`, ...fx.onHit(foe));
       }
+      lines.push(...hitSummonsInArea(this, battle, user, this.area.radius));
       return lines.join(NL);
     },
   },
