@@ -407,7 +407,8 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
     } else if (reaction.kind === 'block') {
       // Defesa escala como um ataque: valor sorteado + atributo × multiplicador (Bloqueio usa Resistência; defesas mágicas, Magia Defensiva)
       // `physicalBonus` (Escudo de Mercúrio): o metal pesado absorve mais contra golpes físicos
-      const physical = reaction.physicalBonus && !attack.magic ? reaction.physicalBonus : 1;
+      // `magicBonus` (Materialização de Defesa): o objeto imaginado é feito sob medida contra a magia que vem
+      const physical = reaction.physicalBonus && !attack.magic ? reaction.physicalBonus : reaction.magicBonus && attack.magic ? reaction.magicBonus : 1;
       const absorbed = Math.min(damage, Math.round((rand(reaction.absorb) + Math.round((defender.attrs[reaction.attribute] ?? 0) * (C.DEFENSE_PER_POINT[reaction.attribute] ?? 0) * abilityScale(reaction))) * physical));
       damage -= absorbed;
       log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}** e absorveu ${absorbed} de dano.`;

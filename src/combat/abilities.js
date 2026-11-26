@@ -323,7 +323,8 @@ const abilities = {
   // (Sonolento x3 = dormindo, sem agir). As outras magias só funcionam com o Mundo aberto e acontecem DENTRO do sonho:
   // `keepsAsleep` faz elas não acordarem quem está dormindo, e o elemento `sonho` causa +25% em quem está Preso no Sonho.
   // Qualquer outro golpe acorda o alvo. Escala de atributo da raridade (1,7x). Todas têm ranks: a árvore tem só 4 magias.
-  // Árvore: Mundo do Glamour -> { Materialização dos Sonhos -> Manipulação do Mundo dos Sonhos }, { Névoa do Sono }.
+  // Árvore: Mundo do Glamour -> { Materialização dos Sonhos -> Manipulação do Mundo dos Sonhos }, { Névoa do Sono -> Fitas do Sono Profundo },
+  //         { Materialização de Defesa -> Anéis da Vigília }.
   // Névoa escura em área: prende os inimigos próximos no mundo dos sonhos e abre o Mundo do Glamour para quem usou
   mundo_do_glamour: {
     id: 'mundo_do_glamour', name: 'Mundo do Glamour', description: 'Libera uma névoa escura que puxa os inimigos próximos para um mundo de sonhos, onde ficam mais sonolentos a cada turno até adormecerem. Abre o Mundo do Glamour, que libera as outras magias dos Sonhos.', actionText: 'Mundo do Glamour', gif: 'sonhos_mundo_do_glamour.gif', grimoire: 'sonhos', magic: true,
@@ -371,6 +372,38 @@ const abilities = {
     // Rank II: leva mais longe e o Cenário Onírico protege por mais um turno
     ranks: [
       { minLevel: 34, destRange: 8, applies: [{ effect: 'cenario_onirico', turns: 3, to: 'self' }] },
+    ],
+  },
+  // Fitas roxas prendem o alvo no sonho: sem se mover, mais sono a cada turno, e se dormir amarrado não acorda com golpes
+  fitas_do_sono_profundo: {
+    id: 'fitas_do_sono_profundo', name: 'Fitas do Sono Profundo', description: 'Fitas roxas surgem e prendem o alvo no mundo dos sonhos, onde quem controla tudo é você: quanto mais ele luta, mais elas apertam e mais sono ele sente. O alvo fica preso, ganha Sonolento a cada turno e, se dormir amarrado, nenhum golpe o acorda.', actionText: 'Fitas do Sono Profundo', gif: 'sonhos_fitas_do_sono_profundo.gif', grimoire: 'sonhos', magic: true, element: 'sonho',
+    type: 'attack', range: 3, damage: [8, 12], attribute: 'magiaOfensiva', manaCost: 42, cooldown: 3, keepsAsleep: true,
+    applies: [{ effect: 'fitas_do_sono', turns: 2 }],
+    requiresEffect: 'mundo_do_glamour',
+    minLevel: 26, after: 'nevoa_do_sono',
+    // Rank II: mais dano e as fitas seguram por mais um turno
+    ranks: [
+      { minLevel: 38, damage: [11, 16], applies: [{ effect: 'fitas_do_sono', turns: 3 }] },
+    ],
+  },
+  // Materializa objetos ou magias sob medida para segurar o golpe: absorve mais contra magia
+  materializacao_de_defesa: {
+    id: 'materializacao_de_defesa', name: 'Materialização de Defesa', description: 'Materializa qualquer objeto, ou até outras magias, para se proteger de ataques de diferentes tipos de magia. Reação de defesa que absorve dano, e absorve ainda mais contra magias.', actionText: 'Materialização de Defesa', gif: 'sonhos_materializacao_de_defesa.gif', grimoire: 'sonhos', magic: true,
+    type: 'reaction', kind: 'block', absorb: [5, 8], attribute: 'magiaDefensiva', magicBonus: 1.4, manaCost: 28, emoji: '🧸',
+    minLevel: 14, after: 'mundo_do_glamour',
+    // Rank II: segura mais
+    ranks: [
+      { minLevel: 30, absorb: [7, 11] },
+    ],
+  },
+  // Esfera rosa com anéis de letras de sonho: por alguns turnos segura os ataques que vêm de fora
+  aneis_da_vigilia: {
+    id: 'aneis_da_vigilia', name: 'Anéis da Vigília', description: 'Materializa ao redor de si uma esfera de luz rosa cercada por anéis com letras de sonho que giram sem parar, e tudo o que você imagina como proteção ganha forma. Ação bônus que reduz bastante o dano recebido por alguns turnos.', actionText: 'Anéis da Vigília', gif: 'sonhos_aneis_da_vigilia.gif', grimoire: 'sonhos', magic: true,
+    type: 'bonus', manaCost: 45, cooldown: 5, applies: [{ effect: 'aneis_da_vigilia', turns: 2, to: 'self' }],
+    minLevel: 28, after: 'materializacao_de_defesa',
+    // Rank II: a esfera dura mais um turno
+    ranks: [
+      { minLevel: 40, applies: [{ effect: 'aneis_da_vigilia', turns: 3, to: 'self' }] },
     ],
   },
 

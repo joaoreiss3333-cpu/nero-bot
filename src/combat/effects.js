@@ -9,6 +9,7 @@
 //   vulnerable  { elemento: multiplicador } -> o dono leva mais dano desse elemento
 //   endsOnHit   o efeito acaba quando o dono sofre dano direto; endsOnElement: ... só se o golpe for desse elemento
 //               (golpes com `keepsAsleep` na habilidade, como as magias dos Sonhos, não acordam o Sonolento)
+//   holdsSleep  enquanto o dono tiver esse efeito, nenhum golpe acorda o Sonolento (Fitas do Sono Profundo)
 //   eachTurn    { effect, turns, stacks } -> aplica esse efeito no dono no fim de cada turno dele (ex: sono crescente)
 //
 // A duração (turnos), os stacks e a força (`power`, dano por stack) vêm da habilidade que aplica:
@@ -66,6 +67,13 @@ const EFFECTS = {
   monarca_absoluto: { name: 'Monarca Absoluto', emoji: '👑', kind: 'buff', mods: { damageBonus: 6, damageResist: 0.2 } },
   // Estrela de Prata da Execução: preso na gaiola de mercúrio, sem fugir nem contra-atacar
   gaiola_de_prata: { name: 'Gaiola de Prata', emoji: '⭐', kind: 'debuff', mods: { noMove: true, noReact: true } },
+  // Fitas do Sono Profundo: presas no sonho, as fitas apertam e dão mais sono a cada turno; quem dorme amarrado não acorda com golpes
+  fitas_do_sono: {
+    name: 'Fitas do Sono', emoji: '🎀', kind: 'debuff', holdsSleep: true, mods: { noMove: true, dodgeDelta: -0.2 },
+    eachTurn: { effect: 'sonolento', turns: 2 },
+  },
+  // Anéis da Vigília: a esfera rosa de anéis segura os ataques que vêm de fora
+  aneis_da_vigilia: { name: 'Anéis da Vigília', emoji: '💗', kind: 'buff', mods: { damageResist: 0.35 } },
   // O cenário do sonho se ergue para proteger quem o manipula
   cenario_onirico: { name: 'Cenário Onírico', emoji: '🏔️', kind: 'buff', mods: { damageResist: 0.25 } },
   instinto_selvagem: {
@@ -182,6 +190,8 @@ function clearDebuffs(player) {
 // O jogador levou um golpe direto: acorda o Sonolento (menos com golpes `keepsAsleep`) e descongela se foi de fogo
 function onHit(player, element, { keepsAsleep = false } = {}) {
   const lines = [];
+  // `holdsSleep` (Fitas do Sono Profundo): enquanto as fitas prendem o alvo, nenhum golpe o acorda
+  if (Object.keys(EFFECTS).some(id => EFFECTS[id].holdsSleep && hasEffect(player, id))) keepsAsleep = true;
   for (const [id, def] of Object.entries({ ...EFFECTS })) {
     if (!hasEffect(player, id)) continue;
     if ((def.endsOnHit && !keepsAsleep) || (def.endsOnElement && def.endsOnElement === element)) {
