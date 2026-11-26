@@ -1062,6 +1062,116 @@ const abilities = {
       } },
     ],
   },
+
+  // ---- Grimório do Espelho (RARO) ----
+  // Espelhos que disparam e refletem raios de luz (longo alcance), teletransporte até um espelho, reflexo de magias e
+  // a Duplicata Real: um clone saído do espelho que luta sozinho e libera o Refrão de Reflexão Dupla. Escala da raridade (1,15x).
+  // Árvore: Raio Refletido -> { Refrão de Reflexão -> Refrão de Reflexão Grande }, { Raio de Reflexão Grande },
+  //         { Reflexão Completa }, { Magia de Espelhos -> Mudança de Espelhos }, { Duplicata Real -> Refrão de Reflexão Dupla }.
+  // Raio de luz disparado de um espelho, sem gesto nenhum: longo alcance, barato e rápido
+  raio_refletido: {
+    id: 'raio_refletido', name: 'Raio Refletido', description: 'Manifesta um espelho e dispara dele um raio de luz mágica no alvo, sem precisar de gesto nenhum, rápido e forte o bastante para atravessar uma parede. Ataque de longo alcance, barato e difícil de esquivar.', actionText: 'Raio Refletido', gif: 'espelho_raio_refletido.gif', grimoire: 'espelho', magic: true,
+    type: 'attack', range: 5, damage: [8, 12], attribute: 'magiaOfensiva', manaCost: 18, dodgePenalty: 0.1,
+    minLevel: 4, // raiz da árvore do Espelho
+    // Rank II: raios em sucessão mais rápida, mais dano
+    ranks: [
+      { minLevel: 16, damage: [11, 16] },
+    ],
+  },
+  // Teletransporte até um espelho invocado onde você quiser (use `direcao` e `casas`)
+  magia_de_espelhos: {
+    id: 'magia_de_espelhos', name: 'Magia de Espelhos', description: 'Invoca um espelho no lugar que quiser e se teletransporta na hora até ele, surgindo à sua frente. Ação bônus para escapar, se reposicionar ou surpreender o adversário.', actionText: 'Magia de Espelhos', gif: 'espelho_magia_de_espelhos.gif', grimoire: 'espelho', magic: true,
+    type: 'bonus', manaCost: 24, cooldown: 2, teleport: 'self', destRange: 5,
+    teleportText: me => `🪞 ${me.name} entrou num espelho e surgiu na frente de outro, em outro ponto do mapa.`,
+    minLevel: 8, after: 'raio_refletido',
+    // Rank II: espelhos mais longe
+    ranks: [
+      { minLevel: 22, destRange: 7 },
+    ],
+  },
+  // Espelho ampliado até o tamanho da magia: devolve o feitiço para quem lançou
+  reflexao_completa: {
+    id: 'reflexao_completa', name: 'Reflexão Completa', description: 'Salta na frente da magia que se aproxima com um espelho e o amplia até o tamanho dela, refletindo-a de volta para o conjurador. Reação contra magia: você não sofre dano e quem lançou recebe parte dele.', actionText: 'Reflexão Completa', gif: 'espelho_reflexao_completa.gif', grimoire: 'espelho', magic: true,
+    type: 'reaction', kind: 'reflect', reflect: 0.5, onlyVsMagic: true, manaCost: 40, emoji: '🪞',
+    minLevel: 10, after: 'raio_refletido',
+    // Rank II: devolve mais
+    ranks: [
+      { minLevel: 26, reflect: 0.65 },
+    ],
+  },
+  // Espelhos refletem a luz uns nos outros: acerta o alvo e quem está entre os espelhos (perto dele)
+  refrao_de_reflexao: {
+    id: 'refrao_de_reflexao', name: 'Refrão de Reflexão', description: 'Manifesta vários espelhos que refletem a luz uns nos outros e destroem tudo o que estiver entre eles. Ataque de longo alcance que também acerta quem está perto do alvo.', actionText: 'Refrão de Reflexão', gif: 'espelho_refrao_de_reflexao.gif', grimoire: 'espelho', magic: true,
+    type: 'attack', range: 5, damage: [10, 15], attribute: 'magiaOfensiva', manaCost: 32, cooldown: 2, splash: { radius: 1, share: 0.5 },
+    minLevel: 12, after: 'raio_refletido',
+    // Rank II: mais espelhos, mais dano
+    ranks: [
+      { minLevel: 26, damage: [13, 19] },
+    ],
+  },
+  // Esquiva por espelho: some na frente do golpe e reaparece colado no atacante
+  mudanca_de_espelhos: {
+    id: 'mudanca_de_espelhos', name: 'Mudança de Espelhos', description: 'Invoca um espelho num ponto que quiser e aparece na hora em frente a ele, esquivando o ataque ou ganhando uma posição melhor. Reação de esquiva; se der certo, você reaparece colado em quem atacou.', actionText: 'Mudança de Espelhos', gif: 'espelho_mudanca_de_espelhos.gif', grimoire: 'espelho', magic: true,
+    type: 'reaction', kind: 'dodge', chance: 0.55, blink: 5, blinkTo: 'attacker', manaCost: 24, emoji: '🪞',
+    blinkText: (me, foe) => `🪞 ${me.name} sumiu num espelho e reapareceu bem ao lado de ${foe.name}.`,
+    minLevel: 16, after: 'magia_de_espelhos',
+    // Rank II: esquiva mais fácil
+    ranks: [
+      { minLevel: 30, chance: 0.65 },
+    ],
+  },
+  // Espelho grande: raio enorme, mais dano e mais difícil de esquivar, mas gasta muita mana
+  raio_de_reflexao_grande: {
+    id: 'raio_de_reflexao_grande', name: 'Raio de Reflexão Grande', description: 'Manifesta um grande espelho e dispara dele um grande raio de luz no alvo. O espelho ampliado pede mais magia: dano alto, longo alcance e difícil de esquivar, mas custa caro.', actionText: 'Raio de Reflexão Grande', gif: 'espelho_raio_de_reflexao_grande.gif', grimoire: 'espelho', magic: true,
+    type: 'attack', range: 6, damage: [16, 23], attribute: 'magiaOfensiva', manaCost: 46, cooldown: 3, dodgePenalty: 0.2,
+    minLevel: 18, after: 'raio_refletido',
+    // Rank II: espelho ainda maior
+    ranks: [
+      { minLevel: 32, damage: [20, 28] },
+    ],
+  },
+  // O reflexo sai do espelho: luta sozinho no mapa e repete as suas magias (mais dano); libera o Refrão de Reflexão Dupla
+  duplicata_real: {
+    id: 'duplicata_real', name: 'Duplicata Real', description: 'Manifesta um espelho e invoca dele o seu reflexo, com tudo invertido. O clone usa as mesmas magias que você: aparece no mapa e luta sozinho por alguns turnos, seus golpes ficam mais fortes e o Refrão de Reflexão Dupla fica liberado.', actionText: 'Duplicata Real', gif: 'espelho_duplicata_real.gif', grimoire: 'espelho', magic: true,
+    type: 'bonus', manaCost: 45, cooldown: 5, attribute: 'magiaOfensiva',
+    applies: [{ effect: 'duplicata_real', turns: 3, to: 'self' }],
+    summon: {
+      count: 1, duration: 3, damage: [5, 8], share: 0.4, label: 'Reflexo', look: 'espelho', emoji: '🪞',
+      text: (owner, n, turns) => (n
+        ? `🪞 O reflexo de ${owner.name} saiu do espelho. Ele luta sozinho por ${turns} turno(s) seus.`
+        : `🪞 Não havia espaço livre para o reflexo de ${owner.name} sair do espelho.`),
+    },
+    minLevel: 22, after: 'raio_refletido',
+    // Rank II: o reflexo fica mais tempo
+    ranks: [
+      { minLevel: 34, applies: [{ effect: 'duplicata_real', turns: 4, to: 'self' }], summon: {
+        count: 1, duration: 4, damage: [7, 11], share: 0.4, label: 'Reflexo', look: 'espelho', emoji: '🪞',
+        text: (owner, n, turns) => (n
+          ? `🪞 O reflexo de ${owner.name} saiu do espelho. Ele luta sozinho por ${turns} turno(s) seus.`
+          : `🪞 Não havia espaço livre para o reflexo de ${owner.name} sair do espelho.`),
+      } },
+    ],
+  },
+  // Série de espelhos grandes ao seu redor: a luz refletida atinge todos os inimigos por perto
+  refrao_de_reflexao_grande: {
+    id: 'refrao_de_reflexao_grande', name: 'Refrão de Reflexão Grande', description: 'Manifesta uma série de grandes espelhos que refletem luz mágica uns nos outros e destroem tudo o que estiver entre eles. Os espelhos ampliados pedem mais magia: atinge todos os inimigos ao seu redor.', actionText: 'Refrão de Reflexão Grande', gif: 'espelho_refrao_de_reflexao_grande.gif', grimoire: 'espelho', magic: true,
+    type: 'bonus', usesAttack: true, manaCost: 58, cooldown: 4, area: { radius: 4 }, damage: [13, 19], attribute: 'magiaOfensiva',
+    minLevel: 30, after: 'refrao_de_reflexao',
+    use(battle, user) {
+      const lines = [`🪞 Os grandes espelhos de ${user.name} refletiram a luz uns nos outros.`];
+      for (const foe of foesInArea(battle, user, this.area.radius)) {
+        lines.push(`✨ ${foe.name} foi atingido pela luz refletida (**${hitWithMagic(this, user, foe)}** de dano).`, ...fx.onHit(foe));
+      }
+      return lines.join(NL);
+    },
+  },
+  // Com a Duplicata Real ativa: o dobro de espelhos, médio alcance e dano muito alto em volta do alvo
+  refrao_de_reflexao_dupla: {
+    id: 'refrao_de_reflexao_dupla', name: 'Refrão de Reflexão Dupla', description: 'Com a Duplicata Real ativa, você e o reflexo manifestam o dobro de espelhos do Refrão de Reflexão, e a luz refletida destrói tudo o que estiver entre eles. Médio alcance, dano muito alto, e acerta também quem está perto do alvo.', actionText: 'Refrão de Reflexão Dupla', gif: 'espelho_refrao_de_reflexao_dupla.gif', grimoire: 'espelho', magic: true,
+    type: 'attack', range: 3, damage: [20, 28], attribute: 'magiaOfensiva', manaCost: 52, cooldown: 3, splash: { radius: 1, share: 0.6 },
+    requiresEffect: 'duplicata_real',
+    minLevel: 34, after: 'duplicata_real',
+  },
 };
 
 const TYPE_LABEL = { attack: 'Ataque', bonus: 'Ação bônus', reaction: 'Reação' };

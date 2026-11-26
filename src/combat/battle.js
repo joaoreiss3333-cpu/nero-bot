@@ -397,14 +397,16 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
       if (Math.random() < chance) {
         damage = 0;
         log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}** e desviou! Nenhum dano.`;
-        // `blink` (Salto Fotônico): reaparece numa casa livre a até `blink` casas, a mais longe possível do atacante
-        if (battle && reaction.blink && defender.pos && !fx.getMods(defender).noMove) {
-          const dest = freeCellsNear(battle, defender.pos, defender)
-            .filter(c => distance(c, defender.pos) <= reaction.blink && attacker.pos)
-            .sort((a, b) => distance(b, attacker.pos) - distance(a, attacker.pos))[0];
+        // `blink` (Salto Fotônico): reaparece numa casa livre a até `blink` casas, a mais longe possível do atacante.
+        // `blinkTo: 'attacker'` (Mudança de Espelhos): reaparece colado no atacante, para surpreendê-lo
+        if (battle && reaction.blink && defender.pos && attacker.pos && !fx.getMods(defender).noMove) {
+          const near = freeCellsNear(battle, defender.pos, defender).filter(c => distance(c, defender.pos) <= reaction.blink);
+          const dest = reaction.blinkTo === 'attacker'
+            ? near.filter(c => distance(c, attacker.pos) === 1)[0]
+            : near.sort((a, b) => distance(b, attacker.pos) - distance(a, attacker.pos))[0];
           if (dest && !samePos(dest, defender.pos)) {
             defender.pos = dest;
-            log += `\n✨ O golpe acertou só o rastro de luz: ${defender.name} reapareceu longe, pronto para revidar.`;
+            log += `\n${reaction.blinkText?.(defender, attacker) ?? `✨ O golpe acertou só o rastro de luz: ${defender.name} reapareceu longe, pronto para revidar.`}`;
           }
         }
       } else {

@@ -41,7 +41,7 @@ function details(a) {
   if (a.drainMana) out.push(`Drena ${a.drainMana} de mana`);
   if (a.teleport === 'self') out.push(`Teleporta você até ${a.destRange} casas`);
   if (a.teleport === 'enemy') out.push(`Teleporta o alvo até ${a.destRange} casas`);
-  if (a.blink) out.push(`Se esquivar, reaparece até ${a.blink} casas longe do atacante`);
+  if (a.blink) out.push(a.blinkTo === 'attacker' ? 'Se esquivar, reaparece colado em quem atacou' : `Se esquivar, reaparece até ${a.blink} casas longe do atacante`);
   if (a.displace) out.push(`Joga o alvo para ${a.displace}+ casas de distância`);
   if (a.push) out.push(`Empurra o alvo ${a.push} casas`);
   if (a.summon) {

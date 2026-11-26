@@ -202,9 +202,61 @@ function drawSheep(ctx, L, summon, index) {
   ctx.restore();
 }
 
+// Duplicata Real: o reflexo do dono saído do espelho. O rosto aparece invertido (esquerda vira direita), com um brilho
+// azul-prateado de vidro e um anel tracejado na cor do time
+function drawMirrorClone(ctx, L, summon, owner, index) {
+  const { x, y } = cellCenter(L, summon.pos);
+  const R = Math.min(L.cellH, L.cellW) * 0.4;
+  const color = PLAYER_COLORS[index % PLAYER_COLORS.length];
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(x + 2, y + R - 2, R * 0.9, R * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.clip();
+  if (owner?.avatar) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(-1, 1); // reflexo: tudo invertido
+    ctx.drawImage(owner.avatar, -R, -R, R * 2, R * 2);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = '#3a3a44';
+    ctx.fillRect(x - R, y - R, R * 2, R * 2);
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${Math.round(R * 1.2)}px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.save(); ctx.translate(x, y); ctx.scale(-1, 1); ctx.fillText((owner?.name ?? '?').charAt(0).toUpperCase(), 0, 1); ctx.restore();
+  }
+  // Vidro: tom azul-prateado e um reflexo diagonal
+  ctx.fillStyle = 'rgba(150,200,255,0.28)';
+  ctx.fillRect(x - R, y - R, R * 2, R * 2);
+  const shine = ctx.createLinearGradient(x - R, y - R, x + R, y + R);
+  shine.addColorStop(0.3, 'rgba(255,255,255,0)');
+  shine.addColorStop(0.45, 'rgba(255,255,255,0.45)');
+  shine.addColorStop(0.6, 'rgba(255,255,255,0)');
+  ctx.fillStyle = shine;
+  ctx.fillRect(x - R, y - R, R * 2, R * 2);
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = '#dff1ff';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(x, y, R - 2, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.setLineDash([5, 4]);
+  ctx.beginPath(); ctx.arc(x, y, R + 1, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+
 // Clone invocado: o mesmo rosto do dono, escurecido e com anel tracejado na cor dele, para parecer outra figura no mapa
 function drawSummon(ctx, L, summon, owner, index) {
   if (summon.look === 'ovelha') return drawSheep(ctx, L, summon, index);
+  if (summon.look === 'espelho') return drawMirrorClone(ctx, L, summon, owner, index);
   const { x, y } = cellCenter(L, summon.pos);
   const R = Math.min(L.cellH, L.cellW) * 0.38;
   const color = PLAYER_COLORS[index % PLAYER_COLORS.length];
