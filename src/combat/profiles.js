@@ -39,4 +39,18 @@ function getProfile(userId) {
   return profiles[userId];
 }
 
-module.exports = { getProfile, save };
+// Campos da ficha (o personagem em si) e o grimório: o reset de progresso mantém estes
+const KEEP_ON_PROGRESS_RESET = ['name', 'age', 'story', 'portraitUrl', 'grimoire'];
+
+// Reseta o personagem e salva. 'progresso': volta ao nível 1 (XP, atributos, pontos e magias zerados), mantendo a ficha e
+// o grimório. 'tudo': apaga a ficha inteira (o retrato salvo também), como se o jogador nunca tivesse jogado.
+function resetProfile(userId, mode) {
+  const old = profiles[userId] ?? {};
+  const kept = mode === 'tudo' ? {} : Object.fromEntries(KEEP_ON_PROGRESS_RESET.filter(k => old[k] !== undefined).map(k => [k, old[k]]));
+  if (mode === 'tudo') fs.rmSync(path.join(path.dirname(FILE), 'portraits', `${userId}.png`), { force: true });
+  profiles[userId] = { ...newProfile(), ranks: {}, ...kept };
+  save();
+  return profiles[userId];
+}
+
+module.exports = { getProfile, save, resetProfile };

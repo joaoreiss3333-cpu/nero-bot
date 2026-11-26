@@ -11,6 +11,7 @@ async function handleComponent(interaction) {
   if (id.startsWith('pt:')) return handlePartyInvite(interaction);
   if (id.startsWith('fc:')) return handleFicha(interaction);
   if (id.startsWith('pl:')) return handlePlacement(interaction);
+  if (id.startsWith('rs:')) return require('../../commands/resetar').handleReset(interaction); // confirmação do /resetar
   if (interaction.isButton()) return handleButton(interaction);
 }
 
