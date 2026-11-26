@@ -3,7 +3,7 @@ const { getBattle, currentPlayer, enemiesOf, needsTarget, findPlayer, abilitiesO
 const { getMods, applyAbilityEffects, hasEffect, removeEffect, getEffect } = require('../src/combat/effects');
 const { panelPayload, asEdit } = require('../src/combat/render');
 const { playAction } = require('../src/combat/actions');
-const { TYPE_LABEL } = require('../src/combat/abilities');
+const { typeLabel } = require('../src/combat/abilities');
 const { getKit, getRanks } = require('../src/combat/characters');
 const { distance } = require('../src/combat/grid');
 
@@ -72,7 +72,7 @@ module.exports = {
     const choices = ids
       .map(id => abilityOf(holder, id))
       .filter(a => a && a.type !== 'reaction' && a.name.toLowerCase().includes(focused))
-      .map(a => ({ name: `${a.name}${a.rank > 1 ? ` (rank ${a.rank})` : ''} (${TYPE_LABEL[a.type]} · ${a.manaCost ?? a.energyCost} ${a.manaCost !== undefined ? 'mana' : 'energia'}${a.cooldown ? ` · recarga ${a.cooldown}` : ''})`, value: a.id }))
+      .map(a => ({ name: `${a.name}${a.rank > 1 ? ` (rank ${a.rank})` : ''} (${typeLabel(a)} · ${a.manaCost ?? a.energyCost} ${a.manaCost !== undefined ? 'mana' : 'energia'}${a.cooldown ? ` · recarga ${a.cooldown}` : ''})`, value: a.id }))
       .map(c => (holder.copied?.[c.value] && !holder.abilities?.includes(c.value) ? { ...c, name: `📋 ${c.name}`.slice(0, 100) } : c));
     await interaction.respond(choices.slice(0, 25));
   },
@@ -142,8 +142,9 @@ module.exports = {
       return battle.message.edit(asEdit(await panelPayload(battle, `👊 ${me.name} preparou **${ability.name}** contra ${foe.name} (-${cost} ${resourceLabel(ability)}). O golpe acontece ao fim do turno.`)));
     }
 
-    // bonus
-    if (battle.turn.bonusUsed) return fail(interaction, 'Você já usou sua ação bônus neste turno.');
+    // bonus (as ofensivas, com `usesAttack`, agem na hora igual, mas gastam a ação de ataque no lugar da bônus)
+    const slot = ability.usesAttack ? 'attacked' : 'bonusUsed';
+    if (battle.turn[slot]) return fail(interaction, ability.usesAttack ? 'Você já usou sua ação de ataque neste turno.' : 'Você já usou sua ação bônus neste turno.');
     // Alcance e teleporte são conferidos antes de gastar mana ou a ação
     const plan = planBonus(battle, me, ability, interaction.options.getString('direcao'), interaction.options.getInteger('casas'), foe);
     if (plan.error) return fail(interaction, plan.error);
@@ -154,7 +155,7 @@ module.exports = {
     const opts = { copyId: interaction.options.getString('copiar') };
     const blocked = ability.canUse?.(battle, me, foe, opts);
     if (blocked) return fail(interaction, blocked);
-    battle.turn.bonusUsed = true;
+    battle.turn[slot] = true;
     if (ability.cooldown) me.cooldowns[ability.id] = ability.cooldown;
     spend(me, ability);
     // Ação bônus: usa a função própria da habilidade (use) e/ou aplica os efeitos dela (applies) em quem usou

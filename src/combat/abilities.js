@@ -1,6 +1,7 @@
 // Catálogo de habilidades. Cada uma tem um `type`:
 //   attack   -> gasta a ação de ataque do turno (usada com /habilidade)
 //   bonus    -> gasta a ação bônus do turno (usada com /habilidade); precisa de `use(battle, user)` que retorna o log
+//               `usesAttack: true` -> magia ofensiva que age na hora como a bônus, mas gasta a AÇÃO DE ATAQUE (aparece como Ataque)
 //   reaction -> usada pelo defensor quando é atacado (aparece como botão)
 // Reações têm um `kind` ('dodge', 'block' ou 'capture') que define como são resolvidas.
 // Defesas `block` usam `absorb: [mín, máx]` + `attribute` (resistencia, magiaDefensiva...) e escalam como um ataque
@@ -158,13 +159,13 @@ const abilities = {
   // Barreira esférica ao redor do alvo: ele não consegue se mover por 2 turnos (ainda reage e ataca)
   different_dimension_sphere: {
     id: 'different_dimension_sphere', name: 'Different Dimension Sphere', description: 'Prende o alvo numa barreira esférica: ele não consegue se mover, mas ainda ataca e reage.', gif: 'espaco_different_dimension_sphere.gif', grimoire: 'espaco', magic: true,
-    type: 'bonus', manaCost: 36, cooldown: 4, targetRange: 4, applies: [{ effect: 'esfera_dimensional', turns: 2, to: 'enemy' }],
+    type: 'bonus', usesAttack: true, manaCost: 36, cooldown: 4, targetRange: 4, applies: [{ effect: 'esfera_dimensional', turns: 2, to: 'enemy' }],
     minLevel: 18, after: 'fallen_angel_gate',
   },
   // Leva o ALVO N casas numa direção (use `direcao` e `casas`): tira o inimigo do alcance ou o joga para longe de você
   blackout: {
     id: 'blackout', name: 'Blackout', description: 'Abre um portal sob o inimigo e o joga para outro lugar do mapa, tirando ele do seu caminho ou do alcance do seu time.', gif: 'espaco_blackout.gif', grimoire: 'espaco', magic: true,
-    type: 'bonus', manaCost: 40, cooldown: 4, targetRange: 5, teleport: 'enemy', destRange: 5,
+    type: 'bonus', usesAttack: true, manaCost: 40, cooldown: 4, targetRange: 5, teleport: 'enemy', destRange: 5,
     minLevel: 22, after: 'different_dimension_sphere',
   },
   // Domina a mana do lançador: anula a magia e ainda drena a mana dele (a defesa mais forte do Espaço, mas só contra magia)
@@ -184,7 +185,7 @@ const abilities = {
   // se ficarem coladas no inimigo, sem reação possível). Dano baixo cada um: o dano base mais uma fração (22%) do bônus do atributo.
   crevice_men: {
     id: 'crevice_men', name: 'Crevice Men', description: 'Figuras armadas brotam do chão e lutam por você por alguns turnos, andando e atacando os inimigos sozinhas.', gif: 'espaco_crevice_men.gif', grimoire: 'espaco', magic: true,
-    type: 'bonus', manaCost: 60, cooldown: 5, attribute: 'magiaOfensiva', summon: { count: 3, duration: 3, damage: [2, 4], share: 0.22 },
+    type: 'bonus', usesAttack: true, manaCost: 60, cooldown: 5, attribute: 'magiaOfensiva', summon: { count: 3, duration: 3, damage: [2, 4], share: 0.22 },
     minLevel: 38, after: 'unopening_red_room',
   },
 
@@ -225,7 +226,7 @@ const abilities = {
   // Lado cego da lâmina: afasta o alvo do corpo a corpo (sem dano)
   lamina_negra_sem_fio: {
     id: 'lamina_negra_sem_fio', name: 'Lâmina Negra Sem Fio Imbuída em Trevas', description: 'Estende a lâmina de escuridão e acerta o alvo com o lado sem corte. Empurra o inimigo para longe, sem causar dano.', actionText: 'Lâmina Negra Sem Fio Imbuída em Trevas', gif: 'trevas_lamina_negra_sem_fio.gif', grimoire: 'trevas', magic: true,
-    type: 'bonus', manaCost: 25, cooldown: 3, targetRange: 2, push: 3,
+    type: 'bonus', usesAttack: true, manaCost: 25, cooldown: 3, targetRange: 2, push: 3,
     minLevel: 14, after: 'lamina_negra',
   },
   // Buraco negro: 3 turnos absorvendo 35% do dano de magia que você sofre; libera o Impulso da Morte
@@ -293,7 +294,7 @@ const abilities = {
   // Raízes gigantes prendem todos os inimigos a até 4 casas (sem dano)
   grande_arvore_mistilteinn: {
     id: 'grande_arvore_mistilteinn', name: 'Grande Árvore Mistilteinn', description: 'Libera uma enorme quantidade de mana: raízes gigantes tomam o campo e uma árvore colossal cresce. Enraíza todos os inimigos ao seu redor.', actionText: 'Grande Árvore Mistilteinn', gif: 'arvore_grande_arvore_mistilteinn.gif', grimoire: 'arvore_do_mundo', magic: true,
-    type: 'bonus', manaCost: 50, cooldown: 5, area: { radius: 4 }, applies: [{ effect: 'enraizado', turns: 2, to: 'enemy' }],
+    type: 'bonus', usesAttack: true, manaCost: 50, cooldown: 5, area: { radius: 4 }, applies: [{ effect: 'enraizado', turns: 2, to: 'enemy' }],
     minLevel: 24, after: 'semente_de_mistilteinn',
     // Rank II: as raízes cobrem uma área maior e prendem por mais tempo
     ranks: [
@@ -330,7 +331,7 @@ const abilities = {
   // Névoa escura em área: prende os inimigos próximos no mundo dos sonhos e abre o Mundo do Glamour para quem usou
   mundo_do_glamour: {
     id: 'mundo_do_glamour', name: 'Mundo do Glamour', description: 'Libera uma névoa escura que puxa os inimigos próximos para um mundo de sonhos, onde ficam mais sonolentos a cada turno até adormecerem. Abre o Mundo do Glamour, que libera as outras magias dos Sonhos.', actionText: 'Mundo do Glamour', gif: 'sonhos_mundo_do_glamour.gif', grimoire: 'sonhos', magic: true,
-    type: 'bonus', manaCost: 45, cooldown: 5, area: { radius: 4 },
+    type: 'bonus', usesAttack: true, manaCost: 45, cooldown: 5, area: { radius: 4 },
     applies: [{ effect: 'preso_no_sonho', turns: 4, to: 'enemy' }, { effect: 'mundo_do_glamour', turns: 4, to: 'self' }],
     minLevel: 8, // raiz da árvore dos Sonhos
     // Rank II: a névoa puxa de mais longe. Rank III: o sonho dura mais (o inimigo dorme e o Mundo fica aberto por mais tempo).
@@ -604,7 +605,7 @@ const abilities = {
   // Sangue cobre o chão e crucifixos prendem os inimigos ao redor (sem dano): imóveis, sem esquiva e marcados
   andaime_de_sangue_fresco: {
     id: 'andaime_de_sangue_fresco', name: 'Andaime de Sangue Fresco', description: 'Libera uma grande quantidade de sangue que cobre o chão, e crucifixos surgem prendendo pelos pulsos e pelo estômago quem estiver por perto. Os inimigos ao redor ficam Crucificados (sem se mover nem esquivar) e com a Marca de Sangue.', actionText: 'Andaime de Sangue Fresco', gif: 'sangue_andaime_de_sangue_fresco.gif', grimoire: 'sangue', magic: true,
-    type: 'bonus', manaCost: 45, cooldown: 5, area: { radius: 3 },
+    type: 'bonus', usesAttack: true, manaCost: 45, cooldown: 5, area: { radius: 3 },
     applies: [{ effect: 'crucificado', turns: 2, to: 'enemy' }, { effect: 'marca_de_sangue', turns: 3, to: 'enemy' }],
     minLevel: 14, after: 'foice_de_sangue_vital',
     // Rank II: o sangue se espalha mais e os crucifixos prendem por mais tempo
@@ -616,7 +617,7 @@ const abilities = {
   // ele sente dor a cada turno e não consegue reagir
   fluxo_sanguineo_da_marionete: {
     id: 'fluxo_sanguineo_da_marionete', name: 'Fluxo Sanguíneo da Marionete', description: 'Controla pelo sangue alguém que já foi atingido pela sua magia: o alvo sente dor intensa e seus olhos ficam brancos. Só funciona em quem tem a Marca de Sangue: você o move pelo mapa, e ele sofre dano a cada turno e não consegue reagir.', actionText: 'Fluxo Sanguíneo da Marionete', gif: 'sangue_fluxo_sanguineo_da_marionete.gif', grimoire: 'sangue', magic: true,
-    type: 'bonus', manaCost: 40, cooldown: 4, targetRange: 5, teleport: 'enemy', destRange: 3,
+    type: 'bonus', usesAttack: true, manaCost: 40, cooldown: 4, targetRange: 5, teleport: 'enemy', destRange: 3,
     requiresTargetEffect: 'marca_de_sangue',
     applies: [{ effect: 'marionete', turns: 2, to: 'enemy' }],
     teleportText: (me, foe) => `🪢 ${me.name} controlou o sangue de ${foe.name} e o arrastou como uma marionete.`,
@@ -639,7 +640,7 @@ const abilities = {
   // Várias feras de sangue menores e soltas: aparecem no mapa e atacam sozinhas no fim do seu turno
   rebanho_de_feras_vermelhas: {
     id: 'rebanho_de_feras_vermelhas', name: 'Rebanho de Feras Vermelhas', description: 'Molda o sangue em várias Bestas Vermelhas menores, de corpo inteiro e soltas de você. Elas aparecem no mapa e atacam os inimigos sozinhas por alguns turnos.', actionText: 'Rebanho de Feras Vermelhas', gif: 'sangue_rebanho_de_feras_vermelhas.gif', grimoire: 'sangue', magic: true,
-    type: 'bonus', manaCost: 60, cooldown: 5, attribute: 'magiaOfensiva',
+    type: 'bonus', usesAttack: true, manaCost: 60, cooldown: 5, attribute: 'magiaOfensiva',
     summon: {
       count: 3, duration: 3, damage: [3, 5], share: 0.25, label: 'Fera Vermelha',
       text: (owner, n, turns) => `👹 ${owner.name} moldou ${n} Fera(s) Vermelha(s) de sangue. Elas atacam sozinhas por ${turns} turno(s) seus.`,
@@ -723,7 +724,7 @@ const abilities = {
   // Poço de tinta em forma de mola: prende o alvo (sem se mover e mais fácil de acertar), sem dano
   primavera_da_restricao: {
     id: 'primavera_da_restricao', name: 'Primavera da Restrição', description: 'Manipula a tinta da paleta para prender o alvo num poço em forma de mola. Ele não consegue se mover e fica mais fácil de acertar por alguns turnos.', actionText: 'Primavera da Restrição', gif: 'pintura_primavera_da_restricao.gif', grimoire: 'pintura', magic: true,
-    type: 'bonus', manaCost: 30, cooldown: 4, targetRange: 4,
+    type: 'bonus', usesAttack: true, manaCost: 30, cooldown: 4, targetRange: 4,
     applies: [{ effect: 'mola_de_tinta', turns: 2, to: 'enemy' }],
     minLevel: 14, after: 'deux_tempetes',
     // Rank II: alcança mais longe e prende por mais tempo
@@ -770,7 +771,7 @@ const abilities = {
   // Jardim de rosas azuis em área: as vinhas prendem quem estiver perto e ficam mais fortes contra alvos amaldiçoados
   paraiso_de_rosa_azul: {
     id: 'paraiso_de_rosa_azul', name: 'Paraíso de Rosa Azul', description: 'Cria dois círculos mágicos no chão que geram roseiras azuis, cobrindo tudo ao redor e capturando os inimigos que tocam as vinhas. Contra alvos amaldiçoados (com algum efeito negativo), as vinhas ficam mais fortes e absorvem o poder da maldição.', actionText: 'Paraíso de Rosa Azul', gif: 'roseira_paraiso_de_rosa_azul.gif', grimoire: 'roseira', magic: true,
-    type: 'bonus', manaCost: 50, cooldown: 4, area: { radius: 3 }, damage: [10, 14], attribute: 'magiaOfensiva',
+    type: 'bonus', usesAttack: true, manaCost: 50, cooldown: 4, area: { radius: 3 }, damage: [10, 14], attribute: 'magiaOfensiva',
     cursedBonus: 1.5, cursedDrain: 8,
     applies: [{ effect: 'enraizado', turns: 2, to: 'enemy' }],
     minLevel: 24, after: 'roseiral_cacador',
@@ -871,7 +872,7 @@ const abilities = {
   // Esfera de poder que se aplana em lâminas de luz e cai sobre todos os inimigos ao redor
   flechas_do_julgamento: {
     id: 'flechas_do_julgamento', name: 'Flechas do Julgamento', description: 'Libera o poder mágico numa esfera que se expande, se aplana e vira inúmeras lâminas de luz, que caem sozinhas sobre os alvos. Ação bônus que atinge todos os inimigos ao seu redor.', actionText: 'Flechas do Julgamento', gif: 'luz_flechas_do_julgamento.gif', grimoire: 'luz', magic: true,
-    type: 'bonus', manaCost: 50, cooldown: 4, area: { radius: 4 }, damage: [9, 13], attribute: 'magiaOfensiva',
+    type: 'bonus', usesAttack: true, manaCost: 50, cooldown: 4, area: { radius: 4 }, damage: [9, 13], attribute: 'magiaOfensiva',
     minLevel: 20, after: 'flash_cortador_dos_ceus',
     use(battle, user) {
       const lines = [`🗡️ A esfera de luz de ${user.name} se abriu em inúmeras lâminas, que caíram sobre os inimigos.`];
@@ -951,7 +952,7 @@ const abilities = {
   // Gotas de mercúrio caem do céu sobre todos os inimigos ao redor; o usuário desvia as gotas de si mesmo
   chuva_prateada: {
     id: 'chuva_prateada', name: 'Chuva Prateada', description: 'Invoca inúmeras gotas de mercúrio do céu, tão densas que rompem tudo no caminho. Ação bônus que atinge todos os inimigos ao seu redor; você controla as gotas para não ser atingido.', actionText: 'Chuva Prateada', gif: 'mercurio_chuva_prateada.gif', grimoire: 'mercurio', magic: true,
-    type: 'bonus', manaCost: 48, cooldown: 4, area: { radius: 3 }, damage: [10, 14], attribute: 'magiaOfensiva',
+    type: 'bonus', usesAttack: true, manaCost: 48, cooldown: 4, area: { radius: 3 }, damage: [10, 14], attribute: 'magiaOfensiva',
     minLevel: 20, after: 'lamina_de_prata',
     use(battle, user) {
       const lines = [`🌧️ ${user.name} fez cair uma **Chuva Prateada**: as gotas de mercúrio desviam dele e caem sobre os inimigos.`];
@@ -964,7 +965,7 @@ const abilities = {
   // Gaiola gigante de mercúrio: as barras lançam lanças no alvo e bloqueiam fuga e contra-ataques
   estrela_de_prata: {
     id: 'estrela_de_prata', name: 'Estrela de Prata da Execução', description: 'Espalha fios e gotas de mercúrio pela área e os reúne numa gaiola gigante ao redor do alvo. As barras disparam Lanças de Prata nele e bloqueiam fugas e contra-ataques: causa dano e deixa o alvo sem se mover e sem reagir.', actionText: 'Estrela de Prata da Execução', gif: 'mercurio_estrela_de_prata.gif', grimoire: 'mercurio', magic: true,
-    type: 'bonus', manaCost: 55, cooldown: 5, targetRange: 4, damage: [10, 14], attribute: 'magiaOfensiva',
+    type: 'bonus', usesAttack: true, manaCost: 55, cooldown: 5, targetRange: 4, damage: [10, 14], attribute: 'magiaOfensiva',
     applies: [{ effect: 'gaiola_de_prata', turns: 2, to: 'enemy' }],
     minLevel: 28, after: 'escudo_de_mercurio',
     use(battle, user, foe) {
@@ -1043,7 +1044,7 @@ const abilities = {
   // Carneiro gigante de algodão invocado no mapa (2×2 casas): persegue o inimigo e, como um aríete, o arremessa longe
   ovelha_dorminhoca: {
     id: 'ovelha_dorminhoca', name: 'Ataque da Ovelha Dorminhoca', description: 'Gera uma grande quantidade de algodão e a molda num carneiro gigante com chifres, que funciona como um aríete de curto alcance. Ação bônus que invoca o carneiro no mapa (ocupa 2×2 casas): ele persegue o inimigo, e o impacto o arremessa para longe.', actionText: 'Ataque da Ovelha Dorminhoca', gif: 'algodao_ovelha_dorminhoca.gif', grimoire: 'algodao', magic: true,
-    type: 'bonus', manaCost: 50, cooldown: 5, attribute: 'magiaOfensiva',
+    type: 'bonus', usesAttack: true, manaCost: 50, cooldown: 5, attribute: 'magiaOfensiva',
     summon: {
       count: 1, size: 2, duration: 3, damage: [8, 12], share: 0.5, push: 3, label: 'Ovelha Dorminhoca', look: 'ovelha', emoji: '🐏',
       text: (owner, n, turns) => (n
@@ -1064,6 +1065,8 @@ const abilities = {
 };
 
 const TYPE_LABEL = { attack: 'Ataque', bonus: 'Ação bônus', reaction: 'Reação' };
+// Rótulo de uma habilidade: magias ofensivas que agem na hora (`usesAttack`) aparecem como Ataque, pois gastam a ação de ataque
+const typeLabel = a => (a.usesAttack ? TYPE_LABEL.attack : TYPE_LABEL[a.type]);
 
 const getAbility = id => abilities[id];
 
@@ -1075,4 +1078,4 @@ function resolveAbility(ability, rank = 1) {
   return { ...ability, ...changes, rank: Math.min(rank, ability.ranks.length + 1) };
 }
 
-module.exports = { abilities, getAbility, resolveAbility, TYPE_LABEL };
+module.exports = { abilities, getAbility, resolveAbility, TYPE_LABEL, typeLabel };

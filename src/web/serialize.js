@@ -1,5 +1,5 @@
 // Transforma as fichas e as magias do bot no JSON que o site mostra (só dados, sem funções).
-const { abilities, resolveAbility, TYPE_LABEL } = require('../combat/abilities');
+const { abilities, resolveAbility, typeLabel } = require('../combat/abilities');
 const { grimoires, getGrimoire, RARITIES } = require('../combat/grimoires');
 const { EFFECTS, getEffect } = require('../combat/effects');
 const { learnCost, learnBlocker, nextStep, rankOf } = require('../combat/characters');
@@ -80,7 +80,7 @@ function publicAbility(a) {
     name: a.name,
     description: a.description ?? null,
     type: a.type,
-    typeLabel: TYPE_LABEL[a.type],
+    typeLabel: typeLabel(a),
     gif: gifUrl(a.gif),
     grimoire: a.grimoire ?? null,
     after: a.after ?? null,

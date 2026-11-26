@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { getProfile, save } = require('../src/combat/profiles');
-const { getAbility, TYPE_LABEL } = require('../src/combat/abilities');
+const { getAbility, typeLabel } = require('../src/combat/abilities');
 const { grimoireTree, learnBlocker, nextStep, learnCost, learn } = require('../src/combat/characters');
 const { getBattle, findPlayer } = require('../src/combat/battle');
 
@@ -24,7 +24,7 @@ module.exports = {
       .map(a => ({ a, step: nextStep(profile, a) }))
       .filter(({ a, step }) => step && a.name.toLowerCase().includes(focused))
       .map(({ a, step }) => ({
-        name: `${learnBlocker(profile, a) ? '🔒' : '✅'} ${a.name} ${step.rank === 1 ? `(${TYPE_LABEL[a.type]})` : `→ rank ${step.rank}`} · ${learnCost(a, step.rank)} pt`,
+        name: `${learnBlocker(profile, a) ? '🔒' : '✅'} ${a.name} ${step.rank === 1 ? `(${typeLabel(a)})` : `→ rank ${step.rank}`} · ${learnCost(a, step.rank)} pt`,
         value: a.id,
       }));
     await interaction.respond(choices.slice(0, 25));
