@@ -93,14 +93,15 @@ const abilities = {
       { minLevel: 12, damage: [9, 13] },
     ],
   },
-  // Esquiva que acompanha golpes velozes: a velocidade do ataque (dodgePenalty) não atrapalha
+  // Esquiva que acompanha golpes velozes: a velocidade do ataque (dodgePenalty) não atrapalha. Por ser mítica, um pouco acima
+  // do Salto Fotônico da Luz (65%/75%)
   deslocamento_atemporal: {
     id: 'deslocamento_atemporal', name: 'Deslocamento Atemporal', description: 'Desloca-se rapidamente diante de ataques de alta velocidade. Reação de esquiva que não perde chance contra golpes rápidos ou difíceis de esquivar.', actionText: 'Deslocamento Atemporal', gif: 'tempo_deslocamento_atemporal.gif', grimoire: 'tempo', magic: true,
-    type: 'reaction', kind: 'dodge', chance: 0.5, ignoresSpeed: true, manaCost: 18, emoji: '⏱️',
+    type: 'reaction', kind: 'dodge', chance: 0.68, ignoresSpeed: true, manaCost: 18, emoji: '⏱️',
     minLevel: 3, after: 'esferas_do_tempo',
     // Rank II: esquiva mais fácil
     ranks: [
-      { minLevel: 14, chance: 0.6 },
+      { minLevel: 14, chance: 0.78 },
     ],
   },
   // Feixe de luz rebatido por Chrono Stasis até acertar: muito difícil de esquivar
