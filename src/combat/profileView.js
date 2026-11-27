@@ -26,12 +26,11 @@ const tryLoad = async src => {
   try { return await loadImage(src); } catch { return null; }
 };
 
-// Retorna o anexo PNG do perfil de `user` (nome/idade/retrato da ficha, ou padrões enquanto não houver ficha)
-async function profileAttachment(user, member) {
-  const profile = getProfile(user.id);
+// PNG do card do perfil. `fallbackName` e `avatarUrl` valem enquanto o jogador não tiver ficha (nome e imagem próprios).
+async function profileCard(profile, { fallbackName, avatarUrl }) {
   const grimoire = profile.grimoire ? getGrimoire(profile.grimoire) : null;
-  const png = await renderProfileImage({
-    name: profile.name ?? member?.displayName ?? user.displayName ?? user.username,
+  return renderProfileImage({
+    name: profile.name ?? fallbackName,
     age: profile.age ?? null,
     level: profile.level,
     xp: profile.xp,
@@ -39,13 +38,21 @@ async function profileAttachment(user, member) {
     points: profile.points,
     skillPoints: profile.skillPoints,
     attrs: profile.attrs,
-    portrait: await tryLoad(profile.portraitUrl ?? user.displayAvatarURL({ extension: 'png', size: 512 })),
+    portrait: await tryLoad(profile.portraitUrl ?? avatarUrl),
     grimoire: await tryLoad(profile.grimoireUrl ?? (grimoire && grimoireImagePath(grimoire.id))),
     grimoireName: grimoire?.name ?? null,
     grimoireRarity: grimoire ? RARITIES[grimoire.rarity].name : null,
     clovers: grimoire ? cloversOf(profile) : null,
   });
+}
+
+// Retorna o anexo PNG do perfil de `user` (nome/idade/retrato da ficha, ou padrões enquanto não houver ficha)
+async function profileAttachment(user, member) {
+  const png = await profileCard(getProfile(user.id), {
+    fallbackName: member?.displayName ?? user.displayName ?? user.username,
+    avatarUrl: user.displayAvatarURL({ extension: 'png', size: 512 }),
+  });
   return new AttachmentBuilder(png, { name: 'perfil.png' });
 }
 
-module.exports = { profileAttachment };
+module.exports = { profileAttachment, profileCard, grimoireImagePath };

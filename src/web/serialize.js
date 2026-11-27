@@ -7,6 +7,9 @@ const activeName = id => abilities[id]?.name ?? id;
 const { learnCost, learnBlocker, nextStep, rankOf } = require('../combat/characters');
 const { ATTRIBUTES, xpToNext, maxHp, maxMana, maxEnergy, speed } = require('../combat/progression');
 const C = require('../combat/config');
+const { grimoireImagePath } = require('../combat/profileView');
+
+const MAGIC_ATTRS = new Set(['magiaOfensiva', 'magiaDefensiva', 'magiaSuplementar']); // o resto é físico (mesma divisão do /perfil)
 
 const fs = require('fs');
 const path = require('path');
@@ -158,21 +161,35 @@ function playerTree(profile) {
   };
 }
 
+// Versão do arquivo do retrato (muda quando a ficha troca a imagem), para o navegador não mostrar a antiga
+const portraitVersion = file => { try { return Math.round(fs.statSync(file).mtimeMs); } catch { return 0; } };
+
 function playerProfile(profile, user) {
   const g = profile.grimoire && getGrimoire(profile.grimoire);
+  const hasPortrait = !!(profile.portraitUrl && fs.existsSync(profile.portraitUrl));
   return {
     user: user && { id: user.id, username: user.username, avatar: user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=256` : null },
+    // A ficha do personagem (a mesma do /perfil)
+    character: {
+      name: profile.name ?? null,
+      age: profile.age ?? null,
+      story: profile.story ?? null,
+      portrait: hasPortrait ? `/api/me/retrato?v=${portraitVersion(profile.portraitUrl)}` : null,
+    },
     level: profile.level,
     maxLevel: C.MAX_LEVEL,
     xp: profile.xp,
     xpToNext: profile.level >= C.MAX_LEVEL ? 0 : xpToNext(profile.level),
     points: profile.points,
     skillPoints: profile.skillPoints ?? 0,
-    attrs: Object.entries(ATTRIBUTES).map(([id, name]) => ({ id, name, value: profile.attrs[id] ?? 0 })),
+    attrs: Object.entries(ATTRIBUTES).map(([id, name]) => ({ id, name, value: profile.attrs[id] ?? 0, group: MAGIC_ATTRS.has(id) ? 'magico' : 'fisico' })),
     attributeCap: C.ATTRIBUTE_CAP,
     stats: { hp: maxHp(profile.level), mana: maxMana(profile.level), energy: maxEnergy(profile.level), speed: speed(profile) },
-    grimoire: g ? { ...g, rarityName: RARITIES[g.rarity].name, clovers: cloversOf(profile) } : null,
-    learned: profile.learned.map(id => ({ id, name: abilities[id]?.name, rank: rankOf(profile, id) })).filter(a => a.name),
+    grimoire: g ? { ...g, rarityName: RARITIES[g.rarity].name, clovers: cloversOf(profile), cover: grimoireImagePath(g.id) ? `/api/grimorios/${g.id}/capa` : null } : null,
+    learned: profile.learned.map(id => abilities[id] && ({
+      id, name: abilities[id].name, rank: rankOf(profile, id), ranks: (abilities[id].ranks?.length ?? 0) + 1,
+      gif: gifUrl(abilities[id].gif), typeLabel: typeLabel(abilities[id]),
+    })).filter(Boolean),
   };
 }
 

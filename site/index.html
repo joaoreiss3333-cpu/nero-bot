@@ -4,14 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Grimórios RPG</title>
+  <meta name="theme-color" content="#17121c">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-30 -30 60 60'%3E%3Cg fill='%23f2b632' stroke='%2317121c' stroke-width='3'%3E%3Cpath id='l' d='M0,-3 C-7,-9 -17,-13 -13,-23 C-10,-29 -2,-27 0,-21 C2,-27 10,-29 13,-23 C17,-13 7,-9 0,-3Z'/%3E%3Cuse href='%23l' transform='rotate(90)'/%3E%3Cuse href='%23l' transform='rotate(180)'/%3E%3Cuse href='%23l' transform='rotate(270)'/%3E%3C/g%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@400;600;700;800&family=Pirata+One&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="#/">✦ <span>Grimórios</span></a>
+    <a class="brand" href="#/" id="brand">Grimórios</a>
     <button class="menu-btn" aria-label="Menu" onclick="document.body.classList.toggle('menu-open')">☰</button>
     <nav class="nav">
       <a href="#/" data-route="">Início</a>
@@ -25,6 +27,8 @@
   </header>
 
   <main id="app" class="page"></main>
+
+  <footer class="footer" id="footer"></footer>
 
   <div id="toast" class="toast" role="status"></div>
 

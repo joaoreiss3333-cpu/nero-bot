@@ -1,7 +1,9 @@
 // Site do servidor: roda no MESMO processo do bot, então lê e grava as mesmas fichas em memória
 // (nada de dois programas escrevendo no players.json ao mesmo tempo).
+const fs = require('fs');
 const path = require('path');
 const express = require('express');
+const { profileCard, grimoireImagePath } = require('../combat/profileView');
 const auth = require('./auth');
 const { getProfile, save } = require('../combat/profiles');
 const { getAbility } = require('../combat/abilities');
@@ -28,6 +30,29 @@ function start() {
     res.json(view.playerProfile(getProfile(req.user.id), req.user));
   });
 
+  // Aparência do personagem (a imagem da ficha); sem ficha com imagem, o avatar do Discord
+  app.get('/api/me/retrato', auth.requireUser, (req, res) => {
+    const file = getProfile(req.user.id).portraitUrl;
+    if (file && fs.existsSync(file)) return res.sendFile(file, { maxAge: 0 });
+    if (req.user.avatar) return res.redirect(`https://cdn.discordapp.com/avatars/${req.user.id}/${req.user.avatar}.png?size=512`);
+    res.status(404).end();
+  });
+
+  // O mesmo card do /perfil, em PNG
+  app.get('/api/me/card.png', auth.requireUser, async (req, res) => {
+    try {
+      const { id, username, avatar } = req.user;
+      const png = await profileCard(getProfile(id), {
+        fallbackName: username,
+        avatarUrl: avatar ? `https://cdn.discordapp.com/avatars/${id}/${avatar}.png?size=512` : null,
+      });
+      res.set('Cache-Control', 'no-store').type('png').send(png);
+    } catch (err) {
+      console.error('[site] card do perfil:', err);
+      res.status(500).end();
+    }
+  });
+
   app.get('/api/arvore', auth.requireUser, (req, res) => {
     res.json({ tree: view.playerTree(getProfile(req.user.id)) });
   });
@@ -42,6 +67,13 @@ function start() {
     if (error) return res.status(400).json({ error: `Não dá para comprar ${ability.name} agora: ${error.replace(/\*\*/g, '')}.` });
     save();
     res.json({ rank, cost, tree: view.playerTree(profile) });
+  });
+
+  // Capa de um grimório (assets/grimoires/<id>.png|jpg...), quando existir
+  app.get('/api/grimorios/:id/capa', (req, res) => {
+    const file = grimoireImagePath(String(req.params.id).replace(/[^a-z0-9_]/gi, ''));
+    if (!file) return res.status(404).end();
+    res.sendFile(file, { maxAge: '1d' });
   });
 
   // ---- Arquivos ----
