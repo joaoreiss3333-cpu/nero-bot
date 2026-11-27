@@ -1,5 +1,8 @@
 const path = require('path');
-const { createCanvas, loadImage } = require('@napi-rs/canvas');
+const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
+
+// Fonte de título do site (Lilita One), usada no painel de status
+GlobalFonts.registerFromPath(path.join(__dirname, '..', '..', 'assets', 'fonts', 'LilitaOne-Regular.ttf'), 'Lilita One');
 const { MOVES_PER_TURN } = require('./config');
 const { DIRECTIONS, formatCoord } = require('./grid');
 const { currentPlayer, checkStep } = require('./battle');
@@ -341,125 +344,296 @@ function fitText(ctx, text, maxWidth) {
   return text + '…';
 }
 
-// Barra com o valor centralizado (o nome do atributo fica no cabeçalho da coluna)
-function drawBar(ctx, x, y, w, h, value, max, light, dark) {
-  ctx.fillStyle = '#1b1410';
-  ctx.fillRect(x, y, w, h);
-  const fillW = Math.max(0, Math.round((w - 4) * (value / max)));
-  const grad = ctx.createLinearGradient(0, y, 0, y + h);
-  grad.addColorStop(0, light);
-  grad.addColorStop(1, dark);
-  ctx.fillStyle = grad;
-  ctx.fillRect(x + 2, y + 2, fillW, h - 4);
-  ctx.strokeStyle = '#000';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+// ---------- Painel de status: mesmo visual do site (pergaminho, contorno de tinta, sombra dura, faixa vermelha) ----------
+const INK = '#17121c';
+const PARCH = '#f4e7c9';
+const PAPER = '#fffaf0';
+const GOLD = '#f2b632';
+const RED = '#c8342c';
+const DISPLAY = `"Lilita One", ${FONT}`;
 
+function roundRectPath(ctx, x, y, w, h, r) {
+  r = Math.min(r, h / 2, w / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// Caixa "cartoon": sombra dura deslocada, preenchimento e contorno grosso de tinta
+function inkBox(ctx, x, y, w, h, { r = 12, fill = PAPER, shadow = 5, line = 3 } = {}) {
+  if (shadow) {
+    ctx.fillStyle = INK;
+    roundRectPath(ctx, x + shadow, y + shadow, w, h, r); ctx.fill();
+  }
+  ctx.fillStyle = fill;
+  roundRectPath(ctx, x, y, w, h, r); ctx.fill();
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = line;
+  ctx.stroke();
+}
+
+// Texto com contorno de tinta (estilo título de jogo); width 0 = sem contorno
+function inkText(ctx, text, x, y, { size = 22, fill = PAPER, stroke = INK, width = 5, align = 'left' } = {}) {
   ctx.save();
-  ctx.fillStyle = '#fff';
-  ctx.shadowColor = '#000';
-  ctx.shadowBlur = 3;
+  ctx.font = `${size}px ${DISPLAY}`;
+  ctx.textAlign = align;
   ctx.textBaseline = 'middle';
-  ctx.textAlign = 'center';
-  ctx.font = `bold 19px ${FONT}`;
-  ctx.fillText(`${value}/${max}`, x + w / 2, y + h / 2 + 1);
+  ctx.lineJoin = 'round';
+  if (width) { ctx.strokeStyle = stroke; ctx.lineWidth = width; ctx.strokeText(text, x, y); }
+  ctx.fillStyle = fill;
+  ctx.fillText(text, x, y);
   ctx.restore();
 }
 
-// Altura do painel: cabeçalho + uma linha por jogador (um embaixo do outro) + resumo do turno
-const ROW_H = 52;
-const panelHeight = battle => 118 + battle.players.length * ROW_H + (battle.phase === 'placement' ? 70 : 48);
+// Ícones das barras (coração, gota, raio), desenhados em vetor num círculo de raio ~r
+function iconPath(ctx, kind, cx, cy, r) {
+  const s = r * 0.95;
+  ctx.beginPath();
+  if (kind === 'hp') {
+    ctx.moveTo(cx, cy + s * 0.75);
+    ctx.bezierCurveTo(cx - s * 1.2, cy - s * 0.05, cx - s * 0.6, cy - s * 0.95, cx, cy - s * 0.35);
+    ctx.bezierCurveTo(cx + s * 0.6, cy - s * 0.95, cx + s * 1.2, cy - s * 0.05, cx, cy + s * 0.75);
+  } else if (kind === 'mana') {
+    ctx.moveTo(cx, cy - s);
+    ctx.bezierCurveTo(cx + s * 0.2, cy - s * 0.5, cx + s * 0.7, cy - s * 0.05, cx + s * 0.62, cy + s * 0.35);
+    ctx.arc(cx, cy + s * 0.3, s * 0.62, 0.05, Math.PI - 0.05);
+    ctx.bezierCurveTo(cx - s * 0.7, cy - s * 0.05, cx - s * 0.2, cy - s * 0.5, cx, cy - s);
+  } else {
+    const pts = [[0.25, -1], [-0.55, 0.12], [-0.02, 0.12], [-0.25, 1], [0.55, -0.18], [0.02, -0.18]];
+    pts.forEach(([a, b], i) => {
+      if (i) ctx.lineTo(cx + a * s, cy + b * s); else ctx.moveTo(cx + a * s, cy + b * s);
+    });
+  }
+  ctx.closePath();
+}
 
-// Painel de status: tabela com um jogador por linha e, no fim, o resumo do turno
+const BAR_STYLE = {
+  hp: { light: '#6fdc5a', dark: '#2c8a2a', badge: '#e04b3f' },
+  mana: { light: '#5fb6f5', dark: '#1f5fae', badge: '#2f7fd6' },
+  energy: { light: '#ffd25a', dark: '#e08a12', badge: '#f2b632' },
+};
+
+// Barra em pílula com o ícone num selo na ponta esquerda e o valor escrito por cima
+function drawBar(ctx, kind, x, y, w, h, value, max) {
+  const st = BAR_STYLE[kind];
+  const r = h / 2;
+  ctx.fillStyle = INK;
+  roundRectPath(ctx, x + 3, y + 3, w, h, r); ctx.fill();
+  ctx.fillStyle = '#3a3040';
+  roundRectPath(ctx, x, y, w, h, r); ctx.fill();
+
+  const frac = Math.max(0, Math.min(1, value / max));
+  if (frac > 0) {
+    ctx.save();
+    roundRectPath(ctx, x, y, w, h, r); ctx.clip();
+    const fw = Math.max(h, w * frac);
+    const g = ctx.createLinearGradient(0, y, 0, y + h);
+    g.addColorStop(0, st.light); g.addColorStop(1, st.dark);
+    ctx.fillStyle = g;
+    ctx.fillRect(x, y, fw, h);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'; // brilho em cima
+    ctx.fillRect(x, y + 3, fw, h * 0.22);
+    ctx.restore();
+  }
+  roundRectPath(ctx, x, y, w, h, r);
+  ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+
+  // selo do ícone
+  const br = h * 0.72, bx = x + 2, by = y + h / 2;
+  ctx.fillStyle = INK;
+  ctx.beginPath(); ctx.arc(bx + 2, by + 2, br, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = PAPER;
+  ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+  iconPath(ctx, kind, bx, by + (kind === 'mana' ? 1 : 0), br * 0.62);
+  ctx.fillStyle = st.badge; ctx.fill();
+  ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.stroke();
+
+  inkText(ctx, `${value}/${max}`, x + (w + br) / 2, y + h / 2 + 1, { size: 18, width: 4, align: 'center' });
+}
+
+// Retrato redondo do jogador com o anel na cor do time
+function drawPortrait(ctx, p, cx, cy, R) {
+  ctx.fillStyle = INK;
+  ctx.beginPath(); ctx.arc(cx + 3, cy + 3, R + 3, 0, Math.PI * 2); ctx.fill();
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
+  if (p.avatar) ctx.drawImage(p.avatar, cx - R, cy - R, R * 2, R * 2);
+  else {
+    ctx.fillStyle = '#4a3f55'; ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
+    inkText(ctx, p.name.charAt(0).toUpperCase(), cx, cy + 2, { size: Math.round(R * 1.1), align: 'center', width: 4 });
+  }
+  ctx.restore();
+  ctx.strokeStyle = PLAYER_COLORS[p.team % PLAYER_COLORS.length];
+  ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.arc(cx, cy, R + 3, 0, Math.PI * 2); ctx.stroke();
+}
+
+// Etiqueta pequena e levemente inclinada (ex: "SUA VEZ"), alinhada pela direita em x
+function tag(ctx, text, x, y, fill, color = INK) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(-0.05);
+  ctx.font = `15px ${DISPLAY}`;
+  const w = ctx.measureText(text).width + 18;
+  inkBox(ctx, -w, -13, w, 26, { r: 6, fill, shadow: 3, line: 2.5 });
+  ctx.font = `15px ${DISPLAY}`;
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, -w / 2, 1);
+  ctx.restore();
+}
+
+// Ficha (chip) do rodapé: rótulo + valor num selo colorido; devolve a largura
+function chip(ctx, x, y, { label, value, valueFill = GOLD }, measure = false) {
+  ctx.font = `16px ${DISPLAY}`;
+  const lw = ctx.measureText(label).width;
+  const vw = value ? ctx.measureText(value).width : 0;
+  const w = lw + (value ? vw + 30 : 0) + 24;
+  if (measure) return w;
+  inkBox(ctx, x, y, w, 32, { r: 16, fill: PAPER, shadow: 3, line: 2.5 });
+  ctx.font = `16px ${DISPLAY}`;
+  ctx.fillStyle = INK; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(label, x + 12, y + 17);
+  if (value) {
+    const vx = x + lw + 20;
+    ctx.fillStyle = valueFill;
+    roundRectPath(ctx, vx, y + 5, vw + 16, 22, 11); ctx.fill();
+    ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = INK;
+    ctx.fillText(value, vx + 8, y + 17);
+  }
+  return w;
+}
+
+// Uma linha de fichas centralizada
+function chipRow(ctx, y, items) {
+  const gap = 12;
+  const widths = items.map(it => chip(ctx, 0, 0, it, true));
+  let x = (W - widths.reduce((a, b) => a + b, 0) - gap * (items.length - 1)) / 2;
+  items.forEach((it, i) => { chip(ctx, x, y, it); x += widths[i] + gap; });
+}
+
+// Altura do painel: faixa de título + um cartão por jogador + rodapé do turno
+const HEADER_H = 92;
+const CARD_H = 82;
+const CARD_GAP = 14;
+const footerHeight = battle => (battle.over ? 10 : 56);
+const panelHeight = battle => HEADER_H + battle.players.length * (CARD_H + CARD_GAP) + footerHeight(battle) + 8;
+
+// Fundo de pergaminho com retícula de pontinhos e moldura de tinta
+function drawPanelFrame(ctx, h) {
+  ctx.fillStyle = PARCH;
+  ctx.fillRect(0, 0, W, h);
+  ctx.fillStyle = 'rgba(120,80,30,0.10)';
+  for (let y = 6, row = 0; y < h; y += 12, row++) {
+    for (let x = row % 2 ? 6 : 12; x < W; x += 12) {
+      ctx.beginPath(); ctx.arc(x, y, 1.6, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 8;
+  ctx.strokeRect(4, 4, W - 8, h - 8);
+}
+
+// Faixa vermelha do título, com pontas recortadas e sombra dura
+function drawBanner(ctx, text) {
+  const y = 20, h = 50, notch = 16;
+  ctx.font = `30px ${DISPLAY}`;
+  const w = Math.min(W - 60, ctx.measureText(text).width + 110);
+  const x = (W - w) / 2;
+  const shape = (dx, dy) => {
+    ctx.beginPath();
+    ctx.moveTo(x + dx, y + dy);
+    ctx.lineTo(x + w + dx, y + dy);
+    ctx.lineTo(x + w - notch + dx, y + h / 2 + dy);
+    ctx.lineTo(x + w + dx, y + h + dy);
+    ctx.lineTo(x + dx, y + h + dy);
+    ctx.lineTo(x + notch + dx, y + h / 2 + dy);
+    ctx.closePath();
+  };
+  ctx.fillStyle = INK; shape(5, 5); ctx.fill();
+  ctx.fillStyle = RED; shape(0, 0); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.16)'; // brilho
+  ctx.fillRect(x + notch, y + 4, w - notch * 2, 9);
+  ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.lineJoin = 'round'; shape(0, 0); ctx.stroke();
+  inkText(ctx, text, W / 2, y + h / 2 + 2, { size: 30, fill: GOLD, width: 6, align: 'center' });
+}
+
+// Painel de status: um cartão por jogador (retrato, nome e barras) e, no fim, o resumo do turno
 function drawPanel(ctx, battle) {
-  const top = 0;
   const panelH = panelHeight(battle);
   const placing = battle.phase === 'placement';
   const cur = battle.phase === 'combat' ? currentPlayer(battle) : null;
 
-  ctx.fillStyle = '#e6cf9c';
-  ctx.fillRect(0, top, W, panelH);
-  ctx.strokeStyle = '#5a3b1a';
-  ctx.lineWidth = 6;
-  ctx.strokeRect(3, top + 3, W - 6, panelH - 6);
-  ctx.strokeStyle = '#b8893a';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(11, top + 11, W - 22, panelH - 22);
+  drawPanelFrame(ctx, panelH);
+  drawBanner(ctx, placing ? 'POSICIONAMENTO' : battle.over ? 'BATALHA ENCERRADA' : 'BATALHA EM CAMPO');
 
-  // Faixa de título
-  ctx.fillStyle = '#2b1a0c';
-  ctx.fillRect(24, top + 24, W - 48, 48);
-  ctx.strokeStyle = '#b8893a';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(24, top + 24, W - 48, 48);
-  ctx.fillStyle = '#f6b73c';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = `bold 29px ${FONT}`;
-  ctx.fillText(placing ? 'POSICIONAMENTO' : battle.over ? 'BATALHA ENCERRADA' : 'BATALHA EM CAMPO', W / 2, top + 49);
-
-  // Colunas: o nome do atributo aparece uma vez só, em cima das barras
-  const barW = 132;
-  const gap = 10;
-  const barX0 = W - 26 - 3 * barW - 2 * gap;
-  const barX = [barX0, barX0 + barW + gap, barX0 + 2 * (barW + gap)];
-  ctx.fillStyle = '#3b2410';
-  ctx.font = `bold 16px ${FONT}`;
-  ['VIDA', 'MANA', 'ENERGIA'].forEach((label, i) => ctx.fillText(label, barX[i] + barW / 2, top + 96));
-
+  const cardX = 24, cardW = W - 54;
   battle.players.forEach((p, i) => {
-    const rowTop = top + 112 + i * ROW_H;
-    const mid = rowTop + ROW_H / 2;
-
-    if (cur === p && !battle.over) {
-      ctx.fillStyle = 'rgba(255,216,74,0.32)'; // destaca quem está jogando
-      ctx.fillRect(18, rowTop + 1, W - 36, ROW_H - 2);
-    }
+    const y = HEADER_H + i * (CARD_H + CARD_GAP);
+    const isTurn = cur === p && !battle.over;
+    const down = p.hp <= 0;
 
     ctx.save();
-    if (p.hp <= 0) ctx.globalAlpha = 0.4; // quem caiu fica apagado
-    ctx.fillStyle = PLAYER_COLORS[p.team];
-    ctx.beginPath(); ctx.arc(40, mid, 10, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
-
-    ctx.fillStyle = '#3b2410';
-    ctx.textAlign = 'left';
-    ctx.font = `bold 24px ${FONT}`;
-    ctx.fillText(fitText(ctx, p.name, barX0 - 62 - 12), 62, mid + 1);
-
-    drawBar(ctx, barX[0], mid - 17, barW, 34, p.hp, p.maxHp, '#59d24a', '#1f7a1c');
-    drawBar(ctx, barX[1], mid - 17, barW, 34, p.mana, p.maxMana, '#4aa8f0', '#1b5aa6');
-    drawBar(ctx, barX[2], mid - 17, barW, 34, p.energy, p.maxEnergy, '#f6b73c', '#c46a0a');
+    if (down) ctx.globalAlpha = 0.5; // quem caiu fica apagado
+    inkBox(ctx, cardX, y, cardW, CARD_H, { r: 14, fill: isTurn ? '#ffe39a' : PAPER, shadow: 5 });
+    ctx.save(); // faixa lateral na cor do time
+    roundRectPath(ctx, cardX, y, cardW, CARD_H, 14); ctx.clip();
+    ctx.fillStyle = PLAYER_COLORS[p.team % PLAYER_COLORS.length];
+    ctx.fillRect(cardX, y, 10, CARD_H);
     ctx.restore();
+    roundRectPath(ctx, cardX, y, cardW, CARD_H, 14);
+    ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+
+    const R = 27;
+    drawPortrait(ctx, p, cardX + 22 + R, y + CARD_H / 2, R);
+
+    const left = cardX + 22 + R * 2 + 16;
+    const right = cardX + cardW - 14;
+    ctx.font = `23px ${DISPLAY}`;
+    inkText(ctx, fitText(ctx, p.name, right - left - 150), left, y + 21, { size: 23, fill: INK, width: 0 });
+
+    const barY = y + 42, barH = 26, gap = 16;
+    const bx = left + 14; // espaço para o selo do ícone
+    const barW = (right - bx - gap * 2) / 3;
+    drawBar(ctx, 'hp', bx, barY, barW, barH, Math.max(0, p.hp), p.maxHp);
+    drawBar(ctx, 'mana', bx + barW + gap, barY, barW, barH, p.mana, p.maxMana);
+    drawBar(ctx, 'energy', bx + 2 * (barW + gap), barY, barW, barH, p.energy, p.maxEnergy);
+    ctx.restore();
+
+    if (isTurn) tag(ctx, 'SUA VEZ', right + 2, y + 18, RED, PAPER);
+    else if (down) tag(ctx, 'FORA DE COMBATE', right + 2, y + 18, '#b9b4c0');
+    else if (battle.over) tag(ctx, 'VITÓRIA', right + 2, y + 18, GOLD);
+    else if (placing) tag(ctx, p.pos ? 'PRONTO' : 'AGUARDANDO', right + 2, y + 18, p.pos ? '#7ed36b' : PAPER);
   });
 
-  const footY = top + 112 + battle.players.length * ROW_H + 18;
-  ctx.fillStyle = '#3b2410';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
   if (battle.over) return;
-  if (placing) {
-    // As escolhas ficam escondidas até os dois estarem prontos
-    ctx.font = `bold 21px ${FONT}`;
-    ctx.fillText('Escolham o setor inicial', W / 2, footY + 4);
-    ctx.font = `17px ${FONT}`;
-    ctx.fillText(
-      fitText(ctx, battle.players.map(p => `${p.name}: ${p.pos ? 'pronto' : 'aguardando'}`).join('   •   '), W - 60),
-      W / 2, footY + 32,
-    );
+  const footY = HEADER_H + battle.players.length * (CARD_H + CARD_GAP) + 4;
+  if (placing) return chipRow(ctx, footY, [{ label: 'Escolham o setor inicial' }]);
+  const t = battle.turn;
+  const free = '#7ed36b', used = '#c9c3cf';
+  if (t.phase === 'move') {
+    chipRow(ctx, footY, [
+      { label: 'Fase', value: 'MOVIMENTO', valueFill: '#8fd3ff' },
+      { label: 'Casas', value: `${t.movesLeft}/${MOVES_PER_TURN}` },
+    ]);
   } else {
-    // Primeiro a fase de movimento; depois as ações (ataque e bônus)
-    const t = battle.turn;
-    const attack = t.queuedAttack ? `preparado (${t.queuedAttack.name})` : t.attacked ? 'usado' : 'disponível';
-    ctx.font = `18px ${FONT}`;
-    ctx.fillText(
-      t.phase === 'move'
-        ? `Fase de movimento   •   Casas restantes: ${t.movesLeft}/${MOVES_PER_TURN}`
-        : `Fase de ações   •   Ataque: ${attack}   •   Bônus: ${t.bonusUsed ? 'usado' : 'disponível'}`,
-      W / 2, footY + 8,
-    );
+    const attack = t.queuedAttack ? 'PREPARADO' : t.attacked ? 'USADO' : 'LIVRE';
+    chipRow(ctx, footY, [
+      { label: 'Fase', value: 'AÇÕES', valueFill: '#ff9a8f' },
+      { label: 'Ataque', value: attack, valueFill: t.attacked && !t.queuedAttack ? used : t.queuedAttack ? GOLD : free },
+      { label: 'Bônus', value: t.bonusUsed ? 'USADO' : 'LIVRE', valueFill: t.bonusUsed ? used : free },
+    ]);
   }
 }
+
 
 // Imagem 1: o mapa com os jogadores. Retorna um Buffer PNG.
 async function renderMapImage(battle) {
