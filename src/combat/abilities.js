@@ -1143,6 +1143,53 @@ const abilities = {
     ],
   },
 
+  // ---- Grimório do Aço (RARO) ----
+  // Lanças de aço com a cabeça girando em espiral (perfuram defesas), um muro de aço que brota do chão e correntes que prendem.
+  // Escala de atributo da raridade (1,15x).
+  // Árvore: Lança Espiral Impetuosa -> { Parede Armada do Castelo de Aço }, { Lança Espiral Flamejante }, { Restrição de Aço }.
+  // Lança que estica o cabo a partir do chão até a cabeça em espiral acertar o alvo: longo alcance, barata
+  lanca_espiral_impetuosa: {
+    id: 'lanca_espiral_impetuosa', name: 'Lança Espiral Impetuosa', description: 'Bate a mão no chão e invoca uma longa lança de cabeça em espiral, que estica o cabo até acertar o oponente; também pode ser disparada pelo ar, ou só a cabeça, como uma bala de aço. Ataque de longo alcance; nos ranks, a ponta gira mais rápido e chega a perfurar o Bloqueio.', actionText: 'Lança Espiral Impetuosa', gif: 'aco_lanca_espiral_impetuosa.gif', grimoire: 'aco', magic: true,
+    type: 'attack', range: 5, damage: [8, 12], attribute: 'magiaOfensiva', manaCost: 20,
+    minLevel: 4, // raiz da árvore do Aço
+    // Rank II: mais dano. Rank III: a bala de aço gira tão rápido que fura o Bloqueio e é mais difícil de esquivar.
+    ranks: [
+      { minLevel: 16, damage: [11, 16] },
+      { minLevel: 28, damage: [14, 20], ignoreBlock: true, dodgePenalty: 0.1, manaCost: 26, cooldown: 2 },
+    ],
+  },
+  // Muro de aço que brota do chão: segura muito, mas só cobre uma direção (golpes que se espalham passam pelos lados)
+  parede_armada_do_castelo_de_aco: {
+    id: 'parede_armada_do_castelo_de_aco', name: 'Parede Armada do Castelo de Aço', description: 'Invoca do chão um muro de aço com o desenho da capa do seu grimório na frente, forte o bastante para quebrar até um cristal afiado que o atinja. Reação que absorve muito dano, mas só cobre uma direção: contra golpes que se espalham em área ela segura metade.', actionText: 'Parede Armada do Castelo de Aço', gif: 'aco_parede_armada_do_castelo_de_aco.gif', grimoire: 'aco', magic: true,
+    type: 'reaction', kind: 'block', absorb: [6, 10], attribute: 'magiaDefensiva', manaCost: 26, emoji: '🏰', weakVsSplash: 0.5,
+    minLevel: 8, after: 'lanca_espiral_impetuosa',
+    // Rank II: o muro fica mais grosso e segura até golpes que atravessam o Bloqueio
+    ranks: [
+      { minLevel: 22, absorb: [9, 14], cutsThrough: true },
+    ],
+  },
+  // Lança enorme girando em alta velocidade, empurrada de perto: perfura a defesa
+  lanca_espiral_flamejante: {
+    id: 'lanca_espiral_flamejante', name: 'Lança Espiral Flamejante', description: 'Cria uma lança enorme de cabeça em espiral que gira em alta velocidade e, com um impulso, perfura blocos grossos de pedra. Golpe de curto alcance, forte, que atravessa o Bloqueio.', actionText: 'Lança Espiral Flamejante', gif: 'aco_lanca_espiral_flamejante.gif', grimoire: 'aco', magic: true,
+    type: 'attack', range: 2, damage: [13, 18], attribute: 'magiaOfensiva', manaCost: 32, cooldown: 2, ignoreBlock: true,
+    minLevel: 10, after: 'lanca_espiral_impetuosa',
+    // Rank II: lança maior, mais dano
+    ranks: [
+      { minLevel: 24, damage: [17, 24] },
+    ],
+  },
+  // Correntes de aço enrolam braços, pernas e tronco: o alvo fica sem se mover e sem esquivar
+  restricao_de_aco: {
+    id: 'restricao_de_aco', name: 'Restrição de Aço', description: 'Faz surgirem correntes de aço que se enrolam nos braços, nas pernas e no tronco do alvo, e apertam mais quanto mais ele tenta escapar. O alvo fica Imobilizado (sem se mover nem esquivar).', actionText: 'Restrição de Aço', gif: 'aco_restricao_de_aco.gif', grimoire: 'aco', magic: true,
+    type: 'bonus', usesAttack: true, manaCost: 30, cooldown: 4, targetRange: 4,
+    applies: [{ effect: 'imobilizado', turns: 2, to: 'enemy' }],
+    minLevel: 14, after: 'lanca_espiral_impetuosa',
+    // Rank II: alcança mais longe e as correntes seguram por mais um turno
+    ranks: [
+      { minLevel: 26, targetRange: 5, applies: [{ effect: 'imobilizado', turns: 3, to: 'enemy' }] },
+    ],
+  },
+
   // ---- Grimório do Espelho (RARO) ----
   // Espelhos que disparam e refletem raios de luz (longo alcance), teletransporte até um espelho, reflexo de magias e
   // a Duplicata Real: um clone saído do espelho que luta sozinho e libera o Refrão de Reflexão Dupla. Escala da raridade (1,15x).

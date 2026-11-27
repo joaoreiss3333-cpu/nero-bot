@@ -55,6 +55,7 @@ function details(a) {
   if (a.cutsThrough) out.push('Funciona até contra golpes que ignoram Bloqueio');
   if (a.thorns) out.push(`Espinhos: ${a.thorns[0]}–${a.thorns[1]} de dano em quem atacar`);
   if (a.physicalBonus) out.push(`Absorve +${Math.round((a.physicalBonus - 1) * 100)}% contra ataques físicos`);
+  if (a.weakVsSplash) out.push(`Só cobre uma direção: contra golpes em área absorve ${Math.round(a.weakVsSplash * 100)}%`);
   if (a.magicBonus) out.push(`Absorve +${Math.round((a.magicBonus - 1) * 100)}% contra magias`);
   if (a.cursedBonus) out.push(`Contra alvos amaldiçoados: +${Math.round((a.cursedBonus - 1) * 100)}% de dano e absorve ${a.cursedDrain} de mana`);
   if (a.lifesteal) out.push(`Recupera ${Math.round(a.lifesteal * 100)}% do dano causado em vida`);

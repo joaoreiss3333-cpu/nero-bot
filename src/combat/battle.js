@@ -489,9 +489,12 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
       // `physicalBonus` (Escudo de Mercúrio): o metal pesado absorve mais contra golpes físicos
       // `magicBonus` (Materialização de Defesa): o objeto imaginado é feito sob medida contra a magia que vem
       const physical = reaction.physicalBonus && !attack.magic ? reaction.physicalBonus : reaction.magicBonus && attack.magic ? reaction.magicBonus : 1;
-      const absorbed = Math.min(damage, Math.round((rand(reaction.absorb) + attributeBonus(defender, reaction, C.DEFENSE_PER_POINT)) * cloverMult(defender, reaction) * physical));
+      // `weakVsSplash` (Parede Armada do Castelo de Aço): o muro só cobre uma direção, então golpes que se espalham (`splash`) passam pelos lados
+      const spread = reaction.weakVsSplash && attack.splash ? reaction.weakVsSplash : 1;
+      const absorbed = Math.min(damage, Math.round((rand(reaction.absorb) + attributeBonus(defender, reaction, C.DEFENSE_PER_POINT)) * cloverMult(defender, reaction) * physical * spread));
       damage -= absorbed;
       log += `\n${reaction.emoji} ${defender.name} usou **${reaction.name}** e absorveu ${absorbed} de dano.`;
+      if (spread < 1) log += `\n↔️ **${attack.name}** veio de vários lados: o muro só segurou uma parte.`;
       // Barreira com espinhos (`thorns`): quem atacou se fere nela (nunca morre disso) e sofre os efeitos da barreira
       if (reaction.thorns) {
         const hurt = rand(reaction.thorns);
