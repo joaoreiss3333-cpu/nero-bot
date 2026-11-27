@@ -1,91 +1,54 @@
-// Efeitos de combate (queimadura, lentidão, buffs...). Cada efeito é um dado do catálogo EFFECTS:
-//   kind        'debuff' (colocado no adversário) ou 'buff' (colocado em si mesmo)
-//   stackable   se aplicar de novo soma stacks (até config.EFFECT_MAX_STACKS); senão só renova a duração
-//   dot         dano por stack no fim do turno de quem tem o efeito (a Resistência não reduz: ela só serve para o Bloqueio)
-//   drainEnergy energia perdida por stack no fim do turno
-//   mods        modificadores enquanto o efeito está ativo (ver getMods)
-//   stackMods   { stacks: mods } -> modificadores extras a partir de N stacks
-//   lowHpMods   modificadores extras quando a vida do dono está abaixo de 50%
-//   vulnerable  { elemento: multiplicador } -> o dono leva mais dano desse elemento
-//   endsOnHit   o efeito acaba quando o dono sofre dano direto; endsOnElement: ... só se o golpe for desse elemento
-//               (golpes com `keepsAsleep` na habilidade, como as magias dos Sonhos, não acordam o Sonolento)
-//   holdsSleep  enquanto o dono tiver esse efeito, nenhum golpe acorda o Sonolento (Fitas do Sono Profundo)
-//   eachTurn    { effect, turns, stacks } -> aplica esse efeito no dono no fim de cada turno dele (ex: sono crescente)
+// Duas coisas ficam no jogador durante a luta:
 //
-// A duração (turnos), os stacks e a força (`power`, dano por stack) vêm da habilidade que aplica:
-//   applies: [{ effect: 'sangramento', turns: 3, stacks: 1, power: 2, to: 'enemy' | 'self' }]
-// Os turnos contam no FIM de cada turno de quem tem o efeito (o dano contínuo também acontece nessa hora).
+// 1) EFEITOS (player.effects): debuffs GENÉRICOS que as magias colocam no alvo (queimadura, preso, sonolento...).
+//    São poucos e servem para todas as magias. Cada um é um dado do catálogo EFFECTS:
+//      stackable   se aplicar de novo soma stacks (até config.EFFECT_MAX_STACKS); senão só renova a duração
+//      dot         dano por stack no fim do turno de quem tem o efeito (a Resistência não reduz: ela só serve para o Bloqueio)
+//      drainEnergy energia perdida por stack no fim do turno
+//      mods        modificadores enquanto o efeito está ativo (ver getMods); pode ser uma função do estado (força vinda da magia)
+//      stackMods   { stacks: mods } -> modificadores extras a partir de N stacks
+//      vulnerable  { elemento: multiplicador } -> o dono leva mais dano desse elemento (ou função do estado)
+//      endsOnHit   o efeito acaba quando o dono sofre dano direto; endsOnElement: ... só se o golpe for desse elemento
+//                  (golpes com `keepsAsleep` na habilidade, como as magias dos Sonhos, não acordam o Sonolento)
+//    A duração (turnos), os stacks e a força vêm da habilidade que aplica:
+//      applies: [{ effect: 'sangramento', turns: 3, stacks: 1, power: 2, to: 'enemy' | 'self', chance: 0.5 }]
+//      `power` é o dano por stack (dano contínuo) ou a chance de errar (Cegueira); `elements` diz os elementos do Vulnerável;
+//      `holdsSleep: true` faz o alvo não acordar com golpes enquanto ESSE efeito durar (Fitas do Sono Profundo).
+//
+// 2) MAGIAS ATIVAS (player.actives): o que uma magia deixa ligado em alguém (normalmente em quem lançou), cada uma do seu
+//    jeito. Não são um catálogo: a própria habilidade descreve o que dá, no campo `active`:
+//      active: { turns: 3, mods: { damageBonus: 6, damageResist: 0.2 }, lowHpMods, endsOnElement: 'agua', id, name, emoji }
+//    (`id` e `name` vêm da habilidade se faltarem; magias com o mesmo `id` renovam a mesma ativa em vez de somar).
+//    Outras magias podem exigir uma ativa (`requiresActive: 'mundo_do_glamour'`) ou gastá-la (`consumesActive`).
+//
+// Os turnos contam no FIM de cada turno de quem tem o efeito/ativa (o dano contínuo também acontece nessa hora).
 const C = require('./config');
 
 const EFFECTS = {
-  sangramento: { name: 'Sangramento', emoji: '🩸', kind: 'debuff', stackable: true, dot: 1 },
-  queimadura: { name: 'Queimadura', emoji: '🔥', kind: 'debuff', dot: 2 },
-  envenenado: { name: 'Envenenado', emoji: '☠️', kind: 'debuff', stackable: true, dot: 1 }, // dano contínuo: só some quando o efeito acaba ou é removido
-  encharcado: { name: 'Encharcado', emoji: '💧', kind: 'debuff', vulnerable: { relampago: 1.3, gelo: 1.3 } },
-  enraizado: { name: 'Enraizado', emoji: '🌿', kind: 'debuff', mods: { noMove: true } },
-  atordoado: { name: 'Atordoado', emoji: '💫', kind: 'debuff', mods: { noAct: true, noMove: true, noReact: true, skipTurn: true } }, // perde o turno inteiro (passa sozinho)
-  congelado: { name: 'Congelado', emoji: '🧊', kind: 'debuff', mods: { noMove: true, noDodge: true }, endsOnElement: 'fogo' },
-  estase: { name: 'Estase Temporal', emoji: '🕰️', kind: 'debuff', mods: { noMove: true, noReact: true } }, // preso num loop do tempo: imóvel e sem reação, mas ainda pode atacar
-  esfera_dimensional: { name: 'Esfera Dimensional', emoji: '🔮', kind: 'debuff', mods: { noMove: true } }, // barreira esférica ao redor do alvo: impede a fuga
-  sala_vermelha: { name: 'Sala Vermelha', emoji: '🟥', kind: 'debuff', mods: { noMove: true, dodgeDelta: -0.2 } }, // preso num cubo vermelho: sem fuga e com pouco espaço para esquivar
-  lentidao: { name: 'Lentidão', emoji: '🐌', kind: 'debuff', mods: { moveDelta: -1, dodgeDelta: -0.15 } },
-  cegueira: { name: 'Cegueira', emoji: '🙈', kind: 'debuff', mods: { missChance: 0.4 } },
-  escuridao: { name: 'Escuridão', emoji: '🌑', kind: 'debuff', mods: { visionCap: 2 } },
-  sufocamento: { name: 'Sufocamento', emoji: '😮‍💨', kind: 'debuff', drainEnergy: 5, mods: { energyCostMult: 1.5 } },
+  // Dano por turno
+  sangramento: { name: 'Sangramento', emoji: '🩸', stackable: true, dot: 1, desc: 'Dano a cada turno; acumula.' },
+  queimadura: { name: 'Queimadura', emoji: '🔥', dot: 2, desc: 'Dano a cada turno; a água apaga.' },
+  envenenado: { name: 'Envenenado', emoji: '☠️', stackable: true, dot: 1, desc: 'Dano a cada turno; acumula.' },
+  // Elementais
+  encharcado: { name: 'Encharcado', emoji: '💧', vulnerable: { relampago: 1.3, gelo: 1.3 }, desc: 'Leva mais dano de relâmpago e gelo; apaga a Queimadura.' },
+  congelado: { name: 'Congelado', emoji: '🧊', mods: { noMove: true, noDodge: true }, endsOnElement: 'fogo', desc: 'Não se move nem esquiva; o fogo descongela.' },
+  // Controle
+  preso: { name: 'Preso', emoji: '🌿', mods: { noMove: true }, desc: 'Não se move (ainda ataca e reage).' },
+  imobilizado: { name: 'Imobilizado', emoji: '⛓️', mods: { noMove: true, noDodge: true }, desc: 'Não se move nem esquiva.' },
+  paralisado: { name: 'Paralisado', emoji: '🕰️', mods: { noMove: true, noReact: true }, desc: 'Não se move nem reage (ainda ataca).' },
+  atordoado: { name: 'Atordoado', emoji: '💫', mods: { noAct: true, noMove: true, noReact: true, skipTurn: true }, desc: 'Perde o turno inteiro.' },
   sonolento: {
-    name: 'Sonolento', emoji: '😴', kind: 'debuff', stackable: true, endsOnHit: true,
+    name: 'Sonolento', emoji: '😴', stackable: true, endsOnHit: true,
     mods: { oneAction: true }, stackMods: { 3: { noAct: true } }, // com 3 stacks o alvo dorme de vez
+    desc: 'Só uma ação por turno; com 3 acúmulos dorme. Acorda ao levar um golpe.',
   },
-  // Buraco negro ao redor de quem usou: apaga parte da magia que o atinge (e libera o Impulso da Morte)
-  lua_negra: { name: 'Lua Negra', emoji: '🌑', kind: 'buff', mods: { magicResist: 0.35 } },
-  // Sonhos: quem abriu o Mundo do Glamour (libera as outras magias dos Sonhos)
-  mundo_do_glamour: { name: 'Mundo do Glamour', emoji: '🌙', kind: 'buff' },
-  // Preso no mundo dos sonhos: fica mais sonolento a cada turno e sofre mais dano das magias dos Sonhos
-  preso_no_sonho: {
-    name: 'Preso no Sonho', emoji: '💭', kind: 'debuff', vulnerable: { sonho: 1.25 },
-    eachTurn: { effect: 'sonolento', turns: 2 },
-  },
-  // Cópia: enquanto ativo, quem usou pode lançar as magias copiadas (ver battle.copiedOf). Quando acaba, a cópia se desfaz.
-  magia_copiada: { name: 'Magia Copiada', emoji: '📋', kind: 'buff' },
-  // Sangue: os golpes de sangue marcam o alvo; só quem tem a marca pode virar Marionete
-  marca_de_sangue: { name: 'Marca de Sangue', emoji: '🔴', kind: 'debuff' },
-  // Preso nos crucifixos do Andaime: sem se mover e sem esquivar
-  crucificado: { name: 'Crucificado', emoji: '✝️', kind: 'debuff', mods: { noMove: true, noDodge: true } },
-  // Controlado pelo próprio sangue: dor intensa (dano por turno) e sem conseguir reagir
-  marionete: { name: 'Marionete de Sangue', emoji: '🪢', kind: 'debuff', dot: 3, mods: { noReact: true } },
-  // Besta Vermelha: sangue denso que segura golpes fortes; muita água a dilui
-  besta_vermelha: { name: 'Besta Vermelha', emoji: '👹', kind: 'buff', mods: { damageResist: 0.3 }, endsOnElement: 'agua' },
-  // Transfusão do Casulo de Sangue: o alvo curado sai fortalecido
-  transfusao: { name: 'Transfusão', emoji: '💉', kind: 'buff', mods: { damageBonus: 4 } },
-  // Pintura: preso no poço de tinta em forma de mola da Primavera da Restrição
-  mola_de_tinta: { name: 'Mola de Tinta', emoji: '🎨', kind: 'debuff', mods: { noMove: true, dodgeDelta: -0.25 } },
-  // Perfume da Barreira de Espinhos e Rosas: os sentidos confusos fazem errar golpes
-  perfume_de_rosas: { name: 'Perfume de Rosas', emoji: '🌹', kind: 'debuff', mods: { missChance: 0.2 } },
-  // Monarca Absoluto do Brilho Sagrado: a imagem gigante de luz reforça os golpes e protege o dono
-  monarca_absoluto: { name: 'Monarca Absoluto', emoji: '👑', kind: 'buff', mods: { damageBonus: 6, damageResist: 0.2 } },
-  // Estrela de Prata da Execução: preso na gaiola de mercúrio, sem fugir nem contra-atacar
-  gaiola_de_prata: { name: 'Gaiola de Prata', emoji: '⭐', kind: 'debuff', mods: { noMove: true, noReact: true } },
-  // Fitas do Sono Profundo: presas no sonho, as fitas apertam e dão mais sono a cada turno; quem dorme amarrado não acorda com golpes
-  fitas_do_sono: {
-    name: 'Fitas do Sono', emoji: '🎀', kind: 'debuff', holdsSleep: true, mods: { noMove: true, dodgeDelta: -0.2 },
-    eachTurn: { effect: 'sonolento', turns: 2 },
-  },
-  // Duplicata Real: o reflexo repete as suas magias (mais dano) e libera o Refrão de Reflexão Dupla
-  duplicata_real: { name: 'Duplicata Real', emoji: '🪞', kind: 'buff', mods: { damageBonus: 4 } },
-  // Laços de Ovelha: amarrado por cordas de algodão e suspenso no ar, sem se mover nem esquivar
-  lacos_de_ovelha: { name: 'Laços de Ovelha', emoji: '🧶', kind: 'debuff', mods: { noMove: true, noDodge: true } },
-  // Anéis da Vigília: a esfera rosa de anéis segura os ataques que vêm de fora
-  aneis_da_vigilia: { name: 'Anéis da Vigília', emoji: '💗', kind: 'buff', mods: { damageResist: 0.35 } },
-  // O cenário do sonho se ergue para proteger quem o manipula
-  cenario_onirico: { name: 'Cenário Onírico', emoji: '🏔️', kind: 'buff', mods: { damageResist: 0.25 } },
-  instinto_selvagem: {
-    name: 'Instinto Selvagem', emoji: '🐺', kind: 'buff',
-    mods: { damageBonus: 3, moveDelta: 1 }, lowHpMods: { damageBonus: 3 },
-  },
-  brilho_estelar: {
-    name: 'Brilho Estelar', emoji: '✨', kind: 'buff',
-    mods: { damageBonus: 2, dodgeDelta: 0.15, critChance: 0.2 },
-  },
+  lentidao: { name: 'Lentidão', emoji: '🐌', mods: { moveDelta: -1, dodgeDelta: -0.15 }, desc: 'Anda menos e esquiva menos.' },
+  // Sentidos e energia
+  cegueira: { name: 'Cegueira', emoji: '🙈', mods: s => ({ missChance: s.power || 0.4 }), desc: 'Chance de errar os golpes (a força vem da magia).' },
+  escuridao: { name: 'Escuridão', emoji: '🌑', mods: { visionCap: 2 }, desc: 'Só enxerga alvos a até 2 casas.' },
+  sufocamento: { name: 'Sufocamento', emoji: '😮‍💨', drainEnergy: 5, mods: { energyCostMult: 1.5 }, desc: 'Perde energia a cada turno e os golpes custam mais.' },
+  // Fraqueza
+  vulneravel: { name: 'Vulnerável', emoji: '🎯', vulnerable: s => s.elements ?? {}, desc: 'Leva mais dano de um elemento (definido pela magia).' },
 };
 
 const getEffect = id => EFFECTS[id];
@@ -106,19 +69,28 @@ function mergeMods(total, mods) {
 }
 
 const effectsOf = player => (player.effects ??= {});
+const activesOf = player => (player.actives ??= {});
 
 const hasEffect = (player, id) => !!effectsOf(player)[id];
+const hasActive = (player, id) => !!activesOf(player)[id];
 
-// Soma os modificadores de todos os efeitos ativos do jogador
+// Valor de um campo do catálogo que pode ser fixo ou depender do estado (força vinda da magia)
+const resolve = (field, state) => (typeof field === 'function' ? field(state) : field);
+
+// Soma os modificadores de todos os efeitos e magias ativas do jogador
 function getMods(player) {
   const total = NEUTRAL_MODS();
+  const lowHp = player.hp < player.maxHp / 2;
   for (const [id, state] of Object.entries(effectsOf(player))) {
     const def = EFFECTS[id];
-    if (def.mods) mergeMods(total, def.mods);
+    if (def.mods) mergeMods(total, resolve(def.mods, state));
     for (const [need, mods] of Object.entries(def.stackMods ?? {})) {
       if (state.stacks >= Number(need)) mergeMods(total, mods);
     }
-    if (def.lowHpMods && player.hp < player.maxHp / 2) mergeMods(total, def.lowHpMods);
+  }
+  for (const a of Object.values(activesOf(player))) {
+    if (a.mods) mergeMods(total, a.mods);
+    if (a.lowHpMods && lowHp) mergeMods(total, a.lowHpMods);
   }
   return total;
 }
@@ -126,16 +98,20 @@ function getMods(player) {
 // Multiplicador de dano que o jogador sofre de um golpe de certo elemento (ex: Encharcado + relâmpago)
 function vulnerability(player, element) {
   if (!element) return 1;
-  return Object.keys(effectsOf(player)).reduce((mult, id) => mult * (EFFECTS[id].vulnerable?.[element] ?? 1), 1);
+  return Object.entries(effectsOf(player)).reduce((mult, [id, state]) => mult * (resolve(EFFECTS[id].vulnerable, state)?.[element] ?? 1), 1);
 }
 
 function removeEffect(player, id) {
   delete effectsOf(player)[id];
 }
 
+function removeActive(player, id) {
+  delete activesOf(player)[id];
+}
+
 // Aplica um efeito. Retorna a linha de log (ou '' se nada mudou). Aplicar de novo renova a duração
 // (fica a maior) e, se o efeito acumula, soma stacks até o limite.
-function applyEffect(player, id, { turns = 2, stacks = 1, power } = {}) {
+function applyEffect(player, id, { turns = 2, stacks = 1, power, elements, holdsSleep } = {}) {
   const def = EFFECTS[id];
   if (!def) return '';
   const active = effectsOf(player);
@@ -163,6 +139,13 @@ function applyEffect(player, id, { turns = 2, stacks = 1, power } = {}) {
     turns: Math.max(current?.turns ?? 0, turns),
     power: Math.max(current?.power ?? 0, power ?? def.dot ?? 0),
   };
+  // Vulnerável: os elementos de cada aplicação se somam (fica o maior multiplicador de cada)
+  if (elements || current?.elements) {
+    const merged = { ...current?.elements };
+    for (const [el, mult] of Object.entries(elements ?? {})) merged[el] = Math.max(merged[el] ?? 1, mult);
+    active[id].elements = merged;
+  }
+  if (holdsSleep || current?.holdsSleep) active[id].holdsSleep = true;
   const s = active[id].stacks;
   return `${def.emoji} ${player.name} recebeu **${def.name}**${s > 1 ? ` (x${s})` : ''}${Number.isFinite(active[id].turns) ? ` por ${active[id].turns} turno(s)` : ''}.${extra}`;
 }
@@ -180,31 +163,51 @@ function applyAbilityEffects(ability, source, target, { hit = true, defaultTo = 
   return lines;
 }
 
-// Remove todos os debuffs do jogador (os buffs ficam). Retorna os nomes removidos.
+// Liga (ou renova) uma magia ativa em `player`. `spec`: { id, name, emoji, turns, mods, lowHpMods, endsOnElement }.
+// Retorna a linha de log.
+function setActive(player, spec) {
+  const current = activesOf(player)[spec.id];
+  activesOf(player)[spec.id] = { ...spec, turns: Math.max(current?.turns ?? 0, spec.turns ?? 2) };
+  const turns = activesOf(player)[spec.id].turns;
+  return `${spec.emoji ?? '✨'} **${spec.name}** ${current ? 'renovada' : 'ativa'} em ${player.name}${Number.isFinite(turns) ? ` por ${turns} turno(s)` : ''}.`;
+}
+
+// A magia ativa que a habilidade liga (campo `active`) em `player`. Retorna a linha de log, ou '' se a habilidade não tem.
+function applyAbilityActive(ability, player) {
+  if (!ability.active) return '';
+  return setActive(player, { id: ability.id, name: ability.name, ...ability.active });
+}
+
+// Remove todos os efeitos (debuffs) do jogador; as magias ativas ficam. Retorna os nomes removidos.
 function clearDebuffs(player) {
-  const removed = [];
-  for (const id of Object.keys(effectsOf(player))) {
-    if (EFFECTS[id].kind === 'debuff') { removeEffect(player, id); removed.push(EFFECTS[id].name); }
-  }
+  const removed = Object.keys(effectsOf(player)).map(id => EFFECTS[id].name);
+  player.effects = {};
   return removed;
 }
 
-// O jogador levou um golpe direto: acorda o Sonolento (menos com golpes `keepsAsleep`) e descongela se foi de fogo
+// O jogador levou um golpe direto: acorda o Sonolento (menos com golpes `keepsAsleep`), descongela se foi de fogo e
+// desfaz magias ativas que quebram com esse elemento (ex: a Besta Vermelha com água)
 function onHit(player, element, { keepsAsleep = false } = {}) {
   const lines = [];
   // `holdsSleep` (Fitas do Sono Profundo): enquanto as fitas prendem o alvo, nenhum golpe o acorda
-  if (Object.keys(EFFECTS).some(id => EFFECTS[id].holdsSleep && hasEffect(player, id))) keepsAsleep = true;
-  for (const [id, def] of Object.entries({ ...EFFECTS })) {
-    if (!hasEffect(player, id)) continue;
+  if (Object.values(effectsOf(player)).some(s => s.holdsSleep)) keepsAsleep = true;
+  for (const id of Object.keys(effectsOf(player))) {
+    const def = EFFECTS[id];
     if ((def.endsOnHit && !keepsAsleep) || (def.endsOnElement && def.endsOnElement === element)) {
       removeEffect(player, id);
       lines.push(`${def.emoji} **${def.name}** de ${player.name} acabou ao ser atingido.`);
     }
   }
+  for (const [id, a] of Object.entries(activesOf(player))) {
+    if (a.endsOnElement && a.endsOnElement === element) {
+      removeActive(player, id);
+      lines.push(`${a.emoji ?? '✨'} **${a.name}** de ${player.name} se desfez com o golpe.`);
+    }
+  }
   return lines;
 }
 
-// Fim do turno de `player`: dano contínuo, drenagem de energia e contagem regressiva dos turnos.
+// Fim do turno de `player`: dano contínuo, drenagem de energia e contagem regressiva dos efeitos e das magias ativas.
 // Retorna { lines, defeated }.
 function endOfTurn(player) {
   const lines = [];
@@ -220,27 +223,32 @@ function endOfTurn(player) {
       player.energy -= lost;
       lines.push(`${def.emoji} ${player.name} perdeu ${lost} de energia (${def.name}).`);
     }
-    if (def.eachTurn && player.hp > 0) {
-      const line = applyEffect(player, def.eachTurn.effect, def.eachTurn);
-      if (line) lines.push(`${def.emoji} ${def.name}: ${line}`);
-    }
     state.turns -= 1;
     if (state.turns <= 0) {
       removeEffect(player, id);
       lines.push(`✔️ **${def.name}** de ${player.name} acabou.`);
     }
   }
+  for (const [id, a] of Object.entries({ ...activesOf(player) })) {
+    a.turns -= 1;
+    if (a.turns <= 0) {
+      removeActive(player, id);
+      lines.push(`✔️ **${a.name}** de ${player.name} acabou.`);
+    }
+  }
   return { lines, defeated: player.hp === 0 };
 }
 
-// Texto curto dos efeitos ativos, para o painel. Ex: "🔥 Queimadura (2t) • 🩸 Sangramento x3 (1t)"
+// Texto curto das magias ativas e dos efeitos, para o painel. Ex: "🐺 Instinto Selvagem (2t) • 🔥 Queimadura (2t) • 🩸 Sangramento x3 (1t)"
 function describeEffects(player) {
-  return Object.entries(effectsOf(player))
-    .map(([id, s]) => `${EFFECTS[id].emoji} ${EFFECTS[id].name}${s.stacks > 1 ? ` x${s.stacks}` : ''}${Number.isFinite(s.turns) ? ` (${s.turns}t)` : ''}`)
-    .join(' • ');
+  const turns = t => (Number.isFinite(t) ? ` (${t}t)` : '');
+  return [
+    ...Object.values(activesOf(player)).map(a => `${a.emoji ?? '✨'} ${a.name}${turns(a.turns)}`),
+    ...Object.entries(effectsOf(player)).map(([id, s]) => `${EFFECTS[id].emoji} ${EFFECTS[id].name}${s.stacks > 1 ? ` x${s.stacks}` : ''}${turns(s.turns)}`),
+  ].join(' • ');
 }
 
 module.exports = {
-  EFFECTS, getEffect, hasEffect, getMods, vulnerability, applyEffect, applyAbilityEffects,
-  removeEffect, clearDebuffs, onHit, endOfTurn, describeEffects,
+  EFFECTS, getEffect, hasEffect, hasActive, getMods, vulnerability, applyEffect, applyAbilityEffects,
+  setActive, applyAbilityActive, removeEffect, removeActive, clearDebuffs, onHit, endOfTurn, describeEffects,
 };

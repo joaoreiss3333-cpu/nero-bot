@@ -42,7 +42,8 @@ function newPlayer(user, team) {
     abilities: getKit(user.id),
     ranks: getRanks(user.id), // id da magia -> rank (ver resolveAbility)
     speed: stats.speed,
-    effects: {}, // efeitos ativos (ver effects.js)
+    effects: {}, // debuffs genéricos (ver effects.js)
+    actives: {}, // magias ativas: o que uma magia deixou ligado nele (ver effects.js)
     cooldowns: {}, // id da habilidade -> turnos seus que faltam para poder usar de novo
     hpHistory: [stats.maxHp], // vida no início dos seus últimos turnos (usado para voltar no tempo)
   };
@@ -132,8 +133,8 @@ function collectFallen(battle) {
 
 // Habilidades do jogador de um tipo ('attack' | 'bonus' | 'reaction')
 // A habilidade `id` no rank do jogador (undefined se não existir)
-// Magias copiadas pela Magia de Cópia: valem só enquanto o efeito Magia Copiada estiver ativo
-const copiedOf = player => (fx.hasEffect(player, 'magia_copiada') ? player.copied ?? {} : {});
+// Magias copiadas pela Magia de Cópia: valem só enquanto a Magia Copiada estiver ativa
+const copiedOf = player => (fx.hasActive(player, 'magia_copiada') ? player.copied ?? {} : {});
 
 // Ids de tudo que o jogador pode usar agora: o kit dele + as magias copiadas
 const ownedIds = player => [...player.abilities, ...Object.keys(copiedOf(player)).filter(id => !player.abilities.includes(id))];
@@ -173,7 +174,7 @@ function reactionBlock(player, reaction, attack) {
   if (mods.noReact) return 'não consegue reagir';
   if (reaction.onlyVsMagic && attack && !attack.magic) return 'só pode usar isso contra magia';
   if (mods.noDodge && reaction.kind === 'dodge') return 'não consegue esquivar';
-  if (reaction.requiresEffect && !fx.hasEffect(player, reaction.requiresEffect)) return `precisa de ${fx.getEffect(reaction.requiresEffect)?.name} ativo`; // ex: defesas dos Sonhos só dentro do Mundo do Glamour
+  if (reaction.requiresActive && !fx.hasActive(player, reaction.requiresActive)) return `precisa de ${getAbility(reaction.requiresActive)?.name ?? 'outra magia'} ativo`; // ex: defesas dos Sonhos só dentro do Mundo do Glamour
   if (!canAfford(player, reaction)) return 'sem recurso';
   return null;
 }
@@ -263,9 +264,9 @@ function freeCellsNear(battle, from, except) {
 
 // Invoca as criaturas de `owner` nas casas livres mais próximas. Elas têm vida (`hp`) e ficam até serem destruídas.
 // Invocar de novo com a mesma magia troca as antigas pelas novas (vida cheia); as de outras magias continuam.
-// `linkedEffect`: efeito que o dono mantém enquanto alguma dessas criaturas estiver viva (ex: Duplicata Real).
+// `linkedActive`: magia ativa ({ id, name, emoji, mods }) que o dono mantém enquanto alguma dessas criaturas estiver viva (ex: Duplicata Real).
 function summonClones(battle, owner, ability) {
-  const { count, damage, share, label, size = 1, push, look, emoji, icon, hp, linkedEffect } = ability.summon;
+  const { count, damage, share, label, size = 1, push, look, emoji, icon, hp, linkedActive } = ability.summon;
   battle.summons = battle.summons.filter(s => !(s.ownerId === owner.id && s.source === ability.id));
   // Cantos livres mais perto do dono onde a invocação inteira cabe, sem uma encostar na outra
   const cells = [];
@@ -276,21 +277,21 @@ function summonClones(battle, owner, ability) {
   }
   for (const pos of cells) {
     battle.summons.push({
-      id: `s${battle.summonSeq = (battle.summonSeq ?? 0) + 1}`, source: ability.id, hp, maxHp: hp, linkedEffect,
+      id: `s${battle.summonSeq = (battle.summonSeq ?? 0) + 1}`, source: ability.id, hp, maxHp: hp, linkedActive: linkedActive?.id,
       ownerId: owner.id, name: `${label ?? 'Clone'} de ${owner.name}`, pos, damage, size, push, look, emoji, icon,
       bonus: Math.round(attributeBonus(owner, ability) * share), mult: cloverMult(owner, ability), // mult: as folhas do grimório do dono
     });
   }
-  if (linkedEffect && cells.length) fx.applyEffect(owner, linkedEffect, { turns: Infinity });
+  if (linkedActive && cells.length) fx.setActive(owner, { ...linkedActive, turns: Infinity });
   return [ability.summon.text?.(owner, cells.length, hp) ?? `👥 ${owner.name} fez ${cells.length} figura(s) brotarem do chão, com ${hp} de vida cada. Elas atacam sozinhas até serem destruídas.`];
 }
 
-// Tira uma invocação do mapa. Se era a última que mantinha o efeito ligado (linkedEffect) do dono, o efeito acaba junto.
+// Tira uma invocação do mapa. Se era a última que mantinha a magia ativa ligada (linkedActive) do dono, ela acaba junto.
 function destroySummon(battle, summon) {
   battle.summons = battle.summons.filter(s => s !== summon);
   const owner = battle.players.find(p => p.id === summon.ownerId);
-  if (owner && summon.linkedEffect && !battle.summons.some(s => s.ownerId === owner.id && s.linkedEffect === summon.linkedEffect)) {
-    fx.removeEffect(owner, summon.linkedEffect);
+  if (owner && summon.linkedActive && !battle.summons.some(s => s.ownerId === owner.id && s.linkedActive === summon.linkedActive)) {
+    fx.removeActive(owner, summon.linkedActive);
   }
   return summon.look === 'ovelha' ? `🐏 A ${summon.name} foi destruída e se desfez em algodão.` : `💥 ${summon.name} foi destruído.`;
 }
@@ -524,6 +525,8 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
   // Efeitos: só se o golpe causou dano e o alvo continua de pé (o golpe também pode acordar/descongelar o alvo)
   if (damage > 0 && defender.hp > 0) {
     const lines = [...fx.onHit(defender, attack.element, attack), ...fx.applyAbilityEffects(attack, attacker, defender)];
+    const activeLine = fx.applyAbilityActive(attack, attacker); // ex: a Garra de Urso acende o Instinto Selvagem em quem bateu
+    if (activeLine) lines.push(activeLine);
     if (battle && attack.displace && displaceFar(battle, defender, attacker.pos, attack.displace)) {
       lines.push(`🌀 ${defender.name} foi atingido e teletransportado para outro ponto do mapa!`);
     }

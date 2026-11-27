@@ -3,6 +3,7 @@ const { abilities, resolveAbility, typeLabel } = require('../combat/abilities');
 const { grimoires, getGrimoire, RARITIES } = require('../combat/grimoires');
 const { cloversOf } = require('../combat/clovers');
 const { EFFECTS, getEffect } = require('../combat/effects');
+const activeName = id => abilities[id]?.name ?? id;
 const { learnCost, learnBlocker, nextStep, rankOf } = require('../combat/characters');
 const { ATTRIBUTES, xpToNext, maxHp, maxMana, maxEnergy, speed } = require('../combat/progression');
 const C = require('../combat/config');
@@ -14,6 +15,27 @@ const GIF_DIR = path.join(__dirname, '..', '..', 'assets', 'gifs');
 // Só manda o GIF se o arquivo já estiver em assets/gifs (magia nova sem GIF mostra a inicial no site)
 const gifUrl = gif => (!gif ? null : /^https?:/.test(gif) ? gif
   : fs.existsSync(path.join(GIF_DIR, gif)) ? `/gifs/${encodeURIComponent(gif)}` : null);
+
+// Os bônus de uma magia ativa, em frases curtas. Ex: "+6 de dano, -20% de dano recebido"
+function describeMods(mods = {}) {
+  const out = [];
+  if (mods.damageBonus) out.push(`+${mods.damageBonus} de dano`);
+  if (mods.damageResist) out.push(`-${Math.round(mods.damageResist * 100)}% de dano recebido`);
+  if (mods.magicResist) out.push(`-${Math.round(mods.magicResist * 100)}% de dano de magia recebido`);
+  if (mods.moveDelta) out.push(`${mods.moveDelta > 0 ? '+' : ''}${mods.moveDelta} casa(s) de movimento`);
+  if (mods.dodgeDelta) out.push(`${mods.dodgeDelta > 0 ? '+' : ''}${Math.round(mods.dodgeDelta * 100)}% de esquiva`);
+  if (mods.critChance) out.push(`+${Math.round(mods.critChance * 100)}% de crítico`);
+  return out.join(', ');
+}
+
+// Frase da magia ativa que a habilidade liga. Ex: "🐺 Instinto Selvagem por 2 turno(s): +3 de dano, +1 casa(s) de movimento"
+function describeActive(spec, fallbackName, { linked = false } = {}) {
+  const bonus = describeMods(spec.mods);
+  const low = spec.lowHpMods && describeMods(spec.lowHpMods);
+  return `${spec.emoji ?? '✨'} ${spec.name ?? fallbackName}${linked ? ' enquanto existir' : spec.turns ? ` por ${spec.turns} turno(s)` : ''}`
+    + `${bonus ? `: ${bonus}` : ''}${low ? `; com menos da metade da vida, mais ${low}` : ''}`
+    + `${spec.endsOnElement ? ` (acaba com um golpe de ${spec.endsOnElement === 'agua' ? 'água' : spec.endsOnElement})` : ''}`;
+}
 
 // Os detalhes de combate da magia num determinado rank, como frases curtas
 function details(a) {
@@ -50,14 +72,14 @@ function details(a) {
   if (a.summon) {
     const s = a.summon;
     out.push(`Invoca ${s.label ? `${s.count}× ${s.label}` : `${s.count} clones`}, com ${s.hp} de vida cada, até serem destruídas`);
-    if (s.linkedEffect) out.push(`Enquanto existir: ${getEffect(s.linkedEffect)?.emoji} ${getEffect(s.linkedEffect)?.name}`);
+    if (s.linkedActive) out.push(describeActive(s.linkedActive, a.name, { linked: true }));
     if (s.size > 1) out.push(`Ocupa ${s.size}×${s.size} casas no mapa`);
     if (s.push) out.push(`O impacto arremessa o alvo ${s.push} casas`);
   }
   if (a.restoreMana) out.push(`Recupera ${a.restoreMana[0]}–${a.restoreMana[1]} de mana`);
   if (a.healCap) out.push(`Volta até ${Math.round(a.healCap * 100)}% da vida`);
   if (a.manaRefund) out.push(`Recupera ${a.manaRefund} de mana`);
-  if (a.requiresEffect) out.push(`Exige o efeito ${getEffect(a.requiresEffect)?.name} ativo`);
+  if (a.requiresActive) out.push(`Exige ${activeName(a.requiresActive)} ativo${a.consumesActive ? ' (e o consome)' : ''}`);
   if (a.keepsAsleep) out.push('Não acorda quem está dormindo');
   if (a.copy) {
     out.push(`Copia 1 magia à sua escolha que o inimigo aprendeu`);
@@ -69,8 +91,9 @@ function details(a) {
   if (a.chance) out.push(`${Math.round(a.chance * 100)}% de chance`);
   for (const e of a.applies ?? []) {
     const fx = getEffect(e.effect);
-    if (fx) out.push(`${fx.emoji} ${fx.name}${e.turns ? ` por ${e.turns} turno(s)` : ''}${e.chance ? ` (${Math.round(e.chance * 100)}%)` : ''}`);
+    if (fx) out.push(`${fx.emoji} ${fx.name}${e.effect === 'cegueira' && e.power ? ` (${Math.round(e.power * 100)}% de erro)` : ''}${e.elements ? ` a ${Object.entries(e.elements).map(([el, m]) => `${el} (+${Math.round((m - 1) * 100)}%)`).join(', ')}` : ''}${e.turns ? ` por ${e.turns} turno(s)` : ''}${e.chance ? ` (${Math.round(e.chance * 100)}%)` : ''}${e.holdsSleep ? ': enquanto durar, golpes não acordam o alvo' : ''}`);
   }
+  if (a.active) out.push(describeActive(a.active, a.name));
   return out;
 }
 
@@ -174,7 +197,7 @@ function guide() {
     xpTable: [1, 5, 10, 20, 30, 40, 49].map(l => ({ level: l, xp: xpToNext(l) })),
     attributes: Object.values(ATTRIBUTES),
     rarities: Object.entries(RARITIES).map(([id, r]) => ({ id, ...r })),
-    effects: Object.entries(EFFECTS).map(([id, e]) => ({ id, name: e.name, emoji: e.emoji, kind: e.kind })),
+    effects: Object.entries(EFFECTS).map(([id, e]) => ({ id, name: e.name, emoji: e.emoji, desc: e.desc })),
     basics: ['soco', 'esquiva', 'bloqueio'].map(id => publicAbility(abilities[id])),
   };
 }

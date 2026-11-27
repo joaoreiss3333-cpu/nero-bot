@@ -1,9 +1,9 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { getBattle, currentPlayer, enemiesOf, needsTarget, findPlayer, abilitiesOf, abilityOf, ownedIds, planBonus, applyBonus, enemySummons, summonDistance, abilityCost, resourceLabel, resourceOf, canAfford, spend } = require('../src/combat/battle');
-const { getMods, applyAbilityEffects, hasEffect, removeEffect, getEffect } = require('../src/combat/effects');
+const { getMods, applyAbilityEffects, applyAbilityActive, hasActive, removeActive } = require('../src/combat/effects');
 const { panelPayload, asEdit } = require('../src/combat/render');
 const { playAction } = require('../src/combat/actions');
-const { typeLabel } = require('../src/combat/abilities');
+const { typeLabel, getAbility } = require('../src/combat/abilities');
 const { getKit, getRanks } = require('../src/combat/characters');
 const { distance } = require('../src/combat/grid');
 
@@ -110,8 +110,8 @@ module.exports = {
     if (me.cooldowns[ability.id] > 0) {
       return fail(interaction, `**${ability.name}** ainda está em recarga: faltam ${me.cooldowns[ability.id]} turno(s) seu(s).`);
     }
-    if (ability.requiresEffect && !hasEffect(me, ability.requiresEffect)) {
-      return fail(interaction, `**${ability.name}** só pode ser usada com o efeito **${getEffect(ability.requiresEffect).name}** ativo.`);
+    if (ability.requiresActive && !hasActive(me, ability.requiresActive)) {
+      return fail(interaction, `**${ability.name}** só pode ser usada com **${getAbility(ability.requiresActive)?.name}** ativo.`);
     }
     const mods = getMods(me);
     if (mods.noAct) return fail(interaction, 'Você não consegue agir neste turno por causa de um efeito (atordoado, dormindo...).');
@@ -136,7 +136,7 @@ module.exports = {
       battle.turn.queuedTargetId = `summon:${summon.id}`;
       if (ability.cooldown) me.cooldowns[ability.id] = ability.cooldown;
       spend(me, ability);
-      if (ability.consumesEffect) removeEffect(me, ability.consumesEffect);
+      if (ability.consumesActive) removeActive(me, ability.consumesActive);
       await interaction.reply({ content: `✅ **${ability.name}** preparado em ${summon.name} (-${cost} ${resourceLabel(ability)}). O golpe acontece quando você encerrar o turno.`, ephemeral: true });
       await playAction(battle.message.channel, me.name, ability, { block: false });
       return battle.message.edit(asEdit(await panelPayload(battle, `👊 ${me.name} preparou **${ability.name}** contra ${summon.name} (-${cost} ${resourceLabel(ability)}). O golpe acontece ao fim do turno.`)));
@@ -169,7 +169,7 @@ module.exports = {
       battle.turn.queuedTargetId = foe.id;
       if (ability.cooldown) me.cooldowns[ability.id] = ability.cooldown;
       spend(me, ability);
-      if (ability.consumesEffect) removeEffect(me, ability.consumesEffect); // a Lua Negra é gasta no golpe
+      if (ability.consumesActive) removeActive(me, ability.consumesActive); // a Lua Negra é gasta no golpe
       await interaction.reply({ content: `✅ **${ability.name}** preparado em ${foe.name} (-${cost} ${resourceLabel(ability)}). O dano e a reação do oponente acontecem quando você encerrar o turno.`, ephemeral: true });
       // O GIF do golpe aparece na hora (como na ação bônus); o dano e a reação ficam para o fim do turno
       await playAction(battle.message.channel, me.name, ability, { block: false });
@@ -200,6 +200,8 @@ module.exports = {
     lines.push(...applyBonus(battle, me, ability, plan.dest, foe));
     if (inArea) for (const e of inArea) lines.push(...applyAbilityEffects(ability, me, e, { defaultTo: 'self' }));
     else lines.push(...applyAbilityEffects(ability, me, foe, { defaultTo: 'self' }));
+    const activeLine = applyAbilityActive(ability, me); // a magia ativa liga uma vez só, mesmo em área
+    if (activeLine) lines.push(activeLine);
     const text = lines.join('\n') || `${me.name} usou **${ability.name}**.`;
     await interaction.reply({ content: `✅ Você usou **${ability.name}**.`, ephemeral: true });
     // A ação bônus acontece na hora: o GIF roda e some sozinho, sem travar o turno

@@ -104,7 +104,7 @@ async function pageGuide() {
          e depois age:</p>
       <ul>
         <li><b>Ataque</b>: uma por turno. O golpe é resolvido quando você encerra o turno, e aí o defensor escolhe a reação.</li>
-        <li><b>Ação bônus</b>: uma por turno, acontece na hora (portais, curas, buffs...).</li>
+        <li><b>Ação bônus</b>: uma por turno, acontece na hora (portais, curas, magias ativas...).</li>
         <li><b>Reação</b>: usada quando você é atacado (esquiva, bloqueio, capturas de magia...).</li>
       </ul>
       <p>Ataques gastam energia (golpes físicos) ou mana (magias). Todo ataque tem <b>${pct(g.critChance)}</b> de chance de crítico,
@@ -117,8 +117,13 @@ async function pageGuide() {
         ${g.rarities.map(r => `<tr><td class="rar-${r.id}"><b>${esc(r.name)}</b></td><td>${esc(r.chance)}</td><td>${g.raritiesScale[r.id]}×</td></tr>`).join('')}</table>
       <p style="margin-top:1em"><a href="#/grimorios">Ver todos os grimórios →</a></p>`],
     ['efeitos', 'Efeitos', `
-      <p>Buffs e debuffs aplicados por magias. Debuffs atrapalham quem recebe; buffs fortalecem.</p>
-      <div class="chips">${g.effects.map(e => `<span class="chip ${e.kind}">${e.emoji} ${esc(e.name)}</span>`).join('')}</div>`],
+      <p>Efeitos negativos que as magias colocam no alvo. São os mesmos para todos os grimórios: cada magia escolhe quais
+         aplica, por quantos turnos e com que força.</p>
+      <table><tr><th>Efeito</th><th>O que faz</th></tr>
+        ${g.effects.map(e => `<tr><td>${e.emoji} <b>${esc(e.name)}</b></td><td>${esc(e.desc ?? '')}</td></tr>`).join('')}</table>
+      <p style="margin-top:1em">Os fortalecimentos não são efeitos: são <b>magias ativas</b>. Cada magia diz o que dá enquanto
+         estiver ativa (mais dano, menos dano recebido, mais movimento...), e algumas liberam outras magias do grimório.
+         Veja os detalhes de cada uma na árvore do grimório.</p>`],
     ['parties', 'Parties', `
       <p>Monte um grupo de até <b>${g.partyMaxSize}</b> jogadores com <code>/party criar</code> e <code>/party convidar</code>.
          Em party, o líder desafia e todos lutam juntos. O mapa cresce com o número de jogadores.</p>`],

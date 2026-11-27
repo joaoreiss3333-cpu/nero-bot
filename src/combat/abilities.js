@@ -18,9 +18,12 @@
 //               cada item de `ranks` é o rank 2, 3... com `minLevel` (e `cost`, opcional) próprios e os campos que mudam (damage, manaCost,
 //               cooldown, applies, absorb...). Os campos se acumulam rank a rank (resolveAbility).
 //
-// Efeitos de combate (catálogo em effects.js):
+// Efeitos de combate (catálogo de debuffs genéricos em effects.js):
 //   applies -> lista de efeitos que a habilidade aplica: { effect: 'sangramento', turns: 3, stacks: 1, power: 2, to: 'enemy'|'self', chance: 0.5 }
 //              (só `effect` é obrigatório; ataque aplica no alvo se causar dano, ação bônus aplica em quem usou; `to` muda isso)
+//   active  -> magia ativa que a habilidade liga em quem usou, com os bônus DELA: { turns, mods, lowHpMods, endsOnElement, id, name, emoji }
+//              (ataque liga se acertar; ação bônus liga sempre). Ver effects.js.
+//   requiresActive -> id da magia ativa que precisa estar ligada para usar esta; consumesActive -> ela se apaga ao usar esta
 //   magic    -> true se for uma magia (reações como Chrono Stasis Grigora só funcionam contra magia)
 //   cooldown -> turnos seus até poder usar de novo (1ª vez livre)
 //   grimoire -> id do grimório (grimoires.js) a que a habilidade pertence; quem tem esse grimório recebe a habilidade no kit
@@ -71,6 +74,12 @@ function hitSummonsInArea(ability, battle, user, radius) {
     .flatMap(s => damageSummon(battle, s, Math.max(1, Math.round(rollMagic(ability, user)))));
 }
 
+// Instinto Selvagem (Fera): os golpes e a investida acendem a mesma ativa, que só renova (+dano, +1 casa; mais dano com pouca vida)
+const instintoSelvagem = turns => ({
+  id: 'instinto_selvagem', name: 'Instinto Selvagem', emoji: '🐺', turns,
+  mods: { damageBonus: 3, moveDelta: 1 }, lowHpMods: { damageBonus: 3 },
+});
+
 const abilities = {
   soco: { id: 'soco', name: 'Soco', description: 'Um golpe físico simples, corpo a corpo. Gasta energia, não mana.', actionText: 'um Soco', gif: 'soco.gif', type: 'attack', range: 1, damage: [2, 4], attribute: 'forca', energyCost: 10 },
 
@@ -112,16 +121,16 @@ const abilities = {
       { minLevel: 13, damage: [11, 16] },
     ],
   },
-  // A magia de ataque mais forte do servidor. Dano bem acima do Soco e prende o alvo em Estase Temporal (imóvel e sem reação, ainda pode atacar)
+  // A magia de ataque mais forte do servidor. Dano bem acima do Soco e deixa o alvo Paralisado (imóvel e sem reação, ainda pode atacar)
   chrono_stasis: {
-    id: 'chrono_stasis', name: 'Chrono Stasis', description: 'Prende o alvo numa esfera com um anel de algarismos romanos, onde ele revive o mesmo instante em loop. Causa dano e deixa o alvo em Estase Temporal: não se move nem reage, mas ainda pode atacar.', actionText: 'Chrono Stasis', gif: 'chrono_stasis.gif', grimoire: 'tempo', magic: true,
+    id: 'chrono_stasis', name: 'Chrono Stasis', description: 'Prende o alvo numa esfera com um anel de algarismos romanos, onde ele revive o mesmo instante em loop. Causa dano e deixa o alvo Paralisado: não se move nem reage, mas ainda pode atacar.', actionText: 'Chrono Stasis', gif: 'chrono_stasis.gif', grimoire: 'tempo', magic: true,
     type: 'attack', range: 3, damage: [12, 18], attribute: 'magiaOfensiva', manaCost: 40,
-    minLevel: 6, after: 'raio_refletor_do_tempo', applies: [{ effect: 'estase', turns: 2 }], cooldown: 3,
-    // A Estase (imóvel + sem reação) é o que a faz forte, então o dano sobe pouco por rank e o controle é limitado por recarga:
-    // 2 turnos de Estase dão no máximo UM golpe livre; nunca dá para encadear uma Estase na outra.
+    minLevel: 6, after: 'raio_refletor_do_tempo', applies: [{ effect: 'paralisado', turns: 2 }], cooldown: 3,
+    // O Paralisado (imóvel + sem reação) é o que a faz forte, então o dano sobe pouco por rank e o controle é limitado por recarga:
+    // 2 turnos dão no máximo UM golpe livre; nunca dá para encadear uma paralisia na outra.
     ranks: [
       { minLevel: 15, damage: [17, 24] },
-      { minLevel: 26, damage: [23, 32], manaCost: 45, applies: [{ effect: 'estase', turns: 3 }], cooldown: 4 },
+      { minLevel: 26, damage: [23, 32], manaCost: 45, applies: [{ effect: 'paralisado', turns: 3 }], cooldown: 4 },
     ],
   },
   // Captura a magia inimiga: ela é anulada por completo (sem prender o atacante: anular magia já é forte). Só funciona contra magia.
@@ -206,7 +215,7 @@ const abilities = {
   // Barreira esférica ao redor do alvo: ele não consegue se mover por 2 turnos (ainda reage e ataca)
   different_dimension_sphere: {
     id: 'different_dimension_sphere', name: 'Different Dimension Sphere', description: 'Prende o alvo numa barreira esférica: ele não consegue se mover, mas ainda ataca e reage.', gif: 'espaco_different_dimension_sphere.gif', grimoire: 'espaco', magic: true,
-    type: 'bonus', usesAttack: true, manaCost: 36, cooldown: 4, targetRange: 4, applies: [{ effect: 'esfera_dimensional', turns: 2, to: 'enemy' }],
+    type: 'bonus', usesAttack: true, manaCost: 36, cooldown: 4, targetRange: 4, applies: [{ effect: 'preso', turns: 2, to: 'enemy' }],
     minLevel: 18, after: 'fallen_angel_gate',
   },
   // Leva o ALVO N casas numa direção (use `direcao` e `casas`): tira o inimigo do alcance ou o joga para longe de você
@@ -225,7 +234,7 @@ const abilities = {
   unopening_red_room: {
     id: 'unopening_red_room', name: 'Unopening Red Room', description: 'Prende o alvo num cubo vermelho por vários turnos: ele não se move e fica mais fácil de acertar.', gif: 'espaco_unopening_red_room.gif', grimoire: 'espaco', magic: true, element: 'espaco',
     type: 'attack', range: 4, damage: [8, 12], attribute: 'magiaOfensiva', manaCost: 48, cooldown: 5,
-    applies: [{ effect: 'sala_vermelha', turns: 4 }],
+    applies: [{ effect: 'preso', turns: 4 }, { effect: 'lentidao', turns: 4 }],
     minLevel: 32, after: 'different_dimension_sphere',
   },
   // Figuras com armas brotam do chão: 3 clones aparecem no mapa e atacam sozinhos no fim do seu turno (andam 2 casas e batem
@@ -240,7 +249,7 @@ const abilities = {
   // Espadeiro: tudo gira em torno da espada imbuída em trevas. Escala de atributo da raridade (1,7x). Sem `ranks`.
   // Árvore: Lâmina Negra -> { Corte da Escuridão -> { Corte Selvagem, Corte Dimensional } }, { Casulo Negro },
   //         { Lâmina Sem Fio -> Lua Negra -> Impulso da Morte }.
-  // Lua Negra: buff que apaga parte da magia recebida e libera o Impulso da Morte (que a consome).
+  // Lua Negra: magia ativa que apaga parte da magia recebida e libera o Impulso da Morte (que a consome).
   lamina_negra: {
     id: 'lamina_negra', name: 'Lâmina Negra Imbuída em Trevas', description: 'Cobre a espada de escuridão e a transforma numa lâmina mais longa. Um corte que alcança mais longe que um golpe comum.', actionText: 'Lâmina Negra Imbuída em Trevas', gif: 'trevas_lamina_negra.gif', grimoire: 'trevas', magic: true, element: 'trevas',
     type: 'attack', range: 2, damage: [8, 12], attribute: 'magiaOfensiva', manaCost: 22, // a lâmina longa dá alcance 2, mas é o golpe mais fraco
@@ -279,14 +288,14 @@ const abilities = {
   // Buraco negro: 3 turnos absorvendo 35% do dano de magia que você sofre; libera o Impulso da Morte
   lua_negra: {
     id: 'lua_negra', name: 'Lua Negra', description: 'Assume o controle da mana ao redor e cria um Buraco Negro que apaga a magia inimiga. Por alguns turnos, absorve parte do dano mágico que você recebe e libera o Impulso da Morte.', actionText: 'Lua Negra', gif: 'trevas_lua_negra.gif', grimoire: 'trevas', magic: true,
-    type: 'bonus', manaCost: 40, cooldown: 4, applies: [{ effect: 'lua_negra', turns: 3 }],
+    type: 'bonus', manaCost: 40, cooldown: 4, active: { emoji: '🌑', turns: 3, mods: { magicResist: 0.35 } },
     minLevel: 22, after: 'lamina_negra_sem_fio',
   },
   // Explosão focada no braço: só com a Lua Negra ativa (que é gasta no golpe). Corpo a corpo, enorme e ignora Bloqueio
   impulso_da_morte: {
     id: 'impulso_da_morte', name: 'Impulso da Morte', description: 'Condensa a Lua Negra no braço e empurra a espada contra o alvo numa explosão focada. Golpe corpo a corpo enorme que ignora o Bloqueio; exige a Lua Negra ativa e a consome.', actionText: 'Impulso da Morte', gif: 'trevas_impulso_da_morte.gif', grimoire: 'trevas', magic: true, element: 'trevas',
     type: 'attack', range: 1, damage: [24, 32], attribute: 'magiaOfensiva', manaCost: 50, cooldown: 2, ignoreBlock: true, applies: [{ effect: 'escuridao', turns: 2 }],
-    requiresEffect: 'lua_negra', consumesEffect: 'lua_negra',
+    requiresActive: 'lua_negra', consumesActive: 'lua_negra',
     minLevel: 32, after: 'lua_negra',
   },
 
@@ -295,17 +304,17 @@ const abilities = {
   // mana de todos ao redor e prende, a Yggdrasil cura o time e o freixo de Torineko bloqueia feitiços. Escala da raridade (1,7x).
   // Árvore: Semente -> { Proteção de Torineko }, { Florescer da Yggdrasil }, { Descida da Árvore Mágica },
   //         { Formação Dracaena -> Grande Árvore Mistilteinn }.
-  // Enraizado impede de se mover (ainda pode atacar e reagir).
+  // As raízes deixam o alvo Preso: não se move (ainda pode atacar e reagir).
   // Semente atirada de perto: fura as defesas (ignora o Bloqueio), vira uma árvore que engole o alvo e suga a mana dele
   semente_de_mistilteinn: {
     id: 'semente_de_mistilteinn', name: 'Semente de Mistilteinn', description: 'Atira da mão uma semente mágica que fura as defesas do inimigo e, segundos depois, vira uma árvore que o engole e suga a mana dele para a Grande Árvore Mistilteinn. Curto alcance: ignora o Bloqueio, enraíza o alvo e rouba a mana dele.', actionText: 'Semente de Mistilteinn', gif: 'arvore_semente_de_mistilteinn.gif', grimoire: 'arvore_do_mundo', magic: true, element: 'planta',
     type: 'attack', range: 2, damage: [8, 12], attribute: 'magiaOfensiva', manaCost: 26, cooldown: 3, ignoreBlock: true, drainMana: 15,
-    applies: [{ effect: 'enraizado', turns: 2 }],
+    applies: [{ effect: 'preso', turns: 2 }],
     minLevel: 8, // raiz da árvore
     // Rank II: mais dano e suga mais. Rank III: a árvore prende por mais tempo.
     ranks: [
       { minLevel: 18, damage: [11, 16], drainMana: 25 },
-      { minLevel: 30, damage: [14, 20], drainMana: 35, applies: [{ effect: 'enraizado', turns: 3 }] },
+      { minLevel: 30, damage: [14, 20], drainMana: 35, applies: [{ effect: 'preso', turns: 3 }] },
     ],
   },
   // Freixo gigante: os galhos contornam e bloqueiam o feitiço (só contra magia, absorve muito)
@@ -362,24 +371,24 @@ const abilities = {
   formacao_dracaena: {
     id: 'formacao_dracaena', name: 'Formação Dracaena', description: 'Toca a mão no chão e invoca várias raízes grandes que envolvem o alvo, apertando e torcendo até ele quebrar. Curto alcance: dano alto e o alvo fica enraizado.', actionText: 'Formação Dracaena', gif: 'arvore_formacao_dracaena.gif', grimoire: 'arvore_do_mundo', magic: true, element: 'planta',
     type: 'attack', range: 2, damage: [17, 24], attribute: 'magiaOfensiva', manaCost: 44, cooldown: 3,
-    applies: [{ effect: 'enraizado', turns: 1 }],
+    applies: [{ effect: 'preso', turns: 1 }],
     minLevel: 22, after: 'semente_de_mistilteinn',
     // Rank II: aperta mais forte e prende por mais tempo
     ranks: [
-      { minLevel: 36, damage: [22, 30], applies: [{ effect: 'enraizado', turns: 2 }] },
+      { minLevel: 36, damage: [22, 30], applies: [{ effect: 'preso', turns: 2 }] },
     ],
   },
   // Raízes numa área ampla absorvem a mana de todos os inimigos dentro dela; com essa mana nasce a Grande Árvore, que os prende
   grande_arvore_mistilteinn: {
     id: 'grande_arvore_mistilteinn', name: 'Grande Árvore Mistilteinn', description: 'Espalha raízes por uma área ampla que absorvem a mana de todos dentro dela; com essa mana, cria uma árvore enorme, capaz de engolir uma cidade, que captura os inimigos. Longo alcance: rouba mana e enraíza todos os inimigos ao seu redor.', actionText: 'Grande Árvore Mistilteinn', gif: 'arvore_grande_arvore_mistilteinn.gif', grimoire: 'arvore_do_mundo', magic: true,
     type: 'bonus', usesAttack: true, manaCost: 50, cooldown: 5, area: { radius: 5 }, drainArea: 20,
-    applies: [{ effect: 'enraizado', turns: 2, to: 'enemy' }],
+    applies: [{ effect: 'preso', turns: 2, to: 'enemy' }],
     minLevel: 30, after: 'formacao_dracaena',
     // Rank II: as raízes sugam mais e prendem por mais tempo
     ranks: [
-      { minLevel: 42, drainArea: 30, applies: [{ effect: 'enraizado', turns: 3, to: 'enemy' }] },
+      { minLevel: 42, drainArea: 30, applies: [{ effect: 'preso', turns: 3, to: 'enemy' }] },
     ],
-    // A drenagem acontece aqui; o Enraizado de cada inimigo da área vem do `applies`
+    // A drenagem acontece aqui; o Preso de cada inimigo da área vem do `applies`
     use(battle, user) {
       const lines = [`🌳 As raízes de ${user.name} tomaram o campo e absorveram a mana ao redor: nasceu a **Grande Árvore Mistilteinn**.`];
       let total = 0;
@@ -397,29 +406,30 @@ const abilities = {
   },
 
   // ---- Grimório dos Sonhos (LENDÁRIO) ----
-  // Controle pelo sono: o Mundo do Glamour prende os inimigos num sonho onde ficam mais sonolentos a cada turno
-  // (Sonolento x3 = dormindo, sem agir). As outras magias só funcionam com o Mundo aberto e acontecem DENTRO do sonho:
-  // `keepsAsleep` faz elas não acordarem quem está dormindo, e o elemento `sonho` causa +25% em quem está Preso no Sonho.
+  // Controle pelo sono: o Mundo do Glamour puxa os inimigos para um sonho, onde ficam Sonolentos e Vulneráveis às magias
+  // dos Sonhos (Sonolento x3 = dormindo, sem agir). As outras magias só funcionam com o Mundo ativo e acontecem DENTRO do sonho:
+  // `keepsAsleep` faz elas não acordarem quem está dormindo, e o elemento `sonho` causa +25% em quem está Vulnerável a ele.
   // Qualquer outro golpe acorda o alvo. Escala de atributo da raridade (1,7x). Todas têm ranks: a árvore tem só 4 magias.
   // Árvore: Mundo do Glamour -> { Materialização dos Sonhos -> Manipulação do Mundo dos Sonhos }, { Névoa do Sono -> Fitas do Sono Profundo },
   //         { Materialização de Defesa -> Anéis da Vigília }.
-  // Névoa escura em área: prende os inimigos próximos no mundo dos sonhos e abre o Mundo do Glamour para quem usou
+  // Névoa escura em área: puxa os inimigos próximos para o mundo dos sonhos e deixa o Mundo do Glamour ativo em quem usou
   mundo_do_glamour: {
-    id: 'mundo_do_glamour', name: 'Mundo do Glamour', description: 'Libera uma névoa escura que puxa os inimigos próximos para um mundo de sonhos, onde ficam mais sonolentos a cada turno até adormecerem. Abre o Mundo do Glamour, que libera as outras magias dos Sonhos.', actionText: 'Mundo do Glamour', gif: 'sonhos_mundo_do_glamour.gif', grimoire: 'sonhos', magic: true,
+    id: 'mundo_do_glamour', name: 'Mundo do Glamour', description: 'Libera uma névoa escura que puxa os inimigos próximos para um mundo de sonhos, onde ficam Sonolentos e Vulneráveis às magias dos Sonhos. Enquanto o Mundo do Glamour estiver ativo, as outras magias dos Sonhos ficam liberadas.', actionText: 'Mundo do Glamour', gif: 'sonhos_mundo_do_glamour.gif', grimoire: 'sonhos', magic: true,
     type: 'bonus', usesAttack: true, manaCost: 45, cooldown: 5, area: { radius: 4 },
-    applies: [{ effect: 'preso_no_sonho', turns: 4, to: 'enemy' }, { effect: 'mundo_do_glamour', turns: 4, to: 'self' }],
+    applies: [{ effect: 'vulneravel', turns: 4, elements: { sonho: 1.25 }, to: 'enemy' }, { effect: 'sonolento', turns: 2, to: 'enemy' }],
+    active: { emoji: '🌙', turns: 4 },
     minLevel: 8, // raiz da árvore dos Sonhos
-    // Rank II: a névoa puxa de mais longe. Rank III: o sonho dura mais (o inimigo dorme e o Mundo fica aberto por mais tempo).
+    // Rank II: a névoa puxa de mais longe. Rank III: o sonho dura mais (o inimigo fica vulnerável e o Mundo fica ativo por mais tempo).
     ranks: [
       { minLevel: 20, area: { radius: 5 } },
-      { minLevel: 34, applies: [{ effect: 'preso_no_sonho', turns: 5, to: 'enemy' }, { effect: 'mundo_do_glamour', turns: 5, to: 'self' }] },
+      { minLevel: 34, applies: [{ effect: 'vulneravel', turns: 5, elements: { sonho: 1.25 }, to: 'enemy' }, { effect: 'sonolento', turns: 2, to: 'enemy' }], active: { emoji: '🌙', turns: 5 } },
     ],
   },
   // A imaginação ganha forma dentro do sonho e ataca o alvo (não o acorda)
   materializacao_dos_sonhos: {
     id: 'materializacao_dos_sonhos', name: 'Materialização dos Sonhos', description: 'Dentro do Mundo do Glamour, a imaginação ganha forma física em objetos, estruturas e criaturas que atacam o alvo. Só funciona com o Mundo do Glamour aberto e não acorda quem está dormindo.', actionText: 'Materialização dos Sonhos', gif: 'sonhos_materializacao_dos_sonhos.gif', grimoire: 'sonhos', magic: true, element: 'sonho',
     type: 'attack', range: 4, damage: [10, 15], attribute: 'magiaOfensiva', manaCost: 34, dodgePenalty: 0.15, keepsAsleep: true,
-    requiresEffect: 'mundo_do_glamour',
+    requiresActive: 'mundo_do_glamour',
     minLevel: 12, after: 'mundo_do_glamour',
     // Rank II: mais dano. Rank III: as criaturas também atacam quem está colado no alvo.
     ranks: [
@@ -432,7 +442,7 @@ const abilities = {
     id: 'nevoa_do_sono', name: 'Névoa do Sono', description: 'Manipula o mundo dos sonhos para encher o alvo de uma sonolência crescente. Causa pouco dano, mas deixa o alvo muito Sonolento, e com 3 acúmulos ele adormece.', actionText: 'Névoa do Sono', gif: 'sonhos_nevoa_do_sono.gif', grimoire: 'sonhos', magic: true, element: 'sonho',
     type: 'attack', range: 4, damage: [5, 8], attribute: 'magiaOfensiva', attributeScale: 0.85, manaCost: 36, cooldown: 2, keepsAsleep: true, // metade da escala lendária: o forte dela é o sono, não o dano
     applies: [{ effect: 'sonolento', turns: 2, stacks: 2 }],
-    requiresEffect: 'mundo_do_glamour',
+    requiresActive: 'mundo_do_glamour',
     minLevel: 16, after: 'mundo_do_glamour',
     // Rank II: o alvo adormece num golpe só (3 acúmulos), mas a recarga sobe
     ranks: [
@@ -443,32 +453,32 @@ const abilities = {
   manipulacao_do_mundo_dos_sonhos: {
     id: 'manipulacao_do_mundo_dos_sonhos', name: 'Manipulação do Mundo dos Sonhos', description: 'Com um gesto, o cenário do sonho muda por completo: montanhas e construções surgem e desaparecem. Leva você até outro ponto do mapa e ergue o Cenário Onírico, que reduz o dano recebido.', actionText: 'Manipulação do Mundo dos Sonhos', gif: 'sonhos_manipulacao_do_mundo_dos_sonhos.gif', grimoire: 'sonhos', magic: true,
     type: 'bonus', manaCost: 40, cooldown: 4, teleport: 'self', destRange: 6,
-    applies: [{ effect: 'cenario_onirico', turns: 2, to: 'self' }],
+    active: { id: 'cenario_onirico', name: 'Cenário Onírico', emoji: '🏔️', turns: 2, mods: { damageResist: 0.25 } },
     teleportText: me => `🏔️ O cenário do sonho se moveu e levou ${me.name} para outro ponto do mapa.`,
-    requiresEffect: 'mundo_do_glamour',
+    requiresActive: 'mundo_do_glamour',
     minLevel: 22, after: 'materializacao_dos_sonhos',
     // Rank II: leva mais longe e o Cenário Onírico protege por mais um turno
     ranks: [
-      { minLevel: 34, destRange: 8, applies: [{ effect: 'cenario_onirico', turns: 3, to: 'self' }] },
+      { minLevel: 34, destRange: 8, active: { id: 'cenario_onirico', name: 'Cenário Onírico', emoji: '🏔️', turns: 3, mods: { damageResist: 0.25 } } },
     ],
   },
-  // Fitas roxas prendem o alvo no sonho: sem se mover, mais sono a cada turno, e se dormir amarrado não acorda com golpes
+  // Fitas roxas prendem o alvo no sonho: imobilizado, com sono, e enquanto as fitas o prendem nenhum golpe o acorda
   fitas_do_sono_profundo: {
-    id: 'fitas_do_sono_profundo', name: 'Fitas do Sono Profundo', description: 'Fitas roxas surgem e prendem o alvo no mundo dos sonhos, onde quem controla tudo é você: quanto mais ele luta, mais elas apertam e mais sono ele sente. O alvo fica preso, ganha Sonolento a cada turno e, se dormir amarrado, nenhum golpe o acorda.', actionText: 'Fitas do Sono Profundo', gif: 'sonhos_fitas_do_sono_profundo.gif', grimoire: 'sonhos', magic: true, element: 'sonho',
+    id: 'fitas_do_sono_profundo', name: 'Fitas do Sono Profundo', description: 'Fitas roxas surgem e prendem o alvo no mundo dos sonhos, onde quem controla tudo é você: quanto mais ele luta, mais elas apertam e mais sono ele sente. O alvo fica Imobilizado e Sonolento e, enquanto as fitas o prendem, nenhum golpe o acorda.', actionText: 'Fitas do Sono Profundo', gif: 'sonhos_fitas_do_sono_profundo.gif', grimoire: 'sonhos', magic: true, element: 'sonho',
     type: 'attack', range: 3, damage: [8, 12], attribute: 'magiaOfensiva', manaCost: 42, cooldown: 3, keepsAsleep: true,
-    applies: [{ effect: 'fitas_do_sono', turns: 2 }],
-    requiresEffect: 'mundo_do_glamour',
+    applies: [{ effect: 'imobilizado', turns: 2, holdsSleep: true }, { effect: 'sonolento', turns: 2, stacks: 2 }],
+    requiresActive: 'mundo_do_glamour',
     minLevel: 26, after: 'nevoa_do_sono',
     // Rank II: mais dano e as fitas seguram por mais um turno
     ranks: [
-      { minLevel: 38, damage: [11, 16], applies: [{ effect: 'fitas_do_sono', turns: 3 }] },
+      { minLevel: 38, damage: [11, 16], applies: [{ effect: 'imobilizado', turns: 3, holdsSleep: true }, { effect: 'sonolento', turns: 3, stacks: 2 }] },
     ],
   },
   // Materializa objetos ou magias sob medida para segurar o golpe: absorve mais contra magia
   materializacao_de_defesa: {
     id: 'materializacao_de_defesa', name: 'Materialização de Defesa', description: 'Materializa qualquer objeto, ou até outras magias, para se proteger de ataques de diferentes tipos de magia. Reação de defesa que absorve dano, e absorve ainda mais contra magias. Só funciona com o Mundo do Glamour aberto.', actionText: 'Materialização de Defesa', gif: 'sonhos_materializacao_de_defesa.gif', grimoire: 'sonhos', magic: true,
     type: 'reaction', kind: 'block', absorb: [5, 8], attribute: 'magiaDefensiva', magicBonus: 1.4, manaCost: 28, emoji: '🧸',
-    requiresEffect: 'mundo_do_glamour',
+    requiresActive: 'mundo_do_glamour',
     minLevel: 14, after: 'mundo_do_glamour',
     // Rank II: segura mais
     ranks: [
@@ -478,12 +488,12 @@ const abilities = {
   // Esfera rosa com anéis de letras de sonho: por alguns turnos segura os ataques que vêm de fora
   aneis_da_vigilia: {
     id: 'aneis_da_vigilia', name: 'Anéis da Vigília', description: 'Materializa ao redor de si uma esfera de luz rosa cercada por anéis com letras de sonho que giram sem parar, e tudo o que você imagina como proteção ganha forma. Ação bônus que reduz bastante o dano recebido por alguns turnos. Só funciona com o Mundo do Glamour aberto.', actionText: 'Anéis da Vigília', gif: 'sonhos_aneis_da_vigilia.gif', grimoire: 'sonhos', magic: true,
-    type: 'bonus', manaCost: 45, cooldown: 5, applies: [{ effect: 'aneis_da_vigilia', turns: 2, to: 'self' }],
-    requiresEffect: 'mundo_do_glamour',
+    type: 'bonus', manaCost: 45, cooldown: 5, active: { emoji: '💗', turns: 2, mods: { damageResist: 0.35 } },
+    requiresActive: 'mundo_do_glamour',
     minLevel: 28, after: 'materializacao_de_defesa',
     // Rank II: a esfera dura mais um turno
     ranks: [
-      { minLevel: 40, applies: [{ effect: 'aneis_da_vigilia', turns: 3, to: 'self' }] },
+      { minLevel: 40, active: { emoji: '💗', turns: 3, mods: { damageResist: 0.35 } } },
     ],
   },
 
@@ -496,19 +506,19 @@ const abilities = {
   garra_de_urso: {
     id: 'garra_de_urso', name: 'Garra de Urso', description: 'Envolve os braços numa aura alaranjada em forma de garras de urso, aumentando muito a força dos golpes. Ataque corpo a corpo que acende o Instinto Selvagem em você; nos ranks, a aura se estende e lança cortes no ar.', actionText: 'Garra de Urso', gif: 'fera_garra_de_urso.gif', grimoire: 'fera', magic: true,
     type: 'attack', range: 1, damage: [9, 13], attribute: 'magiaOfensiva', manaCost: 20,
-    applies: [{ effect: 'instinto_selvagem', turns: 2, to: 'self' }],
+    active: instintoSelvagem(2),
     minLevel: 6, // raiz da árvore da Fera
     // Rank II: mais dano e a aura alcança 2 casas. Rank III: cortes no ar até 3 casas e o Instinto dura mais.
     ranks: [
       { minLevel: 16, damage: [12, 17], range: 2 },
-      { minLevel: 28, damage: [15, 21], range: 3, applies: [{ effect: 'instinto_selvagem', turns: 3, to: 'self' }] },
+      { minLevel: 28, damage: [15, 21], range: 3, active: instintoSelvagem(3) },
     ],
   },
   // Investida rápida: leva você N casas numa direção (use `direcao` e `casas`) e acende o Instinto Selvagem
   investida_de_guepardo: {
     id: 'investida_de_guepardo', name: 'Investida de Guepardo', description: 'Uma aura de guepardo aumenta sua velocidade e permite investidas extremamente rápidas. Leva você até outro ponto do mapa e acende o Instinto Selvagem.', actionText: 'Investida de Guepardo', gif: 'fera_investida_de_guepardo.gif', grimoire: 'fera', magic: true,
     type: 'bonus', manaCost: 25, cooldown: 3, teleport: 'self', destRange: 4,
-    applies: [{ effect: 'instinto_selvagem', turns: 2, to: 'self' }],
+    active: instintoSelvagem(2),
     teleportText: me => `🐆 ${me.name} disparou numa investida de guepardo até outro ponto do mapa.`,
     minLevel: 10, after: 'garra_de_urso',
     // Rank II: investida mais longa e mais frequente
@@ -531,7 +541,7 @@ const abilities = {
   beast_magic_whale: {
     id: 'beast_magic_whale', name: 'Beast Magic: Whale', description: 'Uma enorme baleia feita de mana avança contra os adversários e os esmaga com seu tamanho e força. O golpe mais forte da Fera: atinge também quem está perto do alvo e acende o Instinto Selvagem.', actionText: 'Beast Magic: Whale', gif: 'fera_beast_magic_whale.gif', grimoire: 'fera', magic: true,
     type: 'attack', range: 4, damage: [16, 23], attribute: 'magiaOfensiva', manaCost: 48, cooldown: 3,
-    splash: { radius: 1, share: 0.5 }, applies: [{ effect: 'instinto_selvagem', turns: 2, to: 'self' }],
+    splash: { radius: 1, share: 0.5 }, active: instintoSelvagem(2),
     minLevel: 20, after: 'investida_de_guepardo',
     // Rank II: baleia maior: mais dano e esmaga numa área maior
     ranks: [
@@ -558,10 +568,10 @@ const abilities = {
       { minLevel: 20, cost: 4, targetRange: 2, copy: { slots: 2, turns: 4, keepRank: false } },
       { minLevel: 36, cost: 6, copy: { slots: 3, turns: 5, keepRank: true } },
     ],
-    // Magias do inimigo que entram na lista: de grimório, aprendidas por ele, que não dependem de outro efeito e que você não tem
+    // Magias do inimigo que entram na lista: de grimório, aprendidas por ele, que não dependem de outra magia ativa e que você não tem
     copyable(user, foe) {
       return foe.abilities.map(id => abilities[id])
-        .filter(a => a?.grimoire && !a.requiresEffect && !a.copy && !user.abilities.includes(a.id));
+        .filter(a => a?.grimoire && !a.requiresActive && !a.copy && !user.abilities.includes(a.id));
     },
     // Por que não dá para copiar essa magia (texto) ou null
     copyBlocker(user, a) {
@@ -594,7 +604,7 @@ const abilities = {
     },
     use(battle, user, foe, { copyId } = {}) {
       const { ability: a } = this.pick(user, foe, copyId);
-      if (!fx.hasEffect(user, 'magia_copiada')) user.copied = {}; // as cópias antigas já tinham se desfeito
+      if (!fx.hasActive(user, 'magia_copiada')) user.copied = {}; // as cópias antigas já tinham se desfeito
       const copies = user.copied ??= {};
       delete copies[a.id];
       copies[a.id] = { rank: this.copyRank(user, foe, a) };
@@ -604,7 +614,7 @@ const abilities = {
         delete copies[oldest];
         dropped = ` A cópia de **${abilities[oldest].name}** se desfez para dar lugar.`;
       }
-      fx.applyEffect(user, 'magia_copiada', { turns: this.copy.turns });
+      fx.setActive(user, { id: 'magia_copiada', name: 'Magia Copiada', emoji: '📋', turns: this.copy.turns });
       const rank = copies[a.id].rank;
       return `📋 ${user.name} tocou o grimório de ${foe.name} e copiou **${a.name}**${rank > 1 ? ` (rank ${rank})` : ''} por ${this.copy.turns} turno(s).${dropped} Use pelo /habilidade.`;
     },
@@ -661,15 +671,15 @@ const abilities = {
   },
 
   // ---- Grimório do Sangue (ÉPICO) ----
-  // Sangue moldado em armas e criaturas. Os golpes de sangue deixam a Marca de Sangue no alvo, e a Marionete só controla
-  // quem está marcado. A Foice rouba vida (`lifesteal`), a Besta protege quem a usa (muita água a dissolve), o Rebanho
+  // Sangue moldado em armas e criaturas. Os golpes de sangue fazem o alvo sangrar, e a Marionete só controla
+  // quem está com Sangramento. A Foice rouba vida (`lifesteal`), a Besta protege quem a usa (muita água a dissolve), o Rebanho
   // invoca feras soltas e o Casulo cura o aliado mais ferido. Escala de atributo da raridade (1,4x).
   // Árvore: Foice -> { Andaime -> Marionete }, { Besta Vermelha -> Rebanho }, { Casulo de Sangue }.
-  // Foice gigante de sangue: corpo a corpo, forte, rouba vida e marca o alvo
+  // Foice gigante de sangue: corpo a corpo, forte, rouba vida e faz o alvo sangrar
   foice_de_sangue_vital: {
-    id: 'foice_de_sangue_vital', name: 'Foice de Sangue Vital', description: 'Molda uma grande quantidade de sangue numa foice gigante empunhada com a mão. Golpe corpo a corpo forte que drena parte do dano em vida e deixa a Marca de Sangue no alvo.', actionText: 'Foice de Sangue Vital', gif: 'sangue_foice_de_sangue_vital.gif', grimoire: 'sangue', magic: true,
+    id: 'foice_de_sangue_vital', name: 'Foice de Sangue Vital', description: 'Molda uma grande quantidade de sangue numa foice gigante empunhada com a mão. Golpe corpo a corpo forte que drena parte do dano em vida e faz o alvo sangrar.', actionText: 'Foice de Sangue Vital', gif: 'sangue_foice_de_sangue_vital.gif', grimoire: 'sangue', magic: true,
     type: 'attack', range: 1, damage: [11, 16], attribute: 'magiaOfensiva', manaCost: 22, lifesteal: 0.25,
-    applies: [{ effect: 'marca_de_sangue', turns: 3 }],
+    applies: [{ effect: 'sangramento', turns: 2, stacks: 1, power: 1 }],
     minLevel: 6, // raiz da árvore do Sangue
     // Rank II: mais dano. Rank III: mais dano e drena mais vida.
     ranks: [
@@ -677,39 +687,39 @@ const abilities = {
       { minLevel: 28, damage: [18, 25], lifesteal: 0.35 },
     ],
   },
-  // Sangue cobre o chão e crucifixos prendem os inimigos ao redor (sem dano): imóveis, sem esquiva e marcados
+  // Sangue cobre o chão e crucifixos prendem os inimigos ao redor (sem dano): imóveis, sem esquiva e sangrando
   andaime_de_sangue_fresco: {
-    id: 'andaime_de_sangue_fresco', name: 'Andaime de Sangue Fresco', description: 'Libera uma grande quantidade de sangue que cobre o chão, e crucifixos surgem prendendo pelos pulsos e pelo estômago quem estiver por perto. Os inimigos ao redor ficam Crucificados (sem se mover nem esquivar) e com a Marca de Sangue.', actionText: 'Andaime de Sangue Fresco', gif: 'sangue_andaime_de_sangue_fresco.gif', grimoire: 'sangue', magic: true,
+    id: 'andaime_de_sangue_fresco', name: 'Andaime de Sangue Fresco', description: 'Libera uma grande quantidade de sangue que cobre o chão, e crucifixos surgem prendendo pelos pulsos e pelo estômago quem estiver por perto. Os inimigos ao redor ficam Imobilizados (sem se mover nem esquivar) e sangrando.', actionText: 'Andaime de Sangue Fresco', gif: 'sangue_andaime_de_sangue_fresco.gif', grimoire: 'sangue', magic: true,
     type: 'bonus', usesAttack: true, manaCost: 45, cooldown: 5, area: { radius: 3 },
-    applies: [{ effect: 'crucificado', turns: 2, to: 'enemy' }, { effect: 'marca_de_sangue', turns: 3, to: 'enemy' }],
+    applies: [{ effect: 'imobilizado', turns: 2, to: 'enemy' }, { effect: 'sangramento', turns: 3, stacks: 1, power: 1, to: 'enemy' }],
     minLevel: 14, after: 'foice_de_sangue_vital',
     // Rank II: o sangue se espalha mais e os crucifixos prendem por mais tempo
     ranks: [
-      { minLevel: 26, area: { radius: 4 }, applies: [{ effect: 'crucificado', turns: 3, to: 'enemy' }, { effect: 'marca_de_sangue', turns: 4, to: 'enemy' }] },
+      { minLevel: 26, area: { radius: 4 }, applies: [{ effect: 'imobilizado', turns: 3, to: 'enemy' }, { effect: 'sangramento', turns: 4, stacks: 1, power: 1, to: 'enemy' }] },
     ],
   },
-  // Controla quem tem a Marca de Sangue pelo próprio sangue: leva o alvo para onde quiser (use `direcao` e `casas`),
-  // ele sente dor a cada turno e não consegue reagir
+  // Controla quem está sangrando pelo próprio sangue: leva o alvo para onde quiser (use `direcao` e `casas`),
+  // ele fica Paralisado e sangra forte
   fluxo_sanguineo_da_marionete: {
-    id: 'fluxo_sanguineo_da_marionete', name: 'Fluxo Sanguíneo da Marionete', description: 'Controla pelo sangue alguém que já foi atingido pela sua magia: o alvo sente dor intensa e seus olhos ficam brancos. Só funciona em quem tem a Marca de Sangue: você o move pelo mapa, e ele sofre dano a cada turno e não consegue reagir.', actionText: 'Fluxo Sanguíneo da Marionete', gif: 'sangue_fluxo_sanguineo_da_marionete.gif', grimoire: 'sangue', magic: true,
+    id: 'fluxo_sanguineo_da_marionete', name: 'Fluxo Sanguíneo da Marionete', description: 'Controla pelo sangue alguém que já foi atingido pela sua magia: o alvo sente dor intensa e seus olhos ficam brancos. Só funciona em quem está com Sangramento: você o move pelo mapa, e ele fica Paralisado (sem se mover nem reagir) e sangra forte.', actionText: 'Fluxo Sanguíneo da Marionete', gif: 'sangue_fluxo_sanguineo_da_marionete.gif', grimoire: 'sangue', magic: true,
     type: 'bonus', usesAttack: true, manaCost: 40, cooldown: 4, targetRange: 5, teleport: 'enemy', destRange: 3,
-    requiresTargetEffect: 'marca_de_sangue',
-    applies: [{ effect: 'marionete', turns: 2, to: 'enemy' }],
+    requiresTargetEffect: 'sangramento',
+    applies: [{ effect: 'paralisado', turns: 2, to: 'enemy' }, { effect: 'sangramento', turns: 2, stacks: 1, power: 3, to: 'enemy' }],
     teleportText: (me, foe) => `🪢 ${me.name} controlou o sangue de ${foe.name} e o arrastou como uma marionete.`,
     minLevel: 18, after: 'andaime_de_sangue_fresco',
     canUse(battle, user, foe) {
-      return fx.hasEffect(foe, 'marca_de_sangue') ? null : `${foe.name} não tem a **Marca de Sangue**: acerte-o antes com uma magia de sangue.`;
+      return fx.hasEffect(foe, 'sangramento') ? null : `${foe.name} não está sangrando: faça-o sangrar antes (por exemplo, com uma magia de sangue).`;
     },
   },
   // Criatura de sangue presa ao usuário: golpe de perto que rasga defesas, e o sangue denso protege quem a usa
   besta_vermelha: {
-    id: 'besta_vermelha', name: 'Besta Vermelha', description: 'Molda o sangue numa grande criatura sem olhos, presa a você por fios de sangue. Suas garras dilaceram defesas (ignora o Bloqueio) e marcam o alvo, e o sangue denso protege você, que recebe menos dano por alguns turnos; muita água a dissolve.', actionText: 'Besta Vermelha', gif: 'sangue_besta_vermelha.gif', grimoire: 'sangue', magic: true,
+    id: 'besta_vermelha', name: 'Besta Vermelha', description: 'Molda o sangue numa grande criatura sem olhos, presa a você por fios de sangue. Suas garras dilaceram defesas (ignora o Bloqueio) e fazem o alvo sangrar, e o sangue denso protege você, que recebe menos dano por alguns turnos; muita água a dissolve.', actionText: 'Besta Vermelha', gif: 'sangue_besta_vermelha.gif', grimoire: 'sangue', magic: true,
     type: 'attack', range: 2, damage: [16, 23], attribute: 'magiaOfensiva', manaCost: 50, cooldown: 3, ignoreBlock: true,
-    applies: [{ effect: 'marca_de_sangue', turns: 3 }, { effect: 'besta_vermelha', turns: 2, to: 'self' }],
+    applies: [{ effect: 'sangramento', turns: 3, stacks: 1, power: 1 }], active: { emoji: '👹', turns: 2, mods: { damageResist: 0.3 }, endsOnElement: 'agua' },
     minLevel: 22, after: 'foice_de_sangue_vital',
     // Rank II: garras mais fortes e a besta protege por mais tempo
     ranks: [
-      { minLevel: 34, damage: [21, 29], applies: [{ effect: 'marca_de_sangue', turns: 3 }, { effect: 'besta_vermelha', turns: 3, to: 'self' }] },
+      { minLevel: 34, damage: [21, 29], active: { emoji: '👹', turns: 3, mods: { damageResist: 0.3 }, endsOnElement: 'agua' } },
     ],
   },
   // Várias feras de sangue menores e soltas: aparecem no mapa e atacam sozinhas no fim do seu turno
@@ -740,7 +750,7 @@ const abilities = {
       const cleared = fx.clearDebuffs(target);
       const lines = [`🩸 ${user.name} envolveu ${target === user ? 'a si mesmo' : target.name} num **Casulo de Sangue**: ❤️ +${healed} de vida.`];
       if (cleared.length) lines.push(`✨ A maldição se quebrou: removeu ${cleared.join(', ')}.`);
-      lines.push(fx.applyEffect(target, 'transfusao', { turns: 2 }));
+      lines.push(fx.setActive(target, { id: 'transfusao', name: 'Transfusão', emoji: '💉', turns: 2, mods: { damageBonus: 4 } }));
       return lines.join(NL);
     },
   },
@@ -798,11 +808,11 @@ const abilities = {
   primavera_da_restricao: {
     id: 'primavera_da_restricao', name: 'Primavera da Restrição', description: 'Manipula a tinta da paleta para prender o alvo num poço em forma de mola. Ele não consegue se mover e fica mais fácil de acertar por alguns turnos.', actionText: 'Primavera da Restrição', gif: 'pintura_primavera_da_restricao.gif', grimoire: 'pintura', magic: true,
     type: 'bonus', usesAttack: true, manaCost: 30, cooldown: 4, targetRange: 4,
-    applies: [{ effect: 'mola_de_tinta', turns: 2, to: 'enemy' }],
+    applies: [{ effect: 'preso', turns: 2, to: 'enemy' }, { effect: 'lentidao', turns: 2, to: 'enemy' }],
     minLevel: 14, after: 'deux_tempetes',
     // Rank II: alcança mais longe e prende por mais tempo
     ranks: [
-      { minLevel: 26, targetRange: 5, applies: [{ effect: 'mola_de_tinta', turns: 3, to: 'enemy' }] },
+      { minLevel: 26, targetRange: 5, applies: [{ effect: 'preso', turns: 3, to: 'enemy' }, { effect: 'lentidao', turns: 3, to: 'enemy' }] },
     ],
   },
   // Gigante pintado meio saído do chão dá um soco de longe: muito forte e pode atordoar
@@ -833,11 +843,11 @@ const abilities = {
   roseiral_cacador: {
     id: 'roseiral_cacador', name: 'Roseiral Caçador de Cadáveres', description: 'Puxa do grimório o cabo de uma espada com vinhas espinhosas no lugar da lâmina. Elas perseguem o alvo mesmo que ele fuja e, ao capturá-lo, se erguem numa árvore de espinhos. Difícil de esquivar, prende o alvo no lugar e o faz sangrar.', actionText: 'Roseiral Caçador de Cadáveres', gif: 'roseira_roseiral_cacador.gif', grimoire: 'roseira', magic: true,
     type: 'attack', range: 4, damage: [12, 17], attribute: 'magiaOfensiva', manaCost: 36, cooldown: 2, dodgePenalty: 0.25,
-    applies: [{ effect: 'enraizado', turns: 1 }, { effect: 'sangramento', turns: 2, stacks: 1, power: 2 }],
+    applies: [{ effect: 'preso', turns: 1 }, { effect: 'sangramento', turns: 2, stacks: 1, power: 2 }],
     minLevel: 12, after: 'lanca_de_fios_escarlate',
     // Rank II: mais dano e prende por mais tempo. Rank III: várias árvores de uma vez (atinge quem está perto do alvo).
     ranks: [
-      { minLevel: 22, damage: [15, 21], applies: [{ effect: 'enraizado', turns: 2 }, { effect: 'sangramento', turns: 2, stacks: 1, power: 2 }] },
+      { minLevel: 22, damage: [15, 21], applies: [{ effect: 'preso', turns: 2 }, { effect: 'sangramento', turns: 2, stacks: 1, power: 2 }] },
       { minLevel: 34, damage: [18, 25], splash: { radius: 2, share: 0.5 } },
     ],
   },
@@ -846,7 +856,7 @@ const abilities = {
     id: 'paraiso_de_rosa_azul', name: 'Paraíso de Rosa Azul', description: 'Cria dois círculos mágicos no chão que geram roseiras azuis, cobrindo tudo ao redor e capturando os inimigos que tocam as vinhas. Contra alvos amaldiçoados (com algum efeito negativo), as vinhas ficam mais fortes e absorvem o poder da maldição.', actionText: 'Paraíso de Rosa Azul', gif: 'roseira_paraiso_de_rosa_azul.gif', grimoire: 'roseira', magic: true,
     type: 'bonus', usesAttack: true, manaCost: 50, cooldown: 4, area: { radius: 3 }, damage: [10, 14], attribute: 'magiaOfensiva',
     cursedBonus: 1.5, cursedDrain: 8,
-    applies: [{ effect: 'enraizado', turns: 2, to: 'enemy' }],
+    applies: [{ effect: 'preso', turns: 2, to: 'enemy' }],
     minLevel: 24, after: 'roseiral_cacador',
     // Rank II: o jardim cobre mais chão e as vinhas batem mais forte
     ranks: [
@@ -857,7 +867,7 @@ const abilities = {
     use(battle, user) {
       const lines = [`🌹 ${user.name} abriu o **Paraíso de Rosa Azul**: roseiras azuis cobrem o chão ao redor.`];
       for (const foe of foesInArea(battle, user, this.area.radius)) {
-        const cursed = Object.keys(foe.effects ?? {}).some(id => fx.getEffect(id)?.kind === 'debuff');
+        const cursed = Object.keys(foe.effects ?? {}).length > 0; // todo efeito é negativo
         const dmg = hitWithMagic(this, user, foe, cursed ? this.cursedBonus : 1);
         lines.push(`🥀 As vinhas atingiram ${foe.name} (**${dmg}** de dano).`);
         if (cursed) {
@@ -874,14 +884,14 @@ const abilities = {
   },
   // Barreira de roseiras: absorve o golpe, os espinhos ferem quem atacou e o perfume atrapalha os sentidos dele
   barreira_de_espinhos: {
-    id: 'barreira_de_espinhos', name: 'Barreira de Espinhos e Rosas', description: 'Ergue uma barreira de roseiras que protege você e fere com espinhos quem a toca. As rosas soltam um perfume que inibe os sentidos do atacante. Reação que absorve parte do golpe, devolve dano de espinhos e deixa o atacante com Perfume de Rosas.', actionText: 'Barreira de Espinhos e Rosas', gif: 'roseira_barreira_de_espinhos.gif', grimoire: 'roseira',
+    id: 'barreira_de_espinhos', name: 'Barreira de Espinhos e Rosas', description: 'Ergue uma barreira de roseiras que protege você e fere com espinhos quem a toca. As rosas soltam um perfume que inibe os sentidos do atacante. Reação que absorve parte do golpe, devolve dano de espinhos e deixa o atacante com Cegueira (erra mais golpes).', actionText: 'Barreira de Espinhos e Rosas', gif: 'roseira_barreira_de_espinhos.gif', grimoire: 'roseira',
     type: 'reaction', kind: 'block', absorb: [4, 7], attribute: 'magiaDefensiva', manaCost: 26, emoji: '🌹',
     thorns: [3, 5],
-    applies: [{ effect: 'perfume_de_rosas', turns: 2 }],
+    applies: [{ effect: 'cegueira', turns: 2, power: 0.2 }],
     minLevel: 10, after: 'lanca_de_fios_escarlate',
     // Rank II: barreira mais grossa, espinhos maiores e as vinhas podem atar o atacante
     ranks: [
-      { minLevel: 24, absorb: [7, 11], thorns: [5, 8], applies: [{ effect: 'perfume_de_rosas', turns: 2 }, { effect: 'enraizado', turns: 1, chance: 0.35 }] },
+      { minLevel: 24, absorb: [7, 11], thorns: [5, 8], applies: [{ effect: 'cegueira', turns: 2, power: 0.2 }, { effect: 'preso', turns: 1, chance: 0.35 }] },
     ],
   },
 
@@ -964,7 +974,7 @@ const abilities = {
   // Avatar gigante de luz: por alguns turnos você bate mais forte e sofre menos dano (lento: recarga longa)
   monarca_absoluto: {
     id: 'monarca_absoluto', name: 'Monarca Absoluto do Brilho Sagrado', description: 'Emite luz do corpo e projeta uma imagem gigante de si mesmo. Por alguns turnos você causa mais dano e sofre menos; é lento para a Magia de Luz, então demora a recarregar.', actionText: 'Monarca Absoluto do Brilho Sagrado', gif: 'luz_monarca_absoluto.gif', grimoire: 'luz', magic: true,
-    type: 'bonus', manaCost: 60, cooldown: 6, applies: [{ effect: 'monarca_absoluto', turns: 3 }],
+    type: 'bonus', manaCost: 60, cooldown: 6, active: { name: 'Monarca Absoluto', emoji: '👑', turns: 3, mods: { damageBonus: 6, damageResist: 0.2 } },
     minLevel: 26, after: 'particulas_de_cura_de_luz',
   },
   // Coluna de luz enorme: alcance muito amplo, impossível de esquivar e a Escuridão não consegue absorvê-la
@@ -1040,7 +1050,7 @@ const abilities = {
   estrela_de_prata: {
     id: 'estrela_de_prata', name: 'Estrela de Prata da Execução', description: 'Espalha fios e gotas de mercúrio pela área e os reúne numa gaiola gigante ao redor do alvo. As barras disparam Lanças de Prata nele e bloqueiam fugas e contra-ataques: causa dano e deixa o alvo sem se mover e sem reagir.', actionText: 'Estrela de Prata da Execução', gif: 'mercurio_estrela_de_prata.gif', grimoire: 'mercurio', magic: true,
     type: 'bonus', usesAttack: true, manaCost: 55, cooldown: 5, targetRange: 4, damage: [10, 14], attribute: 'magiaOfensiva',
-    applies: [{ effect: 'gaiola_de_prata', turns: 2, to: 'enemy' }],
+    applies: [{ effect: 'paralisado', turns: 2, to: 'enemy' }],
     minLevel: 28, after: 'escudo_de_mercurio',
     use(battle, user, foe) {
       return [`⭐ ${user.name} prendeu ${foe.name} na **Estrela de Prata da Execução**: as barras dispararam lanças de prata (**${hitWithMagic(this, user, foe)}** de dano).`, ...fx.onHit(foe)].join(NL);
@@ -1055,11 +1065,11 @@ const abilities = {
   lacos_de_ovelha: {
     id: 'lacos_de_ovelha', name: 'Laços de Ovelha', description: 'Cria várias cordas de algodão que envolvem o alvo e se prendem ao ambiente ao redor, deixando-o suspenso no ar. Causa pouco dano, mas o alvo fica sem se mover e sem esquivar.', actionText: 'Laços de Ovelha', gif: 'algodao_lacos_de_ovelha.gif', grimoire: 'algodao', magic: true,
     type: 'attack', range: 3, damage: [6, 10], attribute: 'magiaOfensiva', manaCost: 22, cooldown: 2,
-    applies: [{ effect: 'lacos_de_ovelha', turns: 1 }],
+    applies: [{ effect: 'imobilizado', turns: 1 }],
     minLevel: 4, // raiz da árvore do Algodão
     // Rank II: mais cordas, mais dano e o alvo fica preso por mais um turno
     ranks: [
-      { minLevel: 16, damage: [9, 13], applies: [{ effect: 'lacos_de_ovelha', turns: 2 }] },
+      { minLevel: 16, damage: [9, 13], applies: [{ effect: 'imobilizado', turns: 2 }] },
     ],
   },
   // Um carneiro grande de algodão segura o golpe na barriga e lança de volta em alta velocidade
@@ -1205,7 +1215,7 @@ const abilities = {
     id: 'duplicata_real', name: 'Duplicata Real', description: 'Manifesta um espelho e invoca dele o seu reflexo, com tudo invertido. O clone usa as mesmas magias que você: aparece no mapa e luta sozinho até ser destruído, e enquanto ele existir seus golpes ficam mais fortes e o Refrão de Reflexão Dupla fica liberado.', actionText: 'Duplicata Real', gif: 'espelho_duplicata_real.gif', grimoire: 'espelho', magic: true,
     type: 'bonus', manaCost: 45, cooldown: 5, attribute: 'magiaOfensiva',
     summon: {
-      count: 1, hp: 30, damage: [5, 8], share: 0.4, label: 'Reflexo', look: 'espelho', emoji: '🪞', linkedEffect: 'duplicata_real',
+      count: 1, hp: 30, damage: [5, 8], share: 0.4, label: 'Reflexo', look: 'espelho', emoji: '🪞', linkedActive: { id: 'duplicata_real', name: 'Duplicata Real', emoji: '🪞', mods: { damageBonus: 4 } },
       text: (owner, n, hp) => (n
         ? `🪞 O reflexo de ${owner.name} saiu do espelho, com ${hp} de vida. Ele luta sozinho até ser destruído.`
         : `🪞 Não havia espaço livre para o reflexo de ${owner.name} sair do espelho.`),
@@ -1214,7 +1224,7 @@ const abilities = {
     // Rank II: o reflexo bate mais forte e aguenta mais
     ranks: [
       { minLevel: 34, summon: {
-        count: 1, hp: 45, damage: [7, 11], share: 0.4, label: 'Reflexo', look: 'espelho', emoji: '🪞', linkedEffect: 'duplicata_real',
+        count: 1, hp: 45, damage: [7, 11], share: 0.4, label: 'Reflexo', look: 'espelho', emoji: '🪞', linkedActive: { id: 'duplicata_real', name: 'Duplicata Real', emoji: '🪞', mods: { damageBonus: 4 } },
         text: (owner, n, hp) => (n
           ? `🪞 O reflexo de ${owner.name} saiu do espelho, com ${hp} de vida. Ele luta sozinho até ser destruído.`
           : `🪞 Não havia espaço livre para o reflexo de ${owner.name} sair do espelho.`),
@@ -1239,7 +1249,7 @@ const abilities = {
   refrao_de_reflexao_dupla: {
     id: 'refrao_de_reflexao_dupla', name: 'Refrão de Reflexão Dupla', description: 'Com a Duplicata Real ativa, você e o reflexo manifestam o dobro de espelhos do Refrão de Reflexão, e a luz refletida destrói tudo o que estiver entre eles. Médio alcance, dano muito alto, e acerta também quem está perto do alvo.', actionText: 'Refrão de Reflexão Dupla', gif: 'espelho_refrao_de_reflexao_dupla.gif', grimoire: 'espelho', magic: true,
     type: 'attack', range: 3, damage: [20, 28], attribute: 'magiaOfensiva', manaCost: 52, cooldown: 3, splash: { radius: 1, share: 0.6 },
-    requiresEffect: 'duplicata_real',
+    requiresActive: 'duplicata_real',
     minLevel: 34, after: 'duplicata_real',
   },
 };
