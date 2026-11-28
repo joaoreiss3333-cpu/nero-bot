@@ -83,7 +83,7 @@ const instintoSelvagem = turns => ({
 const abilities = {
   soco: { id: 'soco', name: 'Soco', description: 'Um golpe físico simples, corpo a corpo. Gasta energia, não mana.', actionText: 'um Soco', gif: 'soco.gif', type: 'attack', range: 1, damage: [2, 4], attribute: 'forca', energyCost: 10 },
 
-  esquiva: { id: 'esquiva', name: 'Esquiva', description: 'Reação: tenta sair do caminho e evitar todo o dano do ataque. A Destreza aumenta a chance.', type: 'reaction', kind: 'dodge', chance: 0.5, energyCost: 15, emoji: '💨' }, // 50% (+ Destreza) de evitar todo o dano
+  esquiva: { id: 'esquiva', name: 'Esquiva', description: 'Reação: tenta sair do caminho e evitar todo o dano do ataque. A Destreza aumenta a chance. Só dá para usar uma vez por rodada.', type: 'reaction', kind: 'dodge', chance: 0.5, energyCost: 15, cooldown: 1, emoji: '💨' }, // 50% (+ Destreza) de evitar todo o dano
   bloqueio: { id: 'bloqueio', name: 'Bloqueio', description: 'Reação: segura o golpe e absorve parte do dano. A Resistência aumenta o quanto você absorve.', type: 'reaction', kind: 'block', absorb: [1, 2], attribute: 'resistencia', energyCost: 10, emoji: '🛡️' }, // absorve um valor sorteado (1-2) + Resistência × 0,5
 
   // ---- Grimório do Tempo ----
@@ -104,7 +104,7 @@ const abilities = {
   // do Salto Fotônico da Luz (65%/75%)
   deslocamento_atemporal: {
     id: 'deslocamento_atemporal', name: 'Deslocamento Atemporal', description: 'Desloca-se rapidamente diante de ataques de alta velocidade. Reação de esquiva que não perde chance contra golpes rápidos ou difíceis de esquivar.', actionText: 'Deslocamento Atemporal', gif: 'tempo_deslocamento_atemporal.gif', grimoire: 'tempo', magic: true,
-    type: 'reaction', kind: 'dodge', chance: 0.68, ignoresSpeed: true, manaCost: 18, emoji: '⏱️',
+    type: 'reaction', kind: 'dodge', chance: 0.68, ignoresSpeed: true, manaCost: 18, cooldown: 2, emoji: '⏱️',
     minLevel: 3, after: 'esferas_do_tempo',
     // Rank II: esquiva mais fácil
     ranks: [
@@ -929,7 +929,7 @@ const abilities = {
   // Vira luz e se teletransporta: esquiva com chance alta e, se der certo, reaparece longe do atacante (`blink` casas)
   salto_fotonico: {
     id: 'salto_fotonico', name: 'Salto Fotônico', description: 'Vira luz pura por um instante e se teletransporta na velocidade da luz: o ataque acerta só o rastro de brilho deixado para trás. Reação de esquiva com chance alta; se der certo, você reaparece até 3 casas longe do atacante.', actionText: 'Salto Fotônico', gif: 'luz_salto_fotonico.gif', grimoire: 'luz', magic: true,
-    type: 'reaction', kind: 'dodge', chance: 0.65, blink: 3, manaCost: 28, emoji: '✨',
+    type: 'reaction', kind: 'dodge', chance: 0.65, blink: 3, manaCost: 28, cooldown: 2, emoji: '✨',
     minLevel: 12, after: 'espada_de_luz_do_julgamento',
     // Rank II: esquiva ainda mais fácil e mais barata
     ranks: [
@@ -1239,7 +1239,7 @@ const abilities = {
   // Esquiva por espelho: some na frente do golpe e reaparece colado no atacante
   mudanca_de_espelhos: {
     id: 'mudanca_de_espelhos', name: 'Mudança de Espelhos', description: 'Invoca um espelho num ponto que quiser e aparece na hora em frente a ele, esquivando o ataque ou ganhando uma posição melhor. Reação de esquiva; se der certo, você reaparece colado em quem atacou.', actionText: 'Mudança de Espelhos', gif: 'espelho_mudanca_de_espelhos.gif', grimoire: 'espelho', magic: true,
-    type: 'reaction', kind: 'dodge', chance: 0.55, blink: 5, blinkTo: 'attacker', manaCost: 24, emoji: '🪞',
+    type: 'reaction', kind: 'dodge', chance: 0.55, blink: 5, blinkTo: 'attacker', manaCost: 24, cooldown: 2, emoji: '🪞',
     blinkText: (me, foe) => `🪞 ${me.name} sumiu num espelho e reapareceu bem ao lado de ${foe.name}.`,
     minLevel: 16, after: 'magia_de_espelhos',
     // Rank II: esquiva mais fácil

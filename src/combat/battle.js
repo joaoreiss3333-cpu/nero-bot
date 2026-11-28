@@ -55,6 +55,14 @@ const rand = ([min, max]) => min + Math.floor(Math.random() * (max - min + 1));
 const attackDamage = (attacker, attack) =>
   Math.round((rand(attack.damage) + attributeBonus(attacker, attack)) * cloverMult(attacker, attack));
 
+// Destreza na esquiva: rende cada vez menos (bônus máximo × D / (D + metade)), nunca passa do máximo
+const dexterityDodge = p => {
+  const d = p.attrs?.destreza ?? 0;
+  return C.DEXTERITY_DODGE_MAX * d / (d + C.DEXTERITY_DODGE_HALF);
+};
+// Resistência: corta uma porcentagem de qualquer golpe recebido
+const bodyResist = p => (p.attrs?.resistencia ?? 0) * C.RESIST_PER_POINT;
+
 // Maior velocidade começa; se empatar, sorteia entre os mais rápidos
 function whoStarts(players) {
   const top = Math.max(...players.map(p => p.speed));
@@ -174,6 +182,7 @@ function reactionBlock(player, reaction, attack) {
   if (mods.noReact) return 'não consegue reagir';
   if (reaction.onlyVsMagic && attack && !attack.magic) return 'só pode usar isso contra magia';
   if (mods.noDodge && reaction.kind === 'dodge') return 'não consegue esquivar';
+  if (player.cooldowns?.[reaction.id] > 0) return 'está com essa reação em recarga';
   if (reaction.requiresActive && !fx.hasActive(player, reaction.requiresActive)) return `precisa de ${getAbility(reaction.requiresActive)?.name ?? 'outra magia'} ativo`; // ex: defesas dos Sonhos só dentro do Mundo do Glamour
   if (!canAfford(player, reaction)) return 'sem recurso';
   return null;
@@ -428,12 +437,13 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
   const dm = fx.getMods(defender);
   // `piercesDarkness` (Raio do Castigo Divino): a Escuridão não absorve o golpe (ignora a Lua Negra e as defesas das Trevas)
   const darkFails = attack.piercesDarkness && dm.magicResist > 0;
-  const resist = Math.min(0.9, dm.damageResist + (attack.magic && !attack.piercesDarkness ? dm.magicResist : 0)); // Lua Negra (só magia) e escudos como os Anéis da Vigília (tudo)
+  const spellResist = dm.damageResist + (attack.magic && !attack.piercesDarkness ? dm.magicResist : 0); // Lua Negra (só magia) e escudos como os Anéis da Vigília (tudo)
+  const resist = Math.min(C.DAMAGE_RESIST_CAP, spellResist + bodyResist(defender)); // + Resistência do corpo, contra qualquer golpe
   let damage = Math.max(1, Math.round(raw * vuln * (1 - resist)));
   let log = `${attacker.name} usou **${attack.name}** em ${defender.name} (${damage} de dano).`;
   if (crit) log += `\n💥 **Golpe crítico!**`;
   if (darkFails) log += `\n☀️ A dispersão de luz é grande demais: a escuridão de ${defender.name} não consegue absorvê-la.`;
-  if (resist > 0) log += `\n🛡️ As proteções de ${defender.name} reduziram o dano em ${Math.round(resist * 100)}%.`;
+  if (spellResist > 0) log += `\n🛡️ As proteções de ${defender.name} reduziram o dano em ${Math.round(resist * 100)}%.`; // só a Resistência não avisa (todo golpe teria a linha)
   if (vuln > 1) log += `\n💧 ${defender.name} está vulnerável a esse elemento (dano x${+vuln.toFixed(2)}).`;
 
   if (reaction) {
@@ -444,7 +454,7 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
     } else if (reaction.kind === 'dodge') {
       const chance = Math.max(0, Math.min(
         C.DODGE_CHANCE_CAP,
-        reaction.chance + defender.attrs.destreza * C.DODGE_CHANCE_PER_DEXTERITY + fx.getMods(defender).dodgeDelta - (reaction.ignoresSpeed ? 0 : attack.dodgePenalty ?? 0), // golpes que cercam ou perseguem o alvo (dodgePenalty) são mais difíceis de esquivar; `ignoresSpeed` (Deslocamento Atemporal) não liga para isso
+        reaction.chance + dexterityDodge(defender) + fx.getMods(defender).dodgeDelta - (reaction.ignoresSpeed ? 0 : attack.dodgePenalty ?? 0), // golpes que cercam ou perseguem o alvo (dodgePenalty) são mais difíceis de esquivar; `ignoresSpeed` (Deslocamento Atemporal) não liga para isso
       ));
       if (Math.random() < chance) {
         damage = 0;
@@ -515,6 +525,7 @@ function resolveAttack(attacker, defender, attack, reaction, battle) {
   }
   if (reaction) {
     const cost = spend(defender, reaction);
+    if (reaction.cooldown) defender.cooldowns[reaction.id] = reaction.cooldown; // a recarga conta nos turnos do defensor
     log += `\n${resourceOf(reaction) === 'mana' ? '🔷' : '⚡'} ${defender.name} gastou ${cost} de ${resourceLabel(reaction)}.`;
   }
 

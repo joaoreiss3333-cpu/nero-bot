@@ -48,8 +48,13 @@ module.exports = {
   // 4 e 5 folhas têm a mesma força; o de 5 se diferencia pela magia de demônio.
   CLOVER_MULT: { 3: 1, 4: 1.2, 5: 1.2 },
   DEFENSE_PER_POINT: { resistencia: 0.5, magiaDefensiva: 0.6 },
-  DODGE_CHANCE_PER_DEXTERITY: 0.004, // chance extra de esquiva por ponto de Destreza (+0,4%)
-  DODGE_CHANCE_CAP: 0.8,
+  // Destreza soma em TODA esquiva (normal e mágicas), mas rende cada vez menos: bônus = MAX × D / (D + HALF).
+  // Com HALF 60: 30 pontos = +6,7%, 60 = +10%, 100 = +12,5%. Nunca chega a +20%.
+  DEXTERITY_DODGE_MAX: 0.2,
+  DEXTERITY_DODGE_HALF: 60,
+  DODGE_CHANCE_CAP: 0.75,         // teto da chance de esquiva, somando tudo
+  RESIST_PER_POINT: 0.0025,       // Resistência: cada ponto corta 0,25% de qualquer golpe (100 pontos = 25%)
+  DAMAGE_RESIST_CAP: 0.9,         // teto da redução de dano somando Resistência e proteções
   BASE_SPEED: 10,                 // velocidade = BASE_SPEED + Destreza
   EFFECT_MAX_STACKS: 5,           // máximo de stacks de um efeito acumulável (sangramento, veneno...)
   CRIT_CHANCE_BASE: 0.05,         // chance base de crítico em todo ataque (efeitos como Brilho Estelar somam)

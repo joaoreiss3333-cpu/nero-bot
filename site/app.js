@@ -152,10 +152,20 @@ async function pageGuide() {
       <h3 style="margin-top:1.2em">Vida, mana e energia</h3>
       <p>Vida: <b>${g.hp.base}</b> no nível 1, +<b>${g.hp.perLevel}</b> por nível.<br>
          Mana: ${steps(g.manaSteps)}<br>Energia: ${steps(g.energySteps)}</p>`],
-    ['atributos', 'Atributos', `
-      <p>Cada atributo vai até <b>${g.attributeCap}</b>. Eles aumentam o dano, a defesa e a cura das habilidades que usam aquele atributo.</p>
-      <div class="chips">${g.attributes.map(a => `<span class="chip">${esc(a)}</span>`).join('')}</div>
-      <p style="margin-top:1em" class="muted">Destreza também aumenta a velocidade (ordem dos turnos) e a chance de esquiva.</p>`],
+    ['atributos', 'Atributos', (() => { const pct = (v, d = 0) => `${(v * 100).toFixed(d).replace('.', ',')}%`; const dexAt = d => g.dodge.max * d / (d + g.dodge.half); return `
+      <p>Cada atributo vai até <b>${g.attributeCap}</b>.</p>
+      <table style="margin-top:1em"><tr><th>Atributo</th><th>O que faz</th></tr>
+        <tr><td><b>Força</b></td><td>Dano do Soco e dos golpes físicos.</td></tr>
+        <tr><td><b>Destreza</b></td><td>Decide quem começa a batalha e soma em <b>toda</b> esquiva (normal e mágicas). Rende cada vez menos:
+          30 pontos = +${pct(dexAt(30))}, 60 = +${pct(dexAt(60))}, 100 = +${pct(dexAt(100))}. A chance de esquiva nunca passa de <b>${pct(g.dodge.cap)}</b>.</td></tr>
+        <tr><td><b>Resistência</b></td><td>Corta <b>${pct(g.resistPerPoint, 2)}</b> de qualquer golpe por ponto (100 pontos = ${pct(g.resistPerPoint * 100)}) e aumenta o Bloqueio.
+          Somada às proteções das magias, a redução vai até ${pct(g.resistCap)}.</td></tr>
+        <tr><td><b>Inteligência</b></td><td>Fabricação de itens (em breve).</td></tr>
+        <tr><td><b>Armas Brancas</b></td><td>Dano com armas e magias de espada (em breve).</td></tr>
+        <tr><td><b>Magia Ofensiva / Suplementar</b></td><td>Dano e cura das magias desse tipo.</td></tr>
+        <tr><td><b>Magia Defensiva</b></td><td>Quanto as barreiras mágicas (reações de bloqueio) absorvem.</td></tr>
+      </table>
+      <p class="muted">As reações de esquiva têm recarga: a Esquiva só pode ser usada uma vez por rodada, e as esquivas mágicas precisam de mais tempo.</p>`; })()],
     ['combate', 'Combate', `
       <p>As batalhas acontecem num mapa em grade. No seu turno você primeiro se move (até <b>${g.movesPerTurn}</b> casas, sem diagonal)
          e depois age:</p>

@@ -34,7 +34,7 @@ function reactionRow(battle) {
   const defender = findPlayer(battle, battle.pending.defenderId);
   const buttons = abilitiesOf(defender, 'reaction').map(a =>
     btn(`react:${a.id}`, a.kind === 'dodge' ? ButtonStyle.Primary : ButtonStyle.Success)
-      .setLabel(`${a.name} (-${abilityCost(defender, a)} ${resourceLabel(a)})`)
+      .setLabel(defender.cooldowns[a.id] > 0 ? `${a.name} (recarga: ${defender.cooldowns[a.id]})` : `${a.name} (-${abilityCost(defender, a)} ${resourceLabel(a)})`)
       .setEmoji(a.emoji)
       .setDisabled(!!reactionBlock(defender, a, battle.pending.attack)));
   buttons.push(btn('react:nenhuma').setLabel('Não reagir'));
